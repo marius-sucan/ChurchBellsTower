@@ -43,14 +43,14 @@ v1.7.0 - 2018 / 10 / 09
 - [new] options to control width and height of the on-screen display
 - improved and simplified the tray menu
 - improved the preferences window layout
-- it can store its settings in the windows registry, instead of an INI file [this is for the Windows Store release]
+- it can store its settings in the Windows registry, instead of an INI file [this is for the Windows Store release]
 - and of course, bug fixes
 
 v1.6.1 - 2018 / 10 / 03
 - [new] at the About window, you can see a progress bar for the entire year and one for the current day, both highlighting how much of the current year and day has elapsed.
 - [new] in the same window, you can also learn when the next equinox or solstice is going to occur, and when was the previous one
 
-v1.5.6 - 2018 / 09 / 29
+v1.5.6 - 2018 / 09 / 30
 - [new] it now shows the time and date simply by hovering the tray icon
 - fixed a bug reported by Garry [on AHK forums]; it will play the audios on both the left and right channels
 
@@ -73,12 +73,14 @@ v1.5.0 - 2018 / 09 / 20
 - [improved] tick/tock background sound no longer gets interrupted when bells strike
 
 v1.0 - 2018 / 09 / 16
-- initial release... with all the basic features
+- initial release... with all the basic features and options
 - strike quarter-hours
 - strike on the hour once... or the number of hours
 - toll distinctively every six hours [early morning, at noon, in the evening and at midnight]
 - option to display time when it chimes
-- option to start at boot [if compiled]
+- start at boot [if compiled]
+- automatically unmute audio when striking bells
+- volume control
 - options to control/customize the OSD
 
 

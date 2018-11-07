@@ -19,8 +19,9 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.5.2
-;@Ahk2Exe-SetOrigFilename keypress-osd.ahk
+;@Ahk2Exe-SetVersion 1.5.6
+;@Ahk2Exe-SetOrigFilename bells-tower.ahk
+;@Ahk2Exe-SetMainIcon bell-tower.ico
 
 ;================================================================
 ; Section. Auto-exec.
@@ -48,14 +49,15 @@
  , tollHours            := 1
  , tollHoursAmount      := 1
  , tollNoon             := 1
- , BeepsVolume          := 45
+ , BeepsVolume          := 35
+ , dynamicVolume        := 1
  , displayClock         := 1
  , silentHours          := 1
  , silentHoursA         := 12
  , silentHoursB         := 14
  , AutoUnmute           := 1
  , tickTockNoise        := 0
- , strikeInterval       := 2300
+ , strikeInterval       := 2000
 
 ; OSD settings
  , displayTimeFormat      := 1
@@ -74,25 +76,26 @@
  , OSDtextColor           := "FFFEFA"
  , OSDsizingFactor        := calcOSDresizeFactor()
 
-
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.5.2"
- , ReleaseDate            := "2018 / 09 / 21"
+ , Version                := "1.5.6"
+ , ReleaseDate            := "2018 / 09 / 30"
  , ScriptInitialized, FirstRun := 1
+ , LastNoon := 0, appName := "Church Bells Tower"
 
-; Check if INIT previously failed or if KP is running and then load settings.
-; These functions are in Section 8.
+   If !A_IsCompiled
+      Menu, Tray, Icon, bell-tower.ico
 
-    INIaction(0, "FirstRun", "SavedSettings")
-    If (FirstRun=0)
-    {
-       INIsettings(0)
-    } Else
-    {
-       CheckSettings()
-       INIsettings(1)
-    }
+   INIaction(0, "FirstRun", "SavedSettings")
+   If (FirstRun=0)
+   {
+      INIsettings(0)
+   } Else
+   {
+      TrayTip, %appName%, Please configure the application for optimal experience.
+      CheckSettings()
+      INIsettings(1)
+   }
 
 ; Initialization variables. Altering these may lead to undesired results.
 
@@ -105,8 +108,8 @@ Global Debug := 0    ; for testing purposes
  , MousePosition := ""
  , DoNotRepeatTimer := 0
  , PrefOpen := 0
- , appName := "Church Bells Tower"
  , FontList := []
+ , actualVolume := 0
  , LargeUIfontValue := 13
  , ShowPreview := 0
  , stopStrikesNow := 0
@@ -139,7 +142,8 @@ If (tickTockNoise=1)
 theChimer()
 SetTimer, theChimer, 15000
 ScriptInitialized := 1      ; the end of the autoexec section and INIT
-showCurrentTime()
+ShowHotkey(generateDateTimeTxt())
+SetTimer, HideGUI, % -DisplayTime/2
 Return
 
 VerifyFiles() {
@@ -166,25 +170,34 @@ VerifyFiles() {
 AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
   If (PrefOpen=1 || A_IsSuspended)
      Return
-  Tickcount_start2 := A_TickCount
+  
   If (lParam = 0x201) || (lParam = 0x204) || (lParam = 0x207)
   {
      stopStrikesNow := 1
-     showCurrentTime()
+     ShowHotkey(generateDateTimeTxt())
+     SetTimer, HideGUI, % -DisplayTime/1.5
+  } Else If (OSDvisible=0)
+  {
+     ShowHotkey(generateDateTimeTxt(0))
+     SetTimer, HideGUI, % -DisplayTime/1.5
   }
-}
-
-showCurrentTime() {
-     FormatTime, CurrentTime, D2 T8 T2 T4
-     ShowHotkey(CurrentTime)
-     SetTimer, HideGUI, % -DisplayTime/2
 }
 
 SetMyVolume() {
   Static mustRestoreVol, LastInvoked := 1
+
+  If (PrefOpen=1)
+     GuiControlGet, DynamicVolume
+
+  If (DynamicVolume=0)
+  {
+     SetVolume(BeepsVolume)
+     Return
+  }
+
   If (BeepsVolume<2)
   {
-     SetVolume(1)
+     SetVolume(0)
      Return
   }
 
@@ -209,22 +222,26 @@ SetMyVolume() {
 
   SoundGet, master_volume
   If (master_volume>50 && BeepsVolume>50)
-     val := BeepsVolume - master_volume/3
+     val := BeepsVolume - Round(master_volume/3)
   Else If (master_volume<49 && BeepsVolume>50)
      val := BeepsVolume + Round(master_volume/6)
   Else If (master_volume<50 && BeepsVolume<50)
-     val := BeepsVolume + master_volume/4
+     val := BeepsVolume + Round(master_volume/4)
   Else
      val := BeepsVolume
+  If (master_volume<25 && BeepsVolume<25)
+     val := BeepsVolume + Round(master_volume/1.3)
+  Else If (master_volume<25 && BeepsVolume>70)
+     val := BeepsVolume + master_volume
   Random, randySound, -2, 2
-  val := val + randySound
-  If (val>99)
-     val := 99
-  SetVolume(val)
+  actualVolume := val + Round(randySound)
+  If (actualVolume>99)
+     actualVolume := 99
+  SetVolume(actualVolume)
   Return mustRestoreVol
 }
 
-SetVolume(val:=100, r:="") {
+SetVolume(val:=100,r:="") {
 ; Function by Drugwash
   v := Round(val*655.35), vr := r="" ? v : Round(r*655.35)
   DllCall("winmm\waveOutSetVolume", "UInt", 0, "UInt", (v|vr<<16))
@@ -239,24 +256,25 @@ volSlider() {
     GuiControlGet, strikeInterval
 
     stopStrikesNow := 0
-    GuiControl, , volLevel, % "Audio volume: " result " %"
     BeepsVolume := result
-    VerifyOsdOptions()
     SetMyVolume()
+    VerifyOsdOptions()
+    GuiControl, , volLevel, % (result<2) ? "Audio: [ MUTE ]" : "Audio volume: " result " % "
     If (tollQuarters=1)
        strikeQuarters()
     If (tollHours=1 || tollHoursAmount=1)
        strikeHours()
 }
 
-RandomNumberCalc() {
-  Static lastNumber := 1
+RandomNumberCalc(minVariation:=250,maxVariation:=500) {
+  Static newNumber := 1
+       , lastNumber := 1
   Loop
   {
-     Random, newNumber, 5, 650
-     If (newNumber - lastNumber > 350) || (lastNumber - newNumber > 350)
+     Random, newNumber, 5, %maxVariation%
+     If (newNumber - lastNumber > minVariation) || (lastNumber - newNumber > minVariation)
         allGood := 1
-  } Until (allGood=1)
+  } Until (allGood=1 || A_Index>90000)
   lastNumber := newNumber
   Return newNumber
 }
@@ -293,7 +311,6 @@ theChimer() {
   Else
      FormatTime, CurrentTimeDisplay,, h:mm tt
   FormatTime, HoursIntervalTest,, H ; 0-23 format
- ;  ToolTip, %CurrentTimeDisplay%
 
   If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=2)
      soundBells := 1
@@ -323,34 +340,19 @@ theChimer() {
      If (displayClock=1)
         ShowHotkey(CurrentTimeDisplay)
      Loop, 3
+     {
         strikeQuarters()
+        Sleep, % A_Index * 150
+     }
   } Else If InStr(exactTime, "05:59") && (tollNoon=1)
   {
      volumeAction := SetMyVolume()
      SoundPlay, sounds\morning.wav, 1
-  } Else If InStr(exactTime, "12:02") && (tollNoon=1)
-  {
-     sleepDelay := RandomNumberCalc()
-     Sleep, % strikeInterval/2 + sleepDelay
-
-     volumeAction := SetMyVolume()
-     FormatTime, sekunds,, ss   ; seconds
-     StringRight, sekunds, sekunds, 1
-     If (sekunds ~= "i)(0|1|4|7)")
-        choice := 1
-     Else If (sekunds ~= "i)(2|5|8)")
-        choice := 2
-     Else If (sekunds ~= "i)(3|6|9)")
-        choice := 3
-     If (ScriptInitialized=1 && volumeAction>0)
-        SoundPlay, sounds\noon%choice%.mp3, 1
-     Else If (ScriptInitialized=1)
-        SoundPlay, sounds\noon%choice%.mp3
-
   } Else If InStr(exactTime, "17:59") && (tollNoon=1)
   {
      volumeAction := SetMyVolume()
-     SoundPlay, sounds\evening.mp3, 1
+     If (BeepsVolume>1)
+        SoundPlay, sounds\evening.mp3, 1
   } Else If InStr(exactTime, "23:59") && (tollNoon=1)
   {
      volumeAction := SetMyVolume()
@@ -361,10 +363,14 @@ theChimer() {
      If (tollQuarters=1 && tollQuartersException=0)
      {
         volumeAction := SetMyVolume()
+        volumeActionRan := 1
         If (displayClock=1)
            ShowHotkey(CurrentTimeDisplay)
         Loop, 4
+        {
            strikeQuarters()
+           Sleep, % A_Index * 125
+        }
      }
      Random, delayRand, 900, 1600
      Sleep, %delayRand%
@@ -373,16 +379,35 @@ theChimer() {
      If (tollHoursAmount=1 && tollHours=1)
      {
         volumeAction := SetMyVolume()
+        volumeActionRan := 1
         If (displayClock=1)
            ShowHotkey(CurrentTimeDisplay)
         Loop, %countHours2beat%
+        {
            strikeHours()
+           Sleep, % A_Index * 75
+        }
      } Else If (tollHours=1)
      {
         volumeAction := SetMyVolume()
+        volumeActionRan := 1
         If (displayClock=1)
            ShowHotkey(CurrentTimeDisplay)
         strikeHours()
+     }
+
+     If InStr(exactTime, "12:0") && (tollNoon=1)
+     {
+        Random, delayRand, 2000, 4500
+        Sleep, %delayRand%
+        If (volumeActionRan!=1)
+           volumeAction := SetMyVolume()
+        choice := (LastNoon=3) ? 1 : LastNoon + 1
+        IniWrite, %choice%, %IniFile%, SavedSettings, LastNoon
+        If (stopStrikesNow=0 && ScriptInitialized=1 && volumeAction>0 && BeepsVolume>1)
+           SoundPlay, sounds\noon%choice%.mp3, 1
+        Else If (stopStrikesNow=0 && BeepsVolume>1)
+           SoundPlay, sounds\noon%choice%.mp3
      }
   }
 
@@ -449,7 +474,6 @@ ShowHotkey(string) {
 HideGUI() {
     OSDvisible := 0
     Gui, OSD: Hide
-    Gui, capTxt: Hide
 }
 
 GetTextExtentPoint(sString, sFaceName, nHeight, initialStart := 0) {
@@ -969,8 +993,22 @@ OSDpreview() {
     Sleep, 25
     CreateOSDGUI()
     UpdateFntNow()
-    FormatTime, CurrentTimeRead, D2 T8 T2 T4
-    ShowHotkey(CurrentTimeRead)
+    ShowHotkey(generateDateTimeTxt())
+}
+
+generateDateTimeTxt(LongD:=1) {
+    If (displayTimeFormat=1)
+       FormatTime, CurrentTime,, H:mm
+    Else
+       FormatTime, CurrentTime,, h:mm tt
+
+    If (LongD=1)
+       FormatTime, CurrentDate,, LongDate
+    Else
+       FormatTime, CurrentDate,, ShortDate
+
+    txtReturn := CurrentTime " | " CurrentDate
+    Return txtReturn
 }
 
 editsOSDwin() {
@@ -995,21 +1033,22 @@ ShowOSDsettings() {
     Global positionB, editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel
          , editF7, editF8, editF9, editF10, editF35, editF36, editF37, Btn2, txt1, txt2, txt3
     GUIposition := GUIposition + 1
-    columnBpos1 := columnBpos2 := 150
+    columnBpos1 := columnBpos2 := 160
     editFieldWid := 220
     If (PrefsLargeFonts=1)
     {
        Gui, Font, s%LargeUIfontValue%
        editFieldWid := 285
-       columnBpos1 := columnBpos2 := columnBpos2 + 100
+       columnBpos1 := columnBpos2 := columnBpos2 + 90
     }
     columnBpos1b := columnBpos1 + 20
 
     Gui, Add, Tab3, , General|OSD options
 
     Gui, Tab, 1 ; general
-    Gui, Add, Text, x+15 y+15 Section +0x200 vvolLevel, % "Audio volume: " BeepsVolume " %"
+    Gui, Add, Text, x+15 y+15 Section +0x200 vvolLevel, % "Audio volume: " BeepsVolume " % "
     Gui, Add, Slider, x+5 hp ToolTip NoTicks gVolSlider w200 vBeepsVolume Range0-99, %BeepsVolume%
+    Gui, Add, Checkbox, gVerifyOsdOptions x+5 Checked%DynamicVolume% vDynamicVolume, Dynamic
     Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%AutoUnmute% vAutoUnmute, Automatically unmute master volume [when required]
     Gui, Add, Checkbox, y+10 gVerifyOsdOptions Checked%tollNoon% vtollNoon, Toll distinctively every six hours [eg., noon, midnight]
     Gui, Add, Checkbox, y+10 gVerifyOsdOptions Checked%tollQuarters% vtollQuarters, Strike quarter-hours
@@ -1048,6 +1087,7 @@ ShowOSDsettings() {
     Gui, Add, Text, xs yp+30, Transparency
     Gui, Add, Text, xs yp+30, Font size
     Gui, Add, Checkbox, y+9 gVerifyOsdOptions Checked%OSDborder% vOSDborder, System border around OSD
+    Gui, Add, Checkbox, xs+%columnBpos2% yp+0 h25 +0x1000 gVerifyOsdOptions Checked%ShowPreview% vShowPreview, Show preview window
 
     Gui, Add, DropDownList, xs+%columnBpos2% ys+0 section w200 gVerifyOsdOptions Sort Choose1 vFontName, %FontName%
     Gui, Add, ListView, xp+0 yp+30 w55 h20 %CCLVO% Background%OSDtextColor% vOSDtextColor hwndhLV1,
@@ -1073,9 +1113,6 @@ ShowOSDsettings() {
     }
 
     Gui, Tab
-    Gui, Font, Bold
-    Gui, Add, Checkbox, y+8 gVerifyOsdOptions Checked%ShowPreview% vShowPreview, Show preview window
-    Gui, Font, Normal
 
     Gui, Add, Button, xm+0 y+10 w70 h30 Default gApplySettings vApplySettingsBTN, A&pply
     Gui, Add, Button, x+8 wp hp gCloseSettings, C&ancel
@@ -1109,7 +1146,8 @@ VerifyOsdOptions(EnableApply:=1) {
 
     If (OSDsizingFactor>398 || OSDsizingFactor<12)
        GuiControl, , editF9, % calcOSDresizeFactor()
-    If (A_TickCount - LastInvoked>900)
+    If (A_TickCount - LastInvoked>900) || (OSDvisible=0 && ShowPreview=1)
+    || (OSDvisible=1 && ShowPreview=0)
     {
        LastInvoked := A_TickCount
        OSDpreview()
@@ -1165,7 +1203,7 @@ AboutWindow() {
     Gui, Add, Link, xp+25 y+10, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com">send me feedback</a>.
     Gui, Font, Normal
     Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindow, &Deus lux est
-    Gui, Add, Button, x+5 hp w80 Default gShowOSDsettings, &Settings
+    Gui, Add, Button, x+5 hp w80 gShowOSDsettings, &Settings
     Gui, Add, Text, x+8 hp +0x200, Released: %ReleaseDate%
     Gui, Show, AutoSize, About %appName%
     verifySettingsWindowSize()
@@ -1205,9 +1243,11 @@ INIsettings(a) {
   INIaction(a, "silentHoursB", "SavedSettings")
   INIaction(a, "displayTimeFormat", "SavedSettings")
   INIaction(a, "BeepsVolume", "SavedSettings")
+  INIaction(a, "DynamicVolume", "SavedSettings")
   INIaction(a, "AutoUnmute", "SavedSettings")
   INIaction(a, "tickTockNoise", "SavedSettings")
   INIaction(a, "strikeInterval", "SavedSettings")
+  INIaction(a, "LastNoon", "SavedSettings")
 
 ; OSD settings
   INIaction(a, "CurrentDPI", "OSDprefs")
@@ -1257,6 +1297,7 @@ CheckSettings() {
     BinaryVar(displayClock, 1)
     BinaryVar(AutoUnmute, 1)
     BinaryVar(tickTockNoise, 0)
+    BinaryVar(DynamicVolume, 1)
 
 ; correct contradictory settings
 
@@ -1275,7 +1316,8 @@ CheckSettings() {
     MinMaxVar(silentHours, 1, 3, 1)
     MinMaxVar(silentHoursA, 0, 23, 12)
     MinMaxVar(silentHoursB, 0, 23, 14)
-    MinMaxVar(strikeInterval, 500, 5500, 2300)
+    MinMaxVar(LastNoon, 1, 3, 2)
+    MinMaxVar(strikeInterval, 500, 5500, 2000)
     MinMaxVar(OSDalpha, 24, 252, 200)
     MinMaxVar(OSDsizingFactor, 20, 400, calcOSDresizeFactor())
     If (silentHoursB<silentHoursA)
