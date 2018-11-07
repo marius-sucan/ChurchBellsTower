@@ -17,11 +17,11 @@
 ;
 ;@Ahk2Exe-SetName Church Bells Tower
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
-;@Ahk2Exe-SetCompanyName sucan.ro
+;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.5.6
+;@Ahk2Exe-SetVersion 1.7.2
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
-;@Ahk2Exe-SetMainIcon bell-tower.ico
+;@Ahk2Exe-SetMainIcon bells-tower.ico
 
 ;================================================================
 ; Section. Auto-exec.
@@ -58,33 +58,38 @@
  , AutoUnmute           := 1
  , tickTockNoise        := 0
  , strikeInterval       := 2000
+ , AdditionalStrikes    := 0
+ , strikeEveryMin       := 5
 
 ; OSD settings
  , displayTimeFormat      := 1
  , DisplayTimeUser        := 3     ; in seconds
  , OSDborder              := 0
- , GUIposition            := 1     ; toggle between positions with Ctrl + Alt + Shift + F9
  , GuiX                   := 40
  , GuiY                   := 250
  , GuiWidth               := 350
  , MaxGuiWidth            := A_ScreenWidth
  , FontName               := (A_OSVersion="WIN_XP") ? "Lucida Sans Unicode" : "Arial"
- , FontSize               := 19
+ , FontSize               := 26
  , PrefsLargeFonts        := 0
  , OSDbgrColor            := "131209"
  , OSDalpha               := 200
  , OSDtextColor           := "FFFEFA"
- , OSDsizingFactor        := calcOSDresizeFactor()
+ , OSDsizingFactorW       := 0
+ , OSDsizingFactor        := calcOSDresizeFactor("A",1)
+ , OSDsizingFactorH       := 86
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.5.6"
- , ReleaseDate            := "2018 / 09 / 30"
+ , Version                := "1.7.2"
+ , ReleaseDate            := "2018 / 10 / 18"
+ , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , LastNoon := 0, appName := "Church Bells Tower"
+ , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-0"
 
    If !A_IsCompiled
-      Menu, Tray, Icon, bell-tower.ico
+      Menu, Tray, Icon, bells-tower.ico
 
    INIaction(0, "FirstRun", "SavedSettings")
    If (FirstRun=0)
@@ -94,12 +99,18 @@
    {
       TrayTip, %appName%, Please configure the application for optimal experience.
       CheckSettings()
+      OSDsizingFactorW := calcOSDresizeFactor(0,2)
       INIsettings(1)
    }
 
 ; Initialization variables. Altering these may lead to undesired results.
 
 Global Debug := 0    ; for testing purposes
+ , CSthin      := "░"   ; light gray 
+ , CSmid       := "▒"   ; gray 
+ , CSdrk       := "▓"   ; dark gray
+ , CSblk       := "█"   ; full block
+
  , DisplayTime := DisplayTimeUser*1000
  , GuiHeight := 50                    ; a default, later overriden
  , OSDvisible := 0
@@ -110,12 +121,17 @@ Global Debug := 0    ; for testing purposes
  , PrefOpen := 0
  , FontList := []
  , actualVolume := 0
+ , AdditionalStrikeFreq := strikeEveryMin * 60000
  , LargeUIfontValue := 13
  , ShowPreview := 0
+ , ShowPreviewDate := 0
  , stopStrikesNow := 0
+ , strikingBellsNow := 0
  , CurrentDPI := A_ScreenDPI
  , AnyWindowOpen := 0
+ , CurrentPrefWindow := 0
  , ScriptelSuspendel := 0
+ , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
  , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
  , hOSD, OSDhandles, dragOSDhandles, ColorPickerHandles
  , hMain := A_ScriptHwnd
@@ -136,15 +152,23 @@ hCursM := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32646, "Ptr")  ; IDC
 hCursH := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32649, "Ptr")  ; IDC_HAND
 OnMessage(0x200, "MouseMove")    ; WM_MOUSEMOVE
 OnMessage(0x404, "AHK_NOTIFYICON")
+OnMessage(0x11, "WM_QUERYENDSESSION")
 Sleep, 5
 If (tickTockNoise=1)
    SoundLoop(tickTockSound)
 theChimer()
-SetTimer, theChimer, 15000
+Sleep, 300
 ScriptInitialized := 1      ; the end of the autoexec section and INIT
 ShowHotkey(generateDateTimeTxt())
 SetTimer, HideGUI, % -DisplayTime/2
+If (AdditionalStrikes=1)
+   SetTimer, AdditionalStriker, %AdditionalStrikeFreq%
 Return
+
+WM_QUERYENDSESSION() {
+  Sleep, 5000
+  ExitApp
+}
 
 VerifyFiles() {
   Loop, Files, sounds\*.wav
@@ -155,6 +179,8 @@ VerifyFiles() {
      FileRemoveDir, sounds, 1
   Sleep, 50
   FileCreateDir, sounds
+  FileInstall, bell-image.png, bell-image.png
+  FileInstall, paypal.png, paypal.png
   FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
   FileInstall, sounds\quarters.wav, sounds\quarters.wav
   FileInstall, sounds\hours.wav, sounds\hours.wav
@@ -170,24 +196,38 @@ VerifyFiles() {
 AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
   If (PrefOpen=1 || A_IsSuspended)
      Return
-  
-  If (lParam = 0x201) || (lParam = 0x204) || (lParam = 0x207)
+  If (lParam = 0x201) || (lParam = 0x204)
   {
      stopStrikesNow := 1
+     strikingBellsNow := 0
+     If (lParam = 0x204)
+        ShowHotkey(generateDateTimeTxt())
+     Else
+        ShowHotkey(generateDateTimeTxt(1,1))
+     SetTimer, HideGUI, % -DisplayTime/1.5
+  } Else If (lParam = 0x207) && (strikingBellsNow=0)
+  {
+     SetMyVolume(1)
      ShowHotkey(generateDateTimeTxt())
      SetTimer, HideGUI, % -DisplayTime/1.5
-  } Else If (OSDvisible=0)
+     If (tollQuarters=1)
+        strikeQuarters()
+     If (tollHours=1 || tollHoursAmount=1)
+        strikeHours()
+  } Else If (OSDvisible=0 && strikingBellsNow=0)
   {
      ShowHotkey(generateDateTimeTxt(0))
      SetTimer, HideGUI, % -DisplayTime/1.5
   }
 }
 
-SetMyVolume() {
+SetMyVolume(noRestore:=0) {
   Static mustRestoreVol, LastInvoked := 1
 
   If (PrefOpen=1)
      GuiControlGet, DynamicVolume
+  Else If (AnyWindowOpen>0)
+     CloseWindow()
 
   If (DynamicVolume=0)
   {
@@ -202,7 +242,7 @@ SetMyVolume() {
   }
 
   If (ScriptInitialized=1 && AutoUnmute=1 && BeepsVolume>3)
-  && (A_TickCount - LastInvoked > 20500)
+  && (A_TickCount - LastInvoked > 420500) && (noRestore=0)
   {
      mustRestoreVol := 0
      LastInvoked := A_TickCount
@@ -229,14 +269,17 @@ SetMyVolume() {
      val := BeepsVolume + Round(master_volume/4)
   Else
      val := BeepsVolume
+
   If (master_volume<25 && BeepsVolume<25)
      val := BeepsVolume + Round(master_volume/1.3)
   Else If (master_volume<25 && BeepsVolume>70)
      val := BeepsVolume + master_volume
+
   Random, randySound, -2, 2
-  actualVolume := val + Round(randySound)
+  actualVolume := val + randySound
   If (actualVolume>99)
      actualVolume := 99
+
   SetVolume(actualVolume)
   Return mustRestoreVol
 }
@@ -257,7 +300,7 @@ volSlider() {
 
     stopStrikesNow := 0
     BeepsVolume := result
-    SetMyVolume()
+    SetMyVolume(1)
     VerifyOsdOptions()
     GuiControl, , volLevel, % (result<2) ? "Audio: [ MUTE ]" : "Audio volume: " result " % "
     If (tollQuarters=1)
@@ -299,115 +342,174 @@ strikeHours() {
      Sleep, % strikeInterval + sleepDelay
 }
 
+TollExtraNoon() {
+  If (stopStrikesNow=1 || PrefOpen=1)
+     Return
+  ahkdll3 := AhkThread("#NoTrayIcon`nRandom, choice, 1, 3`nSoundPlay, sounds\noon%choice%.mp3, 1")
+}
+
+AdditionalStriker() {
+  Static lastStrikeType := 1
+
+  volumeAction := SetMyVolume()
+
+  If (lastStrikeType=1)
+     strikeQuarters()
+  Else
+     strikeHours()
+  lastStrikeType := !lastStrikeType
+
+  If (AutoUnmute=1 && volumeAction>0)
+  {
+     If (volumeAction=1 || volumeAction=3)
+        SoundSet, 1, , mute
+     If (volumeAction=2 || volumeAction=3)
+        SoundSet, %master_vol%
+  }
+}
+
 theChimer() {
   Critical, on
   Static lastChimed
   FormatTime, CurrentTime,, hh:mm
+  
   If (lastChimed=CurrentTime || A_IsSuspended || PrefOpen=1)
-     Return
+     mustEndNow := 1
   FormatTime, exactTime,, HH:mm
-  If (displayTimeFormat=1)
-     FormatTime, CurrentTimeDisplay,, H:mm
-  Else
-     FormatTime, CurrentTimeDisplay,, h:mm tt
   FormatTime, HoursIntervalTest,, H ; 0-23 format
 
   If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=2)
      soundBells := 1
 
   If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=3)
-  || (soundBells!=1 && silentHours=2)
+  || (soundBells!=1 && silentHours=2) || (mustEndNow=1)
+  {
+     SetTimer, theChimer, % ((15 - Mod(A_Min, 15)) * 60 - A_Sec) * 1000 - A_MSec + 50      ; formula provided by Bon [AHK forums]
      Return
+  }
+
   SoundGet, master_vol
   stopStrikesNow := 0
+  strikingBellsNow := 1
+  If (displayClock=1)
+     SetTimer, HideGUI, % -DisplayTime
 
-  If InStr(CurrentTime, ":15") && (tollQuarters=1)
+  Random, delayRandNoon, 950, 5050
+  If (InStr(exactTime, "06:00") && tollNoon=1)
+  {
+     volumeAction := SetMyVolume()
+     If (displayClock=1 && tollHours=0)
+        ShowHotkey(generateDateTimeTxt(1,1))
+     SoundPlay, sounds\morning.wav, 1
+     If (stopStrikesNow=0)
+        Sleep, %delayRandNoon%
+  } Else If (InStr(exactTime, "18:00") && tollNoon=1)
+  {
+     volumeAction := SetMyVolume()
+     If (displayClock=1 && tollHours=0)
+        ShowHotkey(generateDateTimeTxt(1,1))
+     If (BeepsVolume>1)
+        SoundPlay, sounds\evening.mp3, 1
+     If (stopStrikesNow=0)
+        Sleep, %delayRandNoon%
+  } Else If (InStr(exactTime, "00:00") && tollNoon=1)
+  {
+     volumeAction := SetMyVolume()
+     If (displayClock=1 && tollHours=0)
+        ShowHotkey(generateDateTimeTxt(1,1))
+     SoundPlay, sounds\midnight.wav, 1
+     If (stopStrikesNow=0)
+        Sleep, %delayRandNoon%
+  }
+
+  If (InStr(CurrentTime, ":15") && tollQuarters=1)
   {
      volumeAction := SetMyVolume()
      If (displayClock=1)
-        ShowHotkey(CurrentTimeDisplay)
+        ShowHotkey(generateDateTimeTxt(1,1))
      strikeQuarters()
-  } Else If InStr(CurrentTime, ":30") && (tollQuarters=1)
+  } Else If (InStr(CurrentTime, ":30") && tollQuarters=1)
   {
      volumeAction := SetMyVolume()
      If (displayClock=1)
-        ShowHotkey(CurrentTimeDisplay)
+        ShowHotkey(generateDateTimeTxt(1,1))
      Loop, 2
         strikeQuarters()
-  } Else If InStr(CurrentTime, ":45") && (tollQuarters=1)
+  } Else If (InStr(CurrentTime, ":45") && tollQuarters=1)
   {
      volumeAction := SetMyVolume()
      If (displayClock=1)
-        ShowHotkey(CurrentTimeDisplay)
+        ShowHotkey(generateDateTimeTxt(1,1))
      Loop, 3
      {
         strikeQuarters()
-        Sleep, % A_Index * 150
+        If (stopStrikesNow=0)
+           Sleep, % A_Index * 160
      }
-  } Else If InStr(exactTime, "05:59") && (tollNoon=1)
-  {
-     volumeAction := SetMyVolume()
-     SoundPlay, sounds\morning.wav, 1
-  } Else If InStr(exactTime, "17:59") && (tollNoon=1)
-  {
-     volumeAction := SetMyVolume()
-     If (BeepsVolume>1)
-        SoundPlay, sounds\evening.mp3, 1
-  } Else If InStr(exactTime, "23:59") && (tollNoon=1)
-  {
-     volumeAction := SetMyVolume()
-     SoundPlay, sounds\midnight.wav, 1
   } Else If InStr(CurrentTime, ":00")
   {
      FormatTime, countHours2beat,, h   ; 0-12 format
      If (tollQuarters=1 && tollQuartersException=0)
      {
         volumeAction := SetMyVolume()
-        volumeActionRan := 1
         If (displayClock=1)
-           ShowHotkey(CurrentTimeDisplay)
+           ShowHotkey(generateDateTimeTxt(1,1))
         Loop, 4
         {
            strikeQuarters()
-           Sleep, % A_Index * 125
+           If (stopStrikesNow=0)
+              Sleep, % A_Index * 140
         }
      }
      Random, delayRand, 900, 1600
-     Sleep, %delayRand%
+     If (stopStrikesNow=0)
+        Sleep, %delayRand%
      If (countHours2beat="00") || (countHours2beat=0)
         countHours2beat := 12
      If (tollHoursAmount=1 && tollHours=1)
      {
         volumeAction := SetMyVolume()
-        volumeActionRan := 1
         If (displayClock=1)
-           ShowHotkey(CurrentTimeDisplay)
+           ShowHotkey(generateDateTimeTxt(1,1))
         Loop, %countHours2beat%
         {
            strikeHours()
-           Sleep, % A_Index * 75
+           If (stopStrikesNow=0)
+              Sleep, % A_Index * 85
         }
      } Else If (tollHours=1)
      {
         volumeAction := SetMyVolume()
-        volumeActionRan := 1
         If (displayClock=1)
-           ShowHotkey(CurrentTimeDisplay)
+           ShowHotkey(generateDateTimeTxt(1,1))
         strikeHours()
      }
 
-     If InStr(exactTime, "12:0") && (tollNoon=1)
+     If (InStr(exactTime, "12:0") && tollNoon=1)
      {
-        Random, delayRand, 2000, 4500
-        Sleep, %delayRand%
-        If (volumeActionRan!=1)
-           volumeAction := SetMyVolume()
+        Random, delayRand, 2000, 8500
+        If (stopStrikesNow=0)
+           Sleep, %delayRand%
+        volumeAction := SetMyVolume()
         choice := (LastNoon=3) ? 1 : LastNoon + 1
-        IniWrite, %choice%, %IniFile%, SavedSettings, LastNoon
+        If (storeSettingsREG=0)
+           IniWrite, %choice%, %IniFile%, SavedSettings, LastNoon
+        Else
+           RegWrite, REG_SZ, %APPregEntry%, LastNoon, %choice%
+
+        If (displayClock=1 && tollHours=0)
+           ShowHotkey(generateDateTimeTxt(1,1))
+
         If (stopStrikesNow=0 && ScriptInitialized=1 && volumeAction>0 && BeepsVolume>1)
+        {
            SoundPlay, sounds\noon%choice%.mp3, 1
-        Else If (stopStrikesNow=0 && BeepsVolume>1)
+        } Else If (stopStrikesNow=0 && BeepsVolume>1)
+        {
+           Random, newDelay, 35000, 85000
            SoundPlay, sounds\noon%choice%.mp3
+           If (A_WDay=1)  ; on Sundays
+              SetTimer, TollExtraNoon, % -newDelay
+        }
      }
   }
 
@@ -418,13 +520,23 @@ theChimer() {
      If (volumeAction=2 || volumeAction=3)
         SoundSet, %master_vol%
   }
-
-  SetTimer, HideGUI, % -DisplayTime
+  strikingBellsNow := 0
   lastChimed := CurrentTime
+  SetTimer, theChimer, % ((15 - Mod(A_Min, 15)) * 60 - A_Sec) * 1000 - A_MSec + 50      ; formula provided by Bon [AHK forums]
 }
 
-calcOSDresizeFactor() {
-  Return Round(A_ScreenDPI / 1.1)
+calcOSDresizeFactor(given,retour:=0) {
+  SizingFactor := Round(A_ScreenDPI / 1.1 - FontSize/30)
+  OSDsizeW := Round(10000/SizingFactor)
+  If (given>0)
+     OSDsizingFactor := Round(10000/given)
+  Else If (given="A")
+     OSDsizingFactorW := Round(10000/SizingFactor)
+
+  If (retour=1)
+     Return SizingFactor
+  Else If (retour=2)
+     Return OSDsizeW
 }
 
 CreateOSDGUI() {
@@ -452,7 +564,7 @@ CreateOSDGUI() {
         WinSet, Style, +0x800000   ; small border
     }
     WinSet, Transparent, %OSDalpha%
-    Gui, OSD: Show, NoActivate Hide x%GuiX% y%GuiY%, txtCapOSDwin  ; required for initialization when Drag2Move is active
+    Gui, OSD: Show, NoActivate Hide x%GuiX% y%GuiY%, ChurchTowerWin  ; required for initialization when Drag2Move is active
     OSDhandles := hOSD "," hOSDctrl "," hOSDind1 "," hOSDind2 "," hOSDind3 "," hOSDind4
     dragOSDhandles := hOSDind1 "," hOSDind2 "," hOSDind3 "," hOSDind4
 }
@@ -464,10 +576,10 @@ ShowHotkey(string) {
     Text_width := GetTextExtentPoint(string, FontName, FontSize) / (OSDsizingFactor/100)
     Text_width := Round(Text_width)
     GuiControl, OSD: , HotkeyText, %string%
-    GuiControl, OSD: Move, HotkeyText, w%Text_width%
+    GuiControl, OSD: Move, HotkeyText, % " w" Text_width*2 " h" GuiHeight*2
 
-    Gui, OSD: Show, NoActivate x%GuiX% y%GuiY% AutoSize, txtCapOSDwin
-    WinSet, AlwaysOnTop, On, txtCapOSDwin
+    Gui, OSD: Show, NoActivate x%GuiX% y%GuiY% w%Text_width% h%GuiHeight%, ChurchTowerWin
+    WinSet, AlwaysOnTop, On, ChurchTowerWin
     OSDvisible := 1
 }
 
@@ -480,7 +592,9 @@ GetTextExtentPoint(sString, sFaceName, nHeight, initialStart := 0) {
 ; Function by Sean from:
 ; https://autohotkey.com/board/topic/16414-hexview-31-for-stdlib/#entry107363
 ; modified by Marius Șucan and Drugwash
-; Sleep, 60 ; megatest
+
+  If (!sString || StrLen(sString)<4)
+     sString := "LOLA"
 
   hDC := DllCall("user32\GetDC", "Ptr", 0, "Ptr")
   nHeight := -DllCall("kernel32\MulDiv", "Int", nHeight, "Int", DllCall("gdi32\GetDeviceCaps", "Ptr", hDC, "Int", 90), "Int", 72)
@@ -507,16 +621,24 @@ GetTextExtentPoint(sString, sFaceName, nHeight, initialStart := 0) {
   DllCall("gdi32\DeleteObject", "Ptr", hFont)
   DllCall("user32\ReleaseDC", "Ptr", 0, "Ptr", hDC)
   SetFormat, Integer, D
-
+  minWidth := FontSize*5
   nWidth := nSize & 0xFFFFFFFF
-  nWidth := (nWidth<35) ? 36 : Round(nWidth)
+  nWidth := (nWidth<minWidth) ? minWidth : Round(nWidth) + 20
 
+  heightUnit := 7 + Round(FontSize/16)
   minHeight := Round(FontSize*1.55)
+  If (minHeight<heightUnit*3.5)
+     minHeight := Round(heightUnit*3.5)
   maxHeight := Round(FontSize*3.1)
+  If (minHeight>maxHeight)
+     maxHeight := minHeight
+  HeightScalingFactor := OSDsizingFactorH/100
   GuiHeight := nSize >> 32 & 0xFFFFFFFF
   GuiHeight := GuiHeight / (OSDsizingFactor/100) + (OSDsizingFactor/10) + 4
   GuiHeight := (GuiHeight<minHeight) ? minHeight+1 : Round(GuiHeight)
   GuiHeight := (GuiHeight>maxHeight) ? maxHeight-1 : Round(GuiHeight)
+  GuiHeight := Round(GuiHeight*HeightScalingFactor)+Round(heightUnit*0.4)
+
   Return nWidth
 }
 
@@ -599,7 +721,7 @@ saveGuiPositions() {
   If (PrefOpen=0)
   {
      Sleep, 700
-     SetTimer, HideGUI, 1500
+     SetTimer, HideGUI, -1500
      INIaction(1, "GuiX", "OSDprefs")
      INIaction(1, "GuiY", "OSDprefs")
   } Else If (PrefOpen=1)
@@ -612,19 +734,19 @@ saveGuiPositions() {
 SetStartUp() {
   regEntry := """" A_ScriptFullPath """"
   StringReplace, regEntry, regEntry, .ahk", .exe"
-  RegRead, currentReg, HKCU, SOFTWARE\Microsoft\Windows\CurrentVersion\Run, %appName%
+  RegRead, currentReg, %StartRegPath%, %appName%
   If (ErrorLevel=1 || currentReg!=regEntry)
   {
      StringReplace, TestThisFile, ThisFile, .ahk, .exe
      If !FileExist(TestThisFile)
         MsgBox, This option works only in the compiled edition of this script.
-     RegWrite, REG_SZ, HKCU, SOFTWARE\Microsoft\Windows\CurrentVersion\Run, %appName%, %regEntry%
-     Menu, PrefsMenu, Check, Sta&rt at boot
+     RegWrite, REG_SZ, %StartRegPath%, %appName%, %regEntry%
+     Menu, Tray, Check, Sta&rt at boot
      ShowHotkey("Enabled Start at Boot")
   } Else
   {
-     RegDelete, HKCU, SOFTWARE\Microsoft\Windows\CurrentVersion\Run, %appName%
-     Menu, PrefsMenu, Uncheck, Sta&rt at boot
+     RegDelete, %StartRegPath%, %appName%
+     Menu, Tray, Uncheck, Sta&rt at boot
      ShowHotkey("Disabled Start at Boot")
   }
   SetTimer, HideGUI, % -DisplayTime
@@ -648,15 +770,19 @@ SuspendScript(partially:=0) {
    {
       stopStrikesNow := 1
       ScriptelSuspendel := 1
+      SetTimer, theChimer, Off
+      SetTimer, AdditionalStriker, Off
       Menu, Tray, Uncheck, &%appName% activated
-      If (tickTockNoise=1)
-         SoundLoop("")
+      SoundLoop("")
    } Else
    {
       ScriptelSuspendel := 0
       Menu, Tray, Check, &%appName% activated
       If (tickTockNoise=1)
          SoundLoop(tickTockSound)
+      SetTimer, theChimer, 100
+      If (AdditionalStrikes=1)
+         SetTimer, AdditionalStriker, %AdditionalStrikeFreq%
    }
    SoundPlay, non-existent.lol
    CreateOSDGUI()
@@ -677,22 +803,21 @@ ReloadScriptNow() {
 ;================================================================
 
 InitializeTray() {
-    Menu, PrefsMenu, Add, &Customize, ShowOSDsettings
-    Menu, PrefsMenu, Add
-    Menu, PrefsMenu, Add, L&arge UI fonts, ToggleLargeFonts
-    Menu, PrefsMenu, Add, Sta&rt at boot, SetStartUp
-    Menu, PrefsMenu, Add
+    Menu, Tray, NoStandard
+    Menu, Tray, Add, &Customize, ShowOSDsettings
+    Menu, Tray, Add, L&arge UI fonts, ToggleLargeFonts
+    If (storeSettingsREG=0)
+       Menu, Tray, Add, Sta&rt at boot, SetStartUp
+    Menu, Tray, Add
 
-    RegRead, currentReg, HKCU, SOFTWARE\Microsoft\Windows\CurrentVersion\Run, %appName%
-    If (StrLen(currentReg)>5)
-       Menu, PrefsMenu, Check, Sta&rt at boot
+    RegRead, currentReg, %StartRegPath%, %appName%
+    If (StrLen(currentReg)>5 && storeSettingsREG=0)
+       Menu, Tray, Check, Sta&rt at boot
 
     If (PrefsLargeFonts=1)
-       Menu, PrefsMenu, Check, L&arge UI fonts
+       Menu, Tray, Check, L&arge UI fonts
 
     RunType := A_IsCompiled ? "" : " [script]"
-    Menu, Tray, NoStandard
-    Menu, Tray, Add, &Preferences, :PrefsMenu
     If FileExist("sounds\ticktock.wav")
        Menu, Tray, Add, Tick/Tock sound, ToggleTickTock
     Menu, Tray, Add
@@ -712,7 +837,14 @@ InitializeTray() {
 ToggleLargeFonts() {
     PrefsLargeFonts := !PrefsLargeFonts
     INIaction(1, "PrefsLargeFonts", "SavedSettings")
-    Menu, PrefsMenu, % (PrefsLargeFonts=0 ? "Uncheck" : "Check"), L&arge UI fonts
+    Menu, Tray, % (PrefsLargeFonts=0 ? "Uncheck" : "Check"), L&arge UI fonts
+    If (PrefOpen=1)
+       SwitchPreferences(1)
+    Else If (AnyWindowOpen=1)
+    {
+       CloseWindow()
+       AboutWindow()
+    }
 }
 
 ToggleTickTock() {
@@ -741,8 +873,8 @@ ReloadScript(silent:=1) {
         If (silent!=1)
            ShowHotkey("Restarting...")
         Cleanup()
-        Reload
-        Sleep, 50
+        Try Reload
+        Sleep, 70
         ExitApp
     } Else
     {
@@ -761,28 +893,19 @@ ReloadScript(silent:=1) {
     }
 }
 
-RunAdminMode() {
-  If !A_IsAdmin
-  {
-      Try {
-         Cleanup()
-         If A_IsCompiled
-            Run *RunAs "%A_ScriptFullPath%" /restart
-         Else
-            Run *RunAs "%A_AhkPath%" /restart "%A_ScriptFullPath%"
-         ExitApp
-      }
-  }
-}
-
 DeleteSettings() {
     MsgBox, 4,, Are you sure you want to delete the stored settings?
     IfMsgBox, Yes
     {
-       FileSetAttrib, -R, %IniFile%
-       FileDelete, %IniFile%
+       If (storeSettingsREG=0)
+       {
+          FileSetAttrib, -R, %IniFile%
+          FileDelete, %IniFile%
+       } Else RegWrite, REG_SZ, %APPregEntry%, FirstRun, 1  
        Cleanup()
-       Reload
+       Try Reload
+       Sleep, 70
+       ExitApp
     }
 }
 
@@ -812,7 +935,7 @@ KillScript(showMSG:=1) {
 ;   various functions used in the UI.
 ;================================================================
 
-SettingsGUI() {
+SettingsGUI(whiteBgr:=0) {
    Global
    Gui, SettingsGUIA: Destroy
    Sleep, 15
@@ -820,6 +943,8 @@ SettingsGUI() {
    Gui, SettingsGUIA: -MaximizeBox
    Gui, SettingsGUIA: -MinimizeBox
    Gui, SettingsGUIA: Margin, 15, 15
+   If (whiteBgr=1)
+      Gui, SettingsGUIA: Color, FAfaFA
 }
 
 initSettingsWindow() {
@@ -893,6 +1018,9 @@ ApplySettings() {
 
 CloseWindow() {
     AnyWindowOpen := 0
+    If (tickTockNoise!=1)
+       SoundLoop("")
+
     Gui, SettingsGUIA: Destroy
 }
 
@@ -902,8 +1030,11 @@ CloseSettings() {
    CloseWindow()
    If (ApplySettingsBTN=0)
    {
+      ShowPreview := 1
+      OSDpreview()
       Sleep, 25
       SuspendScript()
+      ShowPreview := 0
       Return
    }
    Sleep, 100
@@ -970,6 +1101,7 @@ setColors(hC, event, c, err=0) {
   Critical, %oc%
   GuiControl, %g%:+Background%r%, %ctrl%
   GuiControl, Enable, ApplySettingsBTN
+  CreateOSDGUI()
   Sleep, 100
   OSDpreview()
 }
@@ -983,6 +1115,7 @@ UpdateFntNow() {
 }
 
 OSDpreview() {
+  Static LastBorderState
     Gui, SettingsGUIA: Submit, NoHide
     If (ShowPreview=0)
     {
@@ -991,12 +1124,21 @@ OSDpreview() {
     }
 
     Sleep, 25
-    CreateOSDGUI()
+    ; CreateOSDGUI()
     UpdateFntNow()
-    ShowHotkey(generateDateTimeTxt())
+    calcOSDresizeFactor(OSDsizingFactorW)
+    ShowHotkey(generateDateTimeTxt(1, !ShowPreviewDate))
+    WinSet, Transparent, %OSDalpha%, ChurchTowerWin
+    If (OSDborder=1 && LastBorderState!=OSDborder)
+    {
+       WinSet, Style, +0xC40000, ChurchTowerWin
+       WinSet, Style, -0xC00000, ChurchTowerWin
+       LastBorderState := OSDborder
+    } Else If (OSDborder=0)
+       WinSet, Style, -0xC40000, ChurchTowerWin
 }
 
-generateDateTimeTxt(LongD:=1) {
+generateDateTimeTxt(LongD:=1, noDate:=0) {
     If (displayTimeFormat=1)
        FormatTime, CurrentTime,, H:mm
     Else
@@ -1007,7 +1149,10 @@ generateDateTimeTxt(LongD:=1) {
     Else
        FormatTime, CurrentDate,, ShortDate
 
-    txtReturn := CurrentTime " | " CurrentDate
+    If (noDate=1)
+       txtReturn := CurrentTime
+    Else
+       txtReturn := CurrentTime " | " CurrentDate
     Return txtReturn
 }
 
@@ -1018,7 +1163,9 @@ editsOSDwin() {
 }
 
 ResetOSDsizeFactor() {
-  GuiControl, , editF9, % calcOSDresizeFactor()
+  Random, RandNumber, 85, 95
+  GuiControl, , editF9, % calcOSDresizeFactor("A",2)
+  GuiControl, , editF11, %RandNumber%
 }
 
 ShowOSDsettings() {
@@ -1031,8 +1178,7 @@ ShowOSDsettings() {
     Global CurrentPrefWindow := 5
     Global DoNotRepeatTimer := A_TickCount
     Global positionB, editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel
-         , editF7, editF8, editF9, editF10, editF35, editF36, editF37, Btn2, txt1, txt2, txt3
-    GUIposition := GUIposition + 1
+         , editF7, editF8, editF9, editF10, editF11, editF35, editF36, editF37, editF38, Btn2, txt1, txt2, txt3
     columnBpos1 := columnBpos2 := 160
     editFieldWid := 220
     If (PrefsLargeFonts=1)
@@ -1057,7 +1203,10 @@ ShowOSDsettings() {
     Gui, Add, Checkbox, x+10 gVerifyOsdOptions Checked%tollHoursAmount% vtollHoursAmount, ... the number of hours
     Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%displayClock% vdisplayClock, Display time on screen when bells toll
     Gui, Add, Checkbox, x+10 gVerifyOsdOptions Checked%displayTimeFormat% vdisplayTimeFormat, 24 hours format
-    Gui, Add, Text, xs y+10, Interval between strikes (in miliseconds):
+    Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%AdditionalStrikes% vAdditionalStrikes, Additional strike every (in minutes)
+    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38, %strikeEveryMin%
+    Gui, Add, UpDown, gVerifyOsdOptions vstrikeEveryMin Range1-720, %strikeEveryMin%
+    Gui, Add, Text, xs y+10, Interval between tower strikes (in miliseconds):
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
     Gui, Add, UpDown, gVerifyOsdOptions vstrikeInterval Range500-5500, %strikeInterval%
     Gui, Add, DropDownList, xs y+10 w270 gVerifyOsdOptions AltSubmit Choose%silentHours% vsilentHours, Limit chimes to specific periods...|Play chimes only...|Keep silence...
@@ -1071,33 +1220,35 @@ ShowOSDsettings() {
 
     Gui, Tab, 2 ; style
     Gui, Add, Text, x+15 y+15 Section, OSD position (x, y)
-    Gui, Add, Edit, xs+%columnBpos1b% ys w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF1, %GuiX%
+    Gui, Add, Edit, xs+%columnBpos2% ys w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF1, %GuiX%
     Gui, Add, UpDown, vGuiX gVerifyOsdOptions 0x80 Range-9995-9998, %GuiX%
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF2, %GuiY%
     Gui, Add, UpDown, vGuiY gVerifyOsdOptions 0x80 Range-9995-9998, %GuiY%
 
-    Gui, Add, Text, xm+15 ys+40 Section, Text width factor (lower = larger)
-    Gui, Add, Edit, xs+%columnBpos1b% ys+0 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF9, %OSDsizingFactor%
-    Gui, Add, UpDown, gVerifyOsdOptions vOSDsizingFactor Range20-399, %OSDsizingFactor%
-    Gui, Add, Text, x+5 gResetOSDsizeFactor hwndhTXT, DPI: %A_ScreenDPI%
+    Gui, Add, Text, xm+15 ys+30 Section, Height and width scaling
+    Gui, Add, Edit, xs+%columnBpos2% ys+0 Section w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF11, %OSDsizingFactorH%
+    Gui, Add, UpDown, gVerifyOsdOptions vOSDsizingFactorH Range12-350, %OSDsizingFactorH%
+    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF9 , %OSDsizingFactorW%
+    Gui, Add, UpDown, gVerifyOsdOptions vOSDsizingFactorW Range12-350, %OSDsizingFactorW%
+    Gui, Add, Button, x+5 w25 hp gResetOSDsizeFactor, R
 
-    Gui, Add, Text, xm+15 y+25 Section, Font name
-    Gui, Add, Text, xs yp+30, Text and background colors
-    Gui, Add, Text, xs yp+30, Display time (in sec.)
-    Gui, Add, Text, xs yp+30, Transparency
+    Gui, Add, Text, xm+15 y+10 Section, Font name
+    Gui, Add, Text, xs yp+30, OSD colors and opacity
     Gui, Add, Text, xs yp+30, Font size
+    Gui, Add, Text, xs yp+30, Display time (in sec.)
     Gui, Add, Checkbox, y+9 gVerifyOsdOptions Checked%OSDborder% vOSDborder, System border around OSD
-    Gui, Add, Checkbox, xs+%columnBpos2% yp+0 h25 +0x1000 gVerifyOsdOptions Checked%ShowPreview% vShowPreview, Show preview window
+    Gui, Add, Checkbox, xs yp+35 h30 +0x1000 gVerifyOsdOptions Checked%ShowPreview% vShowPreview, Show preview window
+    Gui, Add, Checkbox, y+5 hp gVerifyOsdOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date into preview
 
-    Gui, Add, DropDownList, xs+%columnBpos2% ys+0 section w200 gVerifyOsdOptions Sort Choose1 vFontName, %FontName%
-    Gui, Add, ListView, xp+0 yp+30 w55 h20 %CCLVO% Background%OSDtextColor% vOSDtextColor hwndhLV1,
-    Gui, Add, ListView, xp+60 yp w55 h20 %CCLVO% Background%OSDbgrColor% vOSDbgrColor hwndhLV2,
-    Gui, Add, Edit, xp-60 yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6, %DisplayTimeUser%
-    Gui, Add, UpDown, vDisplayTimeUser gVerifyOsdOptions Range1-99, %DisplayTimeUser%
-    Gui, Add, Edit, xp+0 yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF10, %OSDalpha%
+    Gui, Add, DropDownList, xs+%columnBpos2% ys+0 section w205 gVerifyOsdOptions Sort Choose1 vFontName, %FontName%
+    Gui, Add, ListView, xp+0 yp+30 w55 h25 %CCLVO% Background%OSDtextColor% vOSDtextColor hwndhLV1,
+    Gui, Add, ListView, xp+60 yp w55 h25 %CCLVO% Background%OSDbgrColor% vOSDbgrColor hwndhLV2,
+    Gui, Add, Edit, x+5 yp+0 w55 hp geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF10, %OSDalpha%
     Gui, Add, UpDown, vOSDalpha gVerifyOsdOptions Range25-250, %OSDalpha%
-    Gui, Add, Edit, xp+0 yp+30 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5, %FontSize%
-    Gui, Add, UpDown, gVerifyOsdOptions vFontSize Range7-295, %FontSize%
+    Gui, Add, Edit, xp-120 yp+30 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5, %FontSize%
+    Gui, Add, UpDown, gVerifyOsdOptions vFontSize Range12-295, %FontSize%
+    Gui, Add, Edit, xp+0 yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6, %DisplayTimeUser%
+    Gui, Add, UpDown, vDisplayTimeUser gVerifyOsdOptions Range1-99, %DisplayTimeUser%
 
     If !FontList._NewEnum()[k, v]
     {
@@ -1124,14 +1275,15 @@ ShowOSDsettings() {
 }
 
 VerifyOsdOptions(EnableApply:=1) {
-    GuiControlGet, GUIposition
     GuiControlGet, ShowPreview
     GuiControlGet, OSDsizingFactor
     GuiControlGet, silentHours
     GuiControlGet, tollHours
     GuiControlGet, tollQuarters
+    GuiControlGet, AdditionalStrikes
 
     GuiControl, % (EnableApply=0 ? "Disable" : "Enable"), ApplySettingsBTN
+    GuiControl, % (AdditionalStrikes=0 ? "Disable" : "Enable"), editF38
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursA
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursB
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), editF35
@@ -1141,12 +1293,14 @@ VerifyOsdOptions(EnableApply:=1) {
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt3
     GuiControl, % (tollHours=0 ? "Disable" : "Enable"), tollHoursAmount
     GuiControl, % (tollQuarters=0 ? "Disable" : "Enable"), tollQuartersException
+    GuiControl, % (ShowPreview=0 ? "Disable" : "Enable"), ShowPreviewDate
 
     Static LastInvoked := 1
 
-    If (OSDsizingFactor>398 || OSDsizingFactor<12)
-       GuiControl, , editF9, % calcOSDresizeFactor()
-    If (A_TickCount - LastInvoked>900) || (OSDvisible=0 && ShowPreview=1)
+    If (OSDsizingFactorW>398 || OSDsizingFactorW<12)
+       GuiControl, , editF9, % calcOSDresizeFactor("A",2)
+
+    If (A_TickCount - LastInvoked>200) || (OSDvisible=0 && ShowPreview=1)
     || (OSDvisible=1 && ShowPreview=0)
     {
        LastInvoked := A_TickCount
@@ -1165,8 +1319,141 @@ trimArray(arr) { ; Hash O(n)
 }
 
 DonateNow() {
-   Run, https://www.paypal.me/MariusSucan/15
+   Run, https://www.paypal.me/MariusSucan/10
    CloseWindow()
+}
+
+HowLong(FromDay,ToDay) {
+; function from: https://autohotkey.com/boards/viewtopic.php?f=6&t=54796
+; by Jack Dunning modified by Marius Șucan
+
+   Static Years,Months,Days
+
+; Trim any time component from the input dates
+   FromDay := SubStr(FromDay,1,8)
+   ToDay := SubStr(ToDay,1,8)
+;   Tooltip, %FromDay% -- %today%
+
+; For proper date order before calculation
+   If (ToDay <= FromDay)
+      Return 0
+
+; Calculate years
+   Years := % SubStr(ToDay,5,4) - SubStr(FromDay,5,4) < 0 ? SubStr(ToDay,1,4)-SubStr(FromDay,1,4)-1 
+         : SubStr(ToDay,1,4)-SubStr(FromDay,1,4)
+
+; Remove years from the calculation
+   FromYears := Substr(FromDay,1,4)+years . SubStr(FromDay,5,4)
+
+/*
+   Calculate the number of months between the Start date (Years removed)
+   and the Stop date. If the day of the month in the Start date is greater than
+   the day of the month in the Stop date, then add 11 or 12 months to the 
+   calculation depending upon the comparison between month days.
+*/
+
+   If (Substr(FromYears,5,2) <= Substr(ToDay,5,2)) and (Substr(FromYears,7,2) <= Substr(ToDay,7,2))
+      Months := Substr(ToDay,5,2) - Substr(FromYears,5,2)
+   Else If (Substr(FromYears,5,2) < Substr(ToDay,5,2)) and (Substr(FromYears,7,2) > Substr(ToDay,7,2))
+      Months := Substr(ToDay,5,2) - Substr(FromYears,5,2) - 1
+   Else If (Substr(FromYears,5,2) > Substr(ToDay,5,2)) and (Substr(FromYears,7,2) <= Substr(ToDay,7,2))
+      Months := Substr(ToDay,5,2) - Substr(FromYears,5,2) +12
+   Else If (Substr(FromYears,5,2) >= Substr(ToDay,5,2)) and (Substr(FromYears,7,2) > Substr(ToDay,7,2))
+      Months := Substr(ToDay,5,2) - Substr(FromYears,5,2) +11
+
+; If the start day of the month is less than the stop day of the month use the same month
+; Otherwise use the previous month, (If Jan "01" use Dec "12")
+ 
+    If (Substr(FromYears,7,2) <= Substr(ToDay,7,2))
+       FromMonth := Substr(ToDay,1,4) . SubStr(ToDay,5,2) . Substr(FromDay,7,2)
+    Else If Substr(ToDay,5,2) = "01"
+       FromMonth := Substr(ToDay,1,4)-1 . "12" . Substr(FromDay,7,2)
+    Else
+       FromMonth := Substr(ToDay,1,4) . Format("{:02}", SubStr(ToDay,5,2)-1) . Substr(FromDay,7,2)
+
+; FromMonth := Substr(ToDay,1,4) . Substr("0" . SubStr(ToDay,5,2)-1,-1) . Substr(FromDay,7,2)
+; "The Format("{:02}",  SubStr(ToDay,5,2)-1)" function replaces the original "Substr("0" . SubStr(ToDay,5,2)-1,-1)"
+; function found in the line of code above. Both serve the same purpose, although the original function
+; uses sleight of hand to pad single digit months with a zero (0).
+
+; Adjust for previous months with less days than target day
+   Date1 := Substr(FromMonth,1,6) . "01"
+   Date2 := Substr(ToDay,1,6) . "01"
+   Date2 -= Date1, Days
+   If (Date2 < Substr(FromDay,7,2)) and (Date2 != 0)
+      FromMonth := Substr(FromMonth,1,6) . Date2
+
+; Calculate remaining days. This operation (EnvSub) changes the value of the original 
+; ToDay variable, but, since this completes the function, we don't need to save ToDay 
+; in its original form. 
+
+   ToDay -= %FromMonth% , d
+   Days := ToDay
+   
+   DayNoun := (Days>1) ? " and " Days " days" : " and " Days " day"
+   If (Days=0)
+      DayNoun := ""
+
+   Weeksz := Round(Days/7,1)
+
+   If (Years>0)
+      Return 0
+   If (Months>1)
+      Result := Months " months" DayNoun
+   Else If (Months=1 && Weeksz>1)
+      Result := "1 month and " Weeksz " weeks" 
+   Else If (Months=1 && Weeksz<1)
+      Result := "1 month and a few days"
+   Else If (Months<=0) && (Days>1)
+   {
+      If (Weeksz>1)
+      {
+         If (Round(Weeksz)>Floor(Weeksz))
+            Result := "More than " Floor(Weeksz) " weeks"
+         Else
+            Result := Floor(Weeksz) " weeks"
+      } Else
+         Result := "Less than a week"
+      ; Result := Days " days"
+   }
+   Else Return 0
+
+   Return Result
+}
+
+CalcTextHorizPrev(txtCenter, txtTotal, addYearMarkers:=1, Barlength:=20) {
+   horizProgress := ""
+   percA := txtCenter / txtTotal * 100
+   perc := Round(Barlength/100 * percA)
+   percT := Barlength - perc
+;   ToolTip, %perca% -- %perc% -- %percT% -- %txtCenter% -- %txtTotal%
+   Loop, %perc%
+        horizProgress .= CSmid
+   Loop, %percT%
+        horizProgress .= CSthin
+   If (addYearMarkers=1)
+   {
+      horizProgress := ST_Insert("▀", horizProgress, 5)
+      horizProgress := ST_Insert("⬤", horizProgress, 11)
+      horizProgress := ST_Insert("▃", horizProgress, 17)
+      horizProgress := ST_Insert("◯", horizProgress, 23)
+   } Else
+      horizProgress := ST_Insert("||", horizProgress, Barlength/2+1)
+
+   Return horizProgress
+}
+
+ST_Insert(insert,input,pos=1) {
+; String Things - Common String & Array Functions, 2014
+; by tidbit https://autohotkey.com/board/topic/90972-string-things-common-text-and-array-functions/
+
+  Length := StrLen(input)
+  ((pos > 0) ? (pos2 := pos - 1) : (((pos = 0) ? (pos2 := StrLen(input),Length := 0) : (pos2 := pos))))
+  output := SubStr(input, 1, pos2) . insert . SubStr(input, pos, Length)
+  If (StrLen(output) > StrLen(input) + StrLen(insert))
+     ((Abs(pos) <= StrLen(input)/2) ? (output := SubStr(output, 1, pos2 - 1) . SubStr(output, pos + 1, StrLen(input)))
+     : (output := SubStr(output, 1, pos2 - StrLen(insert) - 2) . SubStr(output, pos - StrLen(insert), StrLen(input))))
+  Return, output
 }
 
 AboutWindow() {
@@ -1182,30 +1469,138 @@ AboutWindow() {
        Return
     }
 
-    SettingsGUI()
+    SettingsGUI(1)
     AnyWindowOpen := 1
     btnWid := 100
     txtWid := 360
     Global btn1
-    Gui, Font, s20 Bold, Arial, -wrap
-    Gui, Add, Text, x+7 y15 Section, %appName% v%Version%
+    Gui, Font, c1166AA s19 Bold, Arial, -wrap
+    Gui, Add, Picture, x14 y10 h65 w-1, bell-image.png
+    Gui, Add, Text, x+14 yp+5 Section, %appName%
+
     Gui, Font
+
     If (PrefsLargeFonts=1)
     {
        btnWid := btnWid + 50
        txtWid := txtWid + 105
        Gui, Font, s%LargeUIfontValue%
     }
-    Gui, Add, Link, y+4, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a> on AHK_H v1.1.28.
-    Gui, Add, Text, y+10 w%txtWid% Section, Dedicated to Christians, church-goers or bell lovers.
-    Gui, Add, Text, y+10 w%txtWid%, This application contains code from various entities. You can find more details in the source code.
+    Gui, Add, Link, y+4, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a> on AHK_H.
+    If (tickTockNoise!=1)
+       SoundLoop(tickTockSound)
+
+    FormatTime, CurrentDateTime,, yyyyMMdd
+    FormatTime, CurrentYear,, yyyy
+
+    Random, RandyDay, 19, 21
+    MarchEquinox := CurrentYear "0320"
+    Random, RandyDay, 21, 24
+    SeptemberEquinox := CurrentYear "0922"
+    Random, RandyDay, 20, 22
+    JuneSolstice := CurrentYear "0621"
+    Random, RandyDay, 20, 22
+    DecemberSolstice := CurrentYear "1221"
+
+    resultMarchEquinox := HowLong(CurrentDateTime,MarchEquinox)
+    If !resultMarchEquinox
+    {
+       resultMarchEquinox := HowLong(MarchEquinox,CurrentDateTime)
+       If !resultMarchEquinox
+          resultMarchEquinox := "The March equinox is here!"
+       Else
+          resultMarchEquinox .= " since the March equinox."
+    } Else
+       resultMarchEquinox .= " until the March equinox."
+
+    resultJuneSolstice := HowLong(CurrentDateTime,JuneSolstice)
+    If !resultJuneSolstice
+    {
+       resultJuneSolstice := HowLong(JuneSolstice,CurrentDateTime)
+       If !resultJuneSolstice
+          resultJuneSolstice := "The June solstice is here!"
+       Else
+          resultJuneSolstice .= " since the June solstice."
+    } Else
+       resultJuneSolstice .= " until the June solstice."
+
+    resultSeptemberEquinox := HowLong(CurrentDateTime,SeptemberEquinox)
+    If !resultSeptemberEquinox
+    {
+       resultSeptemberEquinox := HowLong(SeptemberEquinox,CurrentDateTime)
+       If !resultSeptemberEquinox
+          resultSeptemberEquinox := "The September equinox is here!"
+       Else
+          resultSeptemberEquinox .= " since the September equinox."
+    } Else
+       resultSeptemberEquinox .= " until the September equinox."
+
+    resultDecemberSolstice := HowLong(CurrentDateTime,DecemberSolstice)
+    If !resultDecemberSolstice
+    {
+       resultDecemberSolstice := HowLong(DecemberSolstice,CurrentDateTime)
+       If !resultDecemberSolstice
+          resultDecemberSolstice := "The December solstice is here!"
+       Else
+          resultDecemberSolstice .= " since the December solstice."
+    } Else
+       resultDecemberSolstice .= " until the December solstice."
+
+    percentileYear := Round(A_YDay/366*100) "%"
+
+    FormatTime, CurrentDateTime,, yyyyMMddHHmm
+    FormatTime, CurrentDay,, yyyyMMdd
+    FirstMinOfDay := CurrentDay "0001"
+    EnvSub, CurrentDateTime, %FirstMinOfDay%, Minutes
+    minsPassed := CurrentDateTime
+    percentileDay := Round(minsPassed/1440*100) "%"
+
+    Gui, Add, Text, x15 y+20 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
+    If (resultMarchEquinox ~= "until|here")
+       Gui, Font, Bold
+    If !(resultMarchEquinox ~= "months")
+       Gui, Add, Text, y+7 w%txtWid%, %resultMarchEquinox%
+    Gui, Font, Normal
+    If (resultJuneSolstice ~= "until|here")
+       Gui, Font, Bold
+    If !(resultJuneSolstice ~= "months")
+       Gui, Add, Text, y+7 w%txtWid%, %resultJuneSolstice%
+    Gui, Font, Normal
+    If (resultSeptemberEquinox ~= "until|here")
+       Gui, Font, Bold
+    Gui, Font, Normal
+    If !(resultSeptemberEquinox ~= "months")
+       Gui, Add, Text, y+7 w%txtWid%, %resultSeptemberEquinox%
+    Gui, Font, Normal
+    If (resultDecemberSolstice ~= "until|here")
+       Gui, Font, Bold
+    If !(resultDecemberSolstice ~= "months")
+       Gui, Add, Text, y+7 w%txtWid%, %resultDecemberSolstice%
+    Gui, Font, Normal
+    StringRight, weeksPassed, A_YWeek, 2
+    weeksPlural := weeksPassed>1 ? "weeks" : "week"
+    weeksPlural2 := weeksPassed>1 ? "have" : "has"
+
+    If (A_YDay>172 && A_YDay<353)
+       Gui, Add, Text, y+7, The days are getting shorter until the winter solstice, in December.
+    Else If (A_YDay>356 && A_YDay<168)
+       Gui, Add, Text, y+7, The days are getting longer until the summer solstice, in June..
+    Gui, Add, Text, y+15 Section, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
+    Gui, Add, Text, xp+15 y+5, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
+    Gui, Add, Text, xs y+10, % "0h {" CalcTextHorizPrev(minsPassed, 1440, 0, 22) "} 24h "
+    Gui, Add, Text, xp+15 y+5, %minsPassed% minutes (%percentileDay%) of today have elapsed.
+    Gui, Add, Text, xs y+15 w%txtWid%, This application contains code from various entities. You can find more details in the source code.
+    If (storeSettingsREG=1)
+       Gui, Add, Link, xs y+15 w%txtWid%, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
     Gui, Font, Bold
-    Gui, Add, Link, xp+25 y+10, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com">send me feedback</a>.
+    Gui, Add, Link, xp+30 y+10, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
+    Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, paypal.png
+
     Gui, Font, Normal
     Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindow, &Deus lux est
     Gui, Add, Button, x+5 hp w80 gShowOSDsettings, &Settings
-    Gui, Add, Text, x+8 hp +0x200, Released: %ReleaseDate%
-    Gui, Show, AutoSize, About %appName%
+    Gui, Add, Text, x+8 hp +0x200, v%Version% released on %ReleaseDate%
+    Gui, Show, AutoSize, About %appName% v%Version%
     verifySettingsWindowSize()
     ColorPickerHandles := hDonateBTN "," hIcon
     Sleep, 25
@@ -1217,10 +1612,19 @@ AboutWindow() {
 
 INIaction(act, var, section) {
   varValue := %var%
-  If (act=1)
-     IniWrite, %varValue%, %IniFile%, %section%, %var%
-  Else
-     IniRead, %var%, %IniFile%, %section%, %var%, %varValue%
+  If (storeSettingsREG=0)
+  {
+     If (act=1)
+        IniWrite, %varValue%, %IniFile%, %section%, %var%
+     Else
+        IniRead, %var%, %IniFile%, %section%, %var%, %varValue%
+  } Else
+  {
+     If (act=1)
+        RegWrite, REG_SZ, %APPregEntry%, %var%, %varValue%
+     Else
+        RegRead, %var%, %APPregEntry%, %var%
+  }
 }
 
 INIsettings(a) {
@@ -1248,6 +1652,8 @@ INIsettings(a) {
   INIaction(a, "tickTockNoise", "SavedSettings")
   INIaction(a, "strikeInterval", "SavedSettings")
   INIaction(a, "LastNoon", "SavedSettings")
+  INIaction(a, "AdditionalStrikes", "SavedSettings")
+  INIaction(a, "strikeEveryMin", "SavedSettings")
 
 ; OSD settings
   INIaction(a, "CurrentDPI", "OSDprefs")
@@ -1260,7 +1666,8 @@ INIsettings(a) {
   INIaction(a, "OSDbgrColor", "OSDprefs")
   INIaction(a, "OSDborder", "OSDprefs")
   INIaction(a, "OSDtextColor", "OSDprefs")
-  INIaction(a, "OSDsizingFactor", "OSDprefs")
+  INIaction(a, "OSDsizingFactorH", "OSDprefs")
+  INIaction(a, "OSDsizingFactorW", "OSDprefs")
 
   If (a=0) ; a=0 means to load from INI
      CheckSettings()
@@ -1276,11 +1683,16 @@ HexyVar(ByRef givenVar, defy) {
 }
 
 MinMaxVar(ByRef givenVar, miny, maxy, defy) {
-    If givenVar is not digit
+    testNumber := givenVar
+    If (testNumber ~= "i)^(\-[\p{N}])")
+       StringReplace, testNumber, testNumber, -
+
+    If testNumber is not digit
     {
-       givenVar := defy
+       testNumber := defy
        Return
     }
+
     givenVar := (Round(givenVar) < miny) ? miny : Round(givenVar)
     givenVar := (Round(givenVar) > maxy) ? maxy : Round(givenVar)
 }
@@ -1298,28 +1710,35 @@ CheckSettings() {
     BinaryVar(AutoUnmute, 1)
     BinaryVar(tickTockNoise, 0)
     BinaryVar(DynamicVolume, 1)
+    BinaryVar(AdditionalStrikes, 0)
 
 ; correct contradictory settings
 
-    If (CurrentDPI!=A_ScreenDPI)
+    If (OSDsizingFactorW>10)
+       calcOSDresizeFactor(OSDsizingFactorW)
+
+    If (CurrentDPI!=A_ScreenDPI) || (OSDsizingFactorW<=10)
     {
        CurrentDPI := A_ScreenDPI
-       OSDsizingFactor := calcOSDresizeFactor()
+       OSDsizingFactor := calcOSDresizeFactor("A",1)
+       OSDsizingFactorW := calcOSDresizeFactor(0,2)
     }
 
 ; verify numeric values: min, max and default values
     MinMaxVar(DisplayTimeUser, 1, 99, 3)
-    MinMaxVar(FontSize, 6, 300, 20)
+    MinMaxVar(FontSize, 12, 300, 26)
     MinMaxVar(GuiX, -9999, 9999, 40)
     MinMaxVar(GuiY, -9999, 9999, 250)
     MinMaxVar(BeepsVolume, 0, 99, 45)
+    MinMaxVar(strikeEveryMin, 1, 720, 5)
     MinMaxVar(silentHours, 1, 3, 1)
     MinMaxVar(silentHoursA, 0, 23, 12)
     MinMaxVar(silentHoursB, 0, 23, 14)
     MinMaxVar(LastNoon, 1, 3, 2)
     MinMaxVar(strikeInterval, 500, 5500, 2000)
     MinMaxVar(OSDalpha, 24, 252, 200)
-    MinMaxVar(OSDsizingFactor, 20, 400, calcOSDresizeFactor())
+    MinMaxVar(OSDsizingFactorW, 10, 350, 0)
+    MinMaxVar(OSDsizingFactorH, 10, 350, 86)
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
 
@@ -1655,7 +2074,3 @@ SoundLoop(File := "") {
 dummy() {
     Return
 }
-
-
-#Space::
-Return
