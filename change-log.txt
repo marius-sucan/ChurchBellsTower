@@ -29,6 +29,7 @@ v1.8.0 - 2018 / 10 / 26
 - added more Bible quotes; now there are 380 of them
 
 v1.7.6 - 2018 / 10 / 23
+- changed the routine behind reading the Bible quotes from the file; it was causing a crash on Windows Store 
 - important bug fixes and small improvements
 
 v1.7.5 - 2018 / 10 / 21
