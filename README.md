@@ -1,16 +1,14 @@
-<h1>KeyPress OSD: Presentation</h1>
-
-<h2><a href="https://www.youtube.com/watch?v=LKvhqTeb9sg">Presentation video</a></h2>
+<h1>Church Bells Tower</h1>
 
 <h2>To keep the development going, <a href="https://www.paypal.me/MariusSucan/15">please donate</a> using PayPal.</h2>
 
-<h2>An application that can toll quarters, on the hour, show random Bible verses, remind the user of Christian feasts and... reproduce semantron drumming sounds. Dedicated to bell lovers and Christians.</h2>
+<p>An application that can toll quarters, on the hour, show random Bible verses, remind the user of Christian feasts and... reproduce semantron drumming sounds. Dedicated to bell lovers and Christians.</p>
 
 <p>I coded the application as an <a href="https://autohotkey.com/">AHK script</a> for AutoHotkey_H v1.1.27. To execute/compile the source code one needs <a href="https://hotkeyit.github.io/v2/">AutoHotkey_H v1.1+</a>.</p>
 
 <h2><a href="http://marius.sucan.ro/media/files/blog/ahk-scripts/bells-tower.zip">Downloaded latest version</a>  (compiled for x64/x32, Windows binary)</h2>
 
-<h2>Application also <<a href="https://www.microsoft.com/en-us/p/church-bells-tower/9pfqbhn18h4k">available on Windows Store</a>.</h2>
+<h2>Application also <a href="https://www.microsoft.com/en-us/p/church-bells-tower/9pfqbhn18h4k">available on Windows Store</a>.</h2>
 
 <h1>Features</h1>
 
