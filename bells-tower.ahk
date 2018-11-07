@@ -3,15 +3,11 @@
 ; Charset for this file must be UTF 8 with BOM.
 ; it may not function properly otherwise.
 ;
-; Script written for AHK_L v1.1.28 Unicode.
+; Script written for AHK_H v1.1.28 Unicode.
 ;
 ; Disclaimer: this script is provided "as is", without any kind of warranty.
 ; The author(s) shall not be liable for any damage caused by using
 ; this script or its derivatives,  et cetera.
-;
-; =====================
-; GENERAL OVERVIEW
-; =====================
 ;
 ; Compilation directives; include files in binary and set file properties
 ; ===========================================================
@@ -21,7 +17,7 @@
 ;@Ahk2Exe-SetCompanyName sucan.ro
 
 ;================================================================
-; Section 0. Auto-exec.
+; Section. Auto-exec.
 ;================================================================
 
 ; Script Initialization
@@ -54,6 +50,7 @@
  , silentHoursB         := 14
  , AutoUnmute           := 1
  , tickTockNoise        := 0
+ , strikeInterval       := 2300
 
 ; OSD settings
  , displayTimeFormat      := 1
@@ -75,8 +72,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.0"
- , ReleaseDate            := "2018 / 09 / 16"
+ , Version                := "1.5"
+ , ReleaseDate            := "2018 / 09 / 20"
  , ScriptInitialized, FirstRun := 1
 
 ; Check if INIT previously failed or if KP is running and then load settings.
@@ -85,11 +82,11 @@
     INIaction(0, "FirstRun", "SavedSettings")
     If (FirstRun=0)
     {
-        INIsettings(0)
+       INIsettings(0)
     } Else
     {
-        CheckSettings()
-        INIsettings(1)
+       CheckSettings()
+       INIsettings(1)
     }
 
 ; Initialization variables. Altering these may lead to undesired results.
@@ -107,8 +104,11 @@ Global Debug := 0    ; for testing purposes
  , FontList := []
  , LargeUIfontValue := 13
  , ShowPreview := 0
+ , stopStrikesNow := 0
  , CurrentDPI := A_ScreenDPI
  , AnyWindowOpen := 0
+ , ScriptelSuspendel := 0
+ , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
  , hOSD, OSDhandles, dragOSDhandles, ColorPickerHandles
  , hMain := A_ScriptHwnd
  , CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
@@ -129,52 +129,32 @@ hCursH := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32649, "Ptr")  ; IDC
 OnMessage(0x200, "MouseMove")    ; WM_MOUSEMOVE
 OnMessage(0x404, "AHK_NOTIFYICON")
 Sleep, 5
-ScriptInitialized := 1      ; the end of the autoexec section and INIT
 If (tickTockNoise=1)
-   SetTimer, tickTockTimer, 100
-Else
-   SetTimer, theChimer, 20000
+   SoundLoop(tickTockSound)
+SetTimer, theChimer, 15000
+ScriptInitialized := 1      ; the end of the autoexec section and INIT
 showCurrentTime()
 Return
-
-;================================================================
-; Section 1. The OSD GUI - CreateOSDGUI()
-; - GetTextExtentPoint() and GuiGetSize() are constantly used
-;   to determine text and window sizes.
-;================================================================
 
 VerifyFiles() {
   Loop, Files, sounds\*.wav
         countFiles++
-  If (countFiles+1<7)
+  Loop, Files, sounds\*.mp3
+        countFiles++
+  If (countFiles<0)
      FileRemoveDir, sounds, 1
   Sleep, 50
   FileCreateDir, sounds
-  FileInstall, sounds\evening.mp3, sounds\evening.mp3
-  FileInstall, sounds\hours.wav, sounds\hours.wav
-  FileInstall, sounds\midnight.wav, sounds\midnight.wav
-  FileInstall, sounds\morning.wav, sounds\morning.wav
-  FileInstall, sounds\noon1.mp3, sounds\noon1.mp3
-  FileInstall, sounds\quarters.wav, sounds\quarters.wav
   FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
+  FileInstall, sounds\quarters.wav, sounds\quarters.wav
+  FileInstall, sounds\hours.wav, sounds\hours.wav
+  FileInstall, sounds\evening.mp3, sounds\evening.mp3
+  FileInstall, sounds\noon1.mp3, sounds\noon1.mp3
+  FileInstall, sounds\noon2.mp3, sounds\noon2.mp3
+  FileInstall, sounds\noon3.mp3, sounds\noon3.mp3
+  FileInstall, sounds\morning.wav, sounds\morning.wav
+  FileInstall, sounds\midnight.wav, sounds\midnight.wav
   Sleep, 300
-}
-
-tickTockTimer() {
-  Critical, On
-  Static lastChimer := 1
-  If (PrefOpen=1 || A_IsSuspended || AnyWindowOpen=1)
-  || (A_TickCount - Tickcount_start2 < 2000)
-     Return
-  If (A_TickCount - lastChimer > 20000)
-  {
-     SoundPlay, sounds\ticktock.wav, 1
-     theChimer()
-     lastChimer := A_TickCount
-  } Else
-  {
-     SoundPlay, sounds\ticktock.wav, 1
-  }
 }
 
 AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
@@ -182,7 +162,10 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
      Return
   Tickcount_start2 := A_TickCount
   If (lParam = 0x201) || (lParam = 0x204) || (lParam = 0x207)
+  {
+     stopStrikesNow := 1
      showCurrentTime()
+  }
 }
 
 showCurrentTime() {
@@ -247,14 +230,17 @@ volSlider() {
     GuiControlGet, tollQuarters
     GuiControlGet, tollHours
     GuiControlGet, tollHoursAmount
+    GuiControlGet, strikeInterval
+
+    stopStrikesNow := 0
     GuiControl, , volLevel, % "Audio volume: " result " %"
     BeepsVolume := result
     VerifyOsdOptions()
     SetMyVolume()
     If (tollQuarters=1)
-       SoundPlay, sounds\quarters.wav, 1
+       strikeQuarters()
     If (tollHours=1 || tollHoursAmount=1)
-       SoundPlay, sounds\hours.wav, 1
+       strikeHours()
 }
 
 RandomNumberCalc() {
@@ -267,6 +253,26 @@ RandomNumberCalc() {
   } Until (allGood=1)
   lastNumber := newNumber
   Return newNumber
+}
+
+strikeQuarters() {
+  If (stopStrikesNow=1)
+     Return
+  sleepDelay := RandomNumberCalc()
+  ahkdll := AhkThread("#NoTrayIcon`nSoundPlay, sounds\quarters.wav, 1") 
+  If (PrefOpen!=1)
+     Sleep, % strikeInterval + sleepDelay
+  Else
+     Sleep, 600
+}
+
+strikeHours() {
+  If (stopStrikesNow=1)
+     Return
+  sleepDelay := RandomNumberCalc()
+  ahkdll := AhkThread("#NoTrayIcon`nSoundPlay, sounds\hours.wav, 1") 
+  If (PrefOpen!=1)
+     Sleep, % strikeInterval + sleepDelay
 }
 
 theChimer() {
@@ -290,42 +296,48 @@ theChimer() {
   || (soundBells!=1 && silentHours=2)
      Return
   SoundGet, master_vol
+  stopStrikesNow := 0
+
   If InStr(CurrentTime, ":15") && (tollQuarters=1)
   {
      volumeAction := SetMyVolume()
      If (displayClock=1)
         ShowHotkey(CurrentTimeDisplay)
-     SoundPlay, sounds\quarters.wav, 1
+     strikeQuarters()
   } Else If InStr(CurrentTime, ":30") && (tollQuarters=1)
   {
      volumeAction := SetMyVolume()
      If (displayClock=1)
         ShowHotkey(CurrentTimeDisplay)
      Loop, 2
-     {
-        sleepDelay := RandomNumberCalc()
-        SoundPlay, sounds\quarters.wav, 1
-        Sleep, %sleepDelay%
-     }
+        strikeQuarters()
   } Else If InStr(CurrentTime, ":45") && (tollQuarters=1)
   {
      volumeAction := SetMyVolume()
      If (displayClock=1)
         ShowHotkey(CurrentTimeDisplay)
      Loop, 3
-     {
-        sleepDelay := RandomNumberCalc()
-        SoundPlay, sounds\quarters.wav, 1
-        Sleep, %sleepDelay%
-     }
+        strikeQuarters()
   } Else If InStr(exactTime, "05:59") && (tollNoon=1)
   {
      volumeAction := SetMyVolume()
      SoundPlay, sounds\morning.wav, 1
-  } Else If InStr(exactTime, "11:58") && (tollNoon=1)
+  } Else If InStr(exactTime, "12:02") && (tollNoon=1)
   {
+     sleepDelay := RandomNumberCalc()
+     Sleep, % strikeInterval/2 + sleepDelay
+
      volumeAction := SetMyVolume()
-     SoundPlay, sounds\noon.mp3, 1
+     FormatTime, sekunds,, ss   ; seconds
+     StringRight, sekunds, sekunds, 1
+     If (sekunds ~= "i)(0|1|4|7)")
+        choice := 1
+     Else If (sekunds ~= "i)(2|5|8)")
+        choice := 2
+     Else If (sekunds ~= "i)(3|6|9)")
+        choice := 3
+
+     SoundPlay, sounds\noon%choice%.mp3, 1
   } Else If InStr(exactTime, "17:59") && (tollNoon=1)
   {
      volumeAction := SetMyVolume()
@@ -343,13 +355,9 @@ theChimer() {
         If (displayClock=1)
            ShowHotkey(CurrentTimeDisplay)
         Loop, 4
-        {
-           sleepDelay := RandomNumberCalc()
-           SoundPlay, sounds\quarters.wav, 1
-           Sleep, %sleepDelay%
-        }
+           strikeQuarters()
      }
-     Random, delayRand, 900, 1400
+     Random, delayRand, 900, 1600
      Sleep, %delayRand%
      If (countHours2beat="00") || (countHours2beat=0)
         countHours2beat := 12
@@ -359,17 +367,13 @@ theChimer() {
         If (displayClock=1)
            ShowHotkey(CurrentTimeDisplay)
         Loop, %countHours2beat%
-        {
-            sleepDelay := RandomNumberCalc()
-            SoundPlay, sounds\hours.wav, 1
-            Sleep, %sleepDelay%
-        }
+           strikeHours()
      } Else If (tollHours=1)
      {
         volumeAction := SetMyVolume()
         If (displayClock=1)
            ShowHotkey(CurrentTimeDisplay)
-        SoundPlay, sounds\hours.wav, 1
+        strikeHours()
      }
   }
 
@@ -406,8 +410,6 @@ CreateOSDGUI() {
     Gui, OSD: Add, Text, w20, lol
     Gui, OSD: Font, c%OSDtextColor%, -wrap
     Gui, OSD: Add, Text, xp yp -wrap w20 vHotkeyText hwndhOSDctrl, %HotkeyText%
-
-    ; Gui, OSD: Add, Edit, -E0x200 x10 y10 -multi left readonly -WantCtrlA -WantReturn -wrap w%widtha% vHotkeyText hwndhOSDctrl, %HotkeyText%
 
     If (OSDborder=1)
     {
@@ -574,10 +576,6 @@ saveGuiPositions() {
   }
 }
 
-;================================================================
-; Section 4. 
-;================================================================
-
 SetStartUp() {
   regEntry := """" A_ScriptFullPath """"
   StringReplace, regEntry, regEntry, .ahk", .exe"
@@ -599,19 +597,6 @@ SetStartUp() {
   SetTimer, HideGUI, % -DisplayTime
 }
 
-
-Hex2Str(val, len, x:=false, caps:=true) {
-; Function by Drugwash
-    VarSetCapacity(out, (len+1)*2, 32), c := caps ? "X" : "x"
-    DllCall("msvcrt\sprintf", "AStr", out, "AStr", "%0" len "ll" c, "UInt64", val, "CDecl")
-    Return x ? "0x" out : out
-}
-
-;================================================================
-; Section 5. features invoked by keyboard shortcuts
-; - The hotkeys registered replace the system default
-;================================================================
-
 SuspendScriptNow() {
   SuspendScript(0)
 }
@@ -626,11 +611,19 @@ SuspendScript(partially:=0) {
       SoundBeep, 300, 900
       Return
    }
- 
    If !A_IsSuspended
+   {
+      ScriptelSuspendel := 1
       Menu, Tray, Uncheck, &%appName% activated
-   Else
+      If (tickTockNoise=1)
+         SoundLoop("")
+   } Else
+   {
+      ScriptelSuspendel := 0
       Menu, Tray, Check, &%appName% activated
+      If (tickTockNoise=1)
+         SoundLoop(tickTockSound)
+   }
 
    CreateOSDGUI()
    friendlyName := A_IsSuspended ? " activated" : " deactivated"
@@ -646,7 +639,7 @@ ReloadScriptNow() {
 }
 
 ;================================================================
-; Section 6. Tray menu and related functions.
+; Tray menu and related functions.
 ;================================================================
 
 InitializeTray() {
@@ -666,7 +659,8 @@ InitializeTray() {
     RunType := A_IsCompiled ? "" : " [script]"
     Menu, Tray, NoStandard
     Menu, Tray, Add, &Preferences, :PrefsMenu
-    Menu, Tray, Add, Tick/Tock sound, ToggleTickTock
+    If FileExist("sounds\ticktock.wav")
+       Menu, Tray, Add, Tick/Tock sound, ToggleTickTock
     Menu, Tray, Add
     Menu, Tray, Add, &%appName% activated, SuspendScriptNow
     Menu, Tray, Check, &%appName% activated
@@ -692,14 +686,9 @@ ToggleTickTock() {
     INIaction(1, "tickTockNoise", "SavedSettings")
     Menu, Tray, % (tickTockNoise=0 ? "Uncheck" : "Check"), Tick/Tock sound
     If (tickTockNoise=1)
-    {
-       SetTimer, tickTockTimer, 100
-       SetTimer, theChimer, Off
-    } Else
-    {
-       SetTimer, tickTockTimer, Off
-       SetTimer, theChimer, 20000
-    }
+       SoundLoop(tickTockSound)
+    Else
+       SoundLoop("")
 }
 
 ReloadScript(silent:=1) {
@@ -785,9 +774,7 @@ KillScript(showMSG:=1) {
 }
 
 ;================================================================
-; Section 7. Settings window.
-; - In this section you can find each preferences window
-;   or any other window based on SettingsGUI() and 
+;  Settings window.
 ;   various functions used in the UI.
 ;================================================================
 
@@ -1008,7 +995,7 @@ ShowOSDsettings() {
     }
     columnBpos1b := columnBpos1 + 70
 
-    Gui, Add, Tab3, , General|Size and position|Style and colors
+    Gui, Add, Tab3, , General|OSD options
 
     Gui, Tab, 1 ; general
     Gui, Add, Text, x+15 y+15 Section +0x200 vvolLevel, % "Audio volume: " BeepsVolume " %"
@@ -1021,8 +1008,10 @@ ShowOSDsettings() {
     Gui, Add, Checkbox, x+10 gVerifyOsdOptions Checked%tollHoursAmount% vtollHoursAmount, ... the number of hours
     Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%displayClock% vdisplayClock, Display time on screen when bells toll
     Gui, Add, Checkbox, x+10 gVerifyOsdOptions Checked%displayTimeFormat% vdisplayTimeFormat, 24 hours format
+    Gui, Add, Text, xs y+10, Interval between strikes (in miliseconds):
+    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
+    Gui, Add, UpDown, gVerifyOsdOptions vstrikeInterval Range500-5500, %strikeInterval%
     Gui, Add, DropDownList, xs y+10 w270 gVerifyOsdOptions AltSubmit Choose%silentHours% vsilentHours, Limit chimes to specific periods...|Play chimes only...|Keep silence...
-;    Gui, Add, Checkbox, y+10 gVerifyOsdOptions Checked%silentHours% vsilentHours, Silent hours [24 hours interval]
     Gui, Add, Text, xp+15 y+6 hp +0x200 vtxt1, from
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF35, %silentHoursA%
     Gui, Add, UpDown, gVerifyOsdOptions vsilentHoursA Range0-23, %silentHoursA%
@@ -1031,7 +1020,7 @@ ShowOSDsettings() {
     Gui, Add, UpDown, gVerifyOsdOptions vsilentHoursB Range0-23, %silentHoursB%
     Gui, Add, Text, x+1 hp  +0x200 vtxt3, :59
 
-    Gui, Tab, 2 ; size/position
+    Gui, Tab, 2 ; style
     Gui, Add, Text, x+15 y+15 Section, OSD position (x, y)
     Gui, Add, Edit, xs+%columnBpos1b% ys w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF1, %GuiX%
     Gui, Add, UpDown, vGuiX gVerifyOsdOptions 0x80 Range-9995-9998, %GuiX%
@@ -1039,12 +1028,11 @@ ShowOSDsettings() {
     Gui, Add, UpDown, vGuiY gVerifyOsdOptions 0x80 Range-9995-9998, %GuiY%
 
     Gui, Add, Text, xm+15 ys+40 Section, Text width factor (lower = larger)
-    Gui, Add, Edit, xs+%columnBpos1b% ys+0 Section w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF9, %OSDsizingFactor%
+    Gui, Add, Edit, xs+%columnBpos1b% ys+0 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF9, %OSDsizingFactor%
     Gui, Add, UpDown, gVerifyOsdOptions vOSDsizingFactor Range20-399, %OSDsizingFactor%
     Gui, Add, Text, x+5 gResetOSDsizeFactor hwndhTXT, DPI: %A_ScreenDPI%
 
-    Gui, Tab, 3 ; style
-    Gui, Add, Text, x+15 y+15 Section, Font name
+    Gui, Add, Text, xm+15 y+25 Section, Font name
     Gui, Add, Text, xs yp+30, Text and background colors
     Gui, Add, Text, xs yp+30, Display time (in sec.)
     Gui, Add, Text, xs yp+30, Transparency
@@ -1175,33 +1163,8 @@ AboutWindow() {
     Sleep, 25
 }
 
-LoadImage(fpath, t, idx:=0, sz:=0) {
-; Function by Drugwash
-; used for the images from AboutWindow()
-    Static type := "BIC"
-    Loop, Parse, type
-        If (t=A_LoopField)
-           it := A_Index-1
-    Loop, %fpath%
-    {
-      fullpath := A_LoopFileLongPath
-      ext := A_LoopFileExt
-    }
-    If ext=exe
-    {
-        hM := DllCall("kernel32\LoadLibraryW", "Str", fullPath, "Ptr")
-        hImg := DllCall("user32\LoadImageW", "Ptr", hM, "UInt", idx, "UInt", it, "Int", sz, "Int", sz, "UInt", 0x8000, "Ptr")
-        DllCall("kernel32\FreeLibrary", "Ptr", hM)
-    }
-    Else If ext in bmp,ico,cur,ani
-        hImg := DllCall("user32\LoadImageW", "Ptr", 0, "Str", fullPath, "UInt", it, "Int", sz, "Int", sz, "UInt", 0x2010, "Ptr")
-    Return hImg
-}
-
 ;================================================================
-; Section 8. Other functions:
-; - Updater, file existence checks.
-; - Load, verify and save settings
+; - Load, verify and save settings functions
 ;================================================================
 
 INIaction(act, var, section) {
@@ -1234,6 +1197,7 @@ INIsettings(a) {
   INIaction(a, "BeepsVolume", "SavedSettings")
   INIaction(a, "AutoUnmute", "SavedSettings")
   INIaction(a, "tickTockNoise", "SavedSettings")
+  INIaction(a, "strikeInterval", "SavedSettings")
 
 ; OSD settings
   INIaction(a, "CurrentDPI", "OSDprefs")
@@ -1301,6 +1265,7 @@ CheckSettings() {
     MinMaxVar(silentHours, 1, 3, 1)
     MinMaxVar(silentHoursA, 0, 23, 12)
     MinMaxVar(silentHoursB, 0, 23, 14)
+    MinMaxVar(strikeInterval, 500, 5500, 2300)
     MinMaxVar(OSDalpha, 24, 252, 200)
     MinMaxVar(OSDsizingFactor, 20, 400, calcOSDresizeFactor())
     If (silentHoursB<silentHoursA)
@@ -1318,7 +1283,7 @@ CheckSettings() {
 
 
 ;================================================================
-; Section 9. Functions not written by Marius Sucan.
+; Functions not written by Marius Sucan.
 ; Here, I placed only the functions I was unable to decide
 ; where to place within the code structure. Yet, they had 
 ; one thing in common: written by other people.
@@ -1349,15 +1314,7 @@ Cleanup() {
     OnMessage(0x102, "")
     OnMessage(0x103, "")
     DllCall("wtsapi32\WTSUnRegisterSessionNotification", "Ptr", hMain)
-    func2exec := "ahkThread_Free"
-    Sleep, 10
-    a := "Acc_Init"
-    If IsFunc(a)
-       %a%(1)
-
-    Gui, OSD: Destroy
     DllCall("kernel32\FreeLibrary", "Ptr", hWinMM)
-
     Fnt_DeleteFont(hFont)
 }
 ; ------------------------------------------------------------- ; from Drugwash
@@ -1641,6 +1598,22 @@ Fnt_EnumFontFamExProc(lpelfe,lpntme,FontType,p_Flags) {
     Return True  ;-- Continue enumeration
 }
 ; ------------------------------------------------------------- ; Font Library
+
+SoundLoop(File := "") {
+; from https://autohotkey.com/boards/viewtopic.php?t=680
+; by just me
+
+   ; http://msdn.microsoft.com/en-us/library/dd743680(v=vs.85).aspx
+   ; SND_ASYNC       0x00000001  /* play asynchronously */
+   ; SND_NODEFAULT   0x00000002  /* silence (!default) if sound not found */
+   ; SND_LOOP        0x00000008  /* loop the sound until next sndPlaySound */
+   ; SND_NOWAIT      0x00002000  /* don't wait if the driver is busy */
+   ; SND_FILENAME    0x00020000  /* name is file name */
+   ; --------------- 0x0002200B
+   Static AW := A_IsUnicode ? "W" : "A"
+   Return DllCall("Winmm.dll\PlaySound" . AW, "Ptr", File = "" ? 0 : &File, "Ptr", 0, "UInt", 0x0002200B)
+}
+
 
 dummy() {
     Return

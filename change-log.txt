@@ -1,0 +1,84 @@
+; Church Bells Tower - version history
+; site: https://github.com/marius-sucan/ChurchBellsTower
+; by Marius Șucan - http://marius.sucan.ro/
+; ====================================
+
+Work began on this project in August 2018.
+
+v1.9.1 - 2018 / 11 / 07
+- [new] option to list the feasts/holidays/celebrations recognized by this script; the button for this is at Settings; applies to both Catholic or Orthodox religions
+- added more feasts and corrected errors related to them
+- bug fixes
+
+v1.9.0 - 2018 / 11 / 05
+- [new] option to set the font size for Bible quotes
+- [new] option to regularly play semantron drumming sounds on days of feast in Christianity; for Orthodox and Catholic worshippers
+- [new] option to display / indicate / observe Christian feast days; it displays at start the name of the Christian event/day, and at the About window
+- more sounds added
+- introduced more Bible quotes; the total now is 550
+
+v1.8.1 - 2018 / 10 / 30
+- bug fixes related to how previous or next equinoxes/solstices dates are calculated; the code was simplified, and reduced by about 5 kilobytes
+- improvements to how Bible quotes are displayied; the Y position of the OSD is adjusted based on the length of the quote
+- added more Bible quotes; now there are 450
+
+v1.8.0 - 2018 / 10 / 26
+- recoded/overhauled the whole functionality of the OSD; it was messy and yield poor results; now it always has the right width and height based on the font size, margins defined and text length
+- as a result AHK file size went down by 5 kilobytes
+- width/height options were replaced by options to control the margins of the OSD; its base size is determined by text length and font size
+- added more Bible quotes; now there are 380 of them
+
+v1.7.6 - 2018 / 10 / 23
+- important bug fixes and small improvements
+
+v1.7.5 - 2018 / 10 / 21
+- [new] display a random Bible quote periodically [every few hours]
+
+v1.7.2 - 2018 / 10 / 18
+- improved the precision of tolling with a formula provided by Bon
+- bug fixes
+
+v1.7.0 - 2018 / 10 / 09
+- [new] option to strike additionally every 5/10/50/100 minutes [the user can define the frequency]
+- [new] options to control width and height of the on-screen display
+- improved and simplified the tray menu
+- improved the preferences window layout
+- it can store its settings in the windows registry, instead of an INI file [this is for the Windows Store release]
+- and of course, bug fixes
+
+v1.6.1 - 2018 / 10 / 03
+- [new] at the About window, you can see a progress bar for the entire year and one for the current day, both highlighting how much of the current year and day has elapsed.
+- [new] in the same window, you can also learn when the next equinox or solstice is going to occur, and when was the previous one
+
+v1.5.6 - 2018 / 09 / 29
+- [new] it now shows the time and date simply by hovering the tray icon
+- fixed a bug reported by Garry [on AHK forums]; it will play the audios on both the left and right channels
+
+v1.5.4 - 2018 / 09 / 27
+- personalized icon for the application
+- bug fixes
+
+v1.5.3 - 2018 / 09 / 24
+- [new] option to toggle dynamic volume for the sound level of the chimes
+- bug fixes and improvements
+
+v1.5.2 - 2018 / 09 / 21
+- bug fixes 
+
+v1.5.0 - 2018 / 09 / 20
+- migrated the code to AHK_H
+- now it strikes the bells without waiting for the echo to end... when the application strikes/tolls, it plays the bell sound multiple times at the same time
+- [new] option to set the interval between strikes; this interval is randomized each time, within a margin of half a second
+- [new] better sound clips for each event [quarter, hour, noon, midnight]
+- [improved] tick/tock background sound no longer gets interrupted when bells strike
+
+v1.0 - 2018 / 09 / 16
+- initial release... with all the basic features
+- strike quarter-hours
+- strike on the hour once... or the number of hours
+- toll distinctively every six hours [early morning, at noon, in the evening and at midnight]
+- option to display time when it chimes
+- option to start at boot [if compiled]
+- options to control/customize the OSD
+
+
