@@ -4,6 +4,9 @@
 ; it may not function properly otherwise.
 ;
 ; Script written for AHK_H v1.1.28 Unicode.
+; AHK_H available at:
+; https://hotkeyit.github.io/v2/
+; or https://github.com/HotKeyIt/ahkdll-v1-release
 ;
 ; Disclaimer: this script is provided "as is", without any kind of warranty.
 ; The author(s) shall not be liable for any damage caused by using
@@ -15,6 +18,9 @@
 ;@Ahk2Exe-SetName Church Bells Tower
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName sucan.ro
+;@Ahk2Exe-SetDescription Church Bells Tower
+;@Ahk2Exe-SetVersion 1.5.2
+;@Ahk2Exe-SetOrigFilename keypress-osd.ahk
 
 ;================================================================
 ; Section. Auto-exec.
@@ -25,7 +31,6 @@
  #SingleInstance Force
  #NoEnv
  #MaxMem 128
- #ClipboardTimeout 3000
  DetectHiddenWindows, On
  ; #Warn Debug
  ComObjError(false)
@@ -43,7 +48,7 @@
  , tollHours            := 1
  , tollHoursAmount      := 1
  , tollNoon             := 1
- , BeepsVolume          := 100
+ , BeepsVolume          := 45
  , displayClock         := 1
  , silentHours          := 1
  , silentHoursA         := 12
@@ -61,7 +66,7 @@
  , GuiY                   := 250
  , GuiWidth               := 350
  , MaxGuiWidth            := A_ScreenWidth
- , FontName               := (A_OSVersion="WIN_XP" && FileExist(A_WinDir "\Fonts\ARIALUNI.TF")) ? "Arial Unicode MS" : "Arial"
+ , FontName               := (A_OSVersion="WIN_XP") ? "Lucida Sans Unicode" : "Arial"
  , FontSize               := 19
  , PrefsLargeFonts        := 0
  , OSDbgrColor            := "131209"
@@ -72,8 +77,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.5"
- , ReleaseDate            := "2018 / 09 / 20"
+ , Version                := "1.5.2"
+ , ReleaseDate            := "2018 / 09 / 21"
  , ScriptInitialized, FirstRun := 1
 
 ; Check if INIT previously failed or if KP is running and then load settings.
@@ -131,6 +136,7 @@ OnMessage(0x404, "AHK_NOTIFYICON")
 Sleep, 5
 If (tickTockNoise=1)
    SoundLoop(tickTockSound)
+theChimer()
 SetTimer, theChimer, 15000
 ScriptInitialized := 1      ; the end of the autoexec section and INIT
 showCurrentTime()
@@ -259,7 +265,7 @@ strikeQuarters() {
   If (stopStrikesNow=1)
      Return
   sleepDelay := RandomNumberCalc()
-  ahkdll := AhkThread("#NoTrayIcon`nSoundPlay, sounds\quarters.wav, 1") 
+  ahkdll1 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\quarters.wav, 1") 
   If (PrefOpen!=1)
      Sleep, % strikeInterval + sleepDelay
   Else
@@ -270,7 +276,7 @@ strikeHours() {
   If (stopStrikesNow=1)
      Return
   sleepDelay := RandomNumberCalc()
-  ahkdll := AhkThread("#NoTrayIcon`nSoundPlay, sounds\hours.wav, 1") 
+  ahkdll2 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\hours.wav, 1") 
   If (PrefOpen!=1)
      Sleep, % strikeInterval + sleepDelay
 }
@@ -336,8 +342,11 @@ theChimer() {
         choice := 2
      Else If (sekunds ~= "i)(3|6|9)")
         choice := 3
+     If (ScriptInitialized=1 && volumeAction>0)
+        SoundPlay, sounds\noon%choice%.mp3, 1
+     Else If (ScriptInitialized=1)
+        SoundPlay, sounds\noon%choice%.mp3
 
-     SoundPlay, sounds\noon%choice%.mp3, 1
   } Else If InStr(exactTime, "17:59") && (tollNoon=1)
   {
      volumeAction := SetMyVolume()
@@ -613,6 +622,7 @@ SuspendScript(partially:=0) {
    }
    If !A_IsSuspended
    {
+      stopStrikesNow := 1
       ScriptelSuspendel := 1
       Menu, Tray, Uncheck, &%appName% activated
       If (tickTockNoise=1)
@@ -624,7 +634,7 @@ SuspendScript(partially:=0) {
       If (tickTockNoise=1)
          SoundLoop(tickTockSound)
    }
-
+   SoundPlay, non-existent.lol
    CreateOSDGUI()
    friendlyName := A_IsSuspended ? " activated" : " deactivated"
    ShowHotkey(appName friendlyName)
@@ -985,15 +995,15 @@ ShowOSDsettings() {
     Global positionB, editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel
          , editF7, editF8, editF9, editF10, editF35, editF36, editF37, Btn2, txt1, txt2, txt3
     GUIposition := GUIposition + 1
-    columnBpos1 := columnBpos2 := 135
+    columnBpos1 := columnBpos2 := 150
     editFieldWid := 220
     If (PrefsLargeFonts=1)
     {
        Gui, Font, s%LargeUIfontValue%
        editFieldWid := 285
-       columnBpos1 := columnBpos2 := columnBpos2 + 125
+       columnBpos1 := columnBpos2 := columnBpos2 + 100
     }
-    columnBpos1b := columnBpos1 + 70
+    columnBpos1b := columnBpos1 + 20
 
     Gui, Add, Tab3, , General|OSD options
 
@@ -1001,7 +1011,7 @@ ShowOSDsettings() {
     Gui, Add, Text, x+15 y+15 Section +0x200 vvolLevel, % "Audio volume: " BeepsVolume " %"
     Gui, Add, Slider, x+5 hp ToolTip NoTicks gVolSlider w200 vBeepsVolume Range0-99, %BeepsVolume%
     Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%AutoUnmute% vAutoUnmute, Automatically unmute master volume [when required]
-    Gui, Add, Checkbox, y+10 gVerifyOsdOptions Checked%tollNoon% vtollNoon, Toll distinctively at noon, midnight and at six o'clock
+    Gui, Add, Checkbox, y+10 gVerifyOsdOptions Checked%tollNoon% vtollNoon, Toll distinctively every six hours [eg., noon, midnight]
     Gui, Add, Checkbox, y+10 gVerifyOsdOptions Checked%tollQuarters% vtollQuarters, Strike quarter-hours
     Gui, Add, Checkbox, x+10 gVerifyOsdOptions Checked%tollQuartersException% vtollQuartersException, ... except on the hour
     Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%tollHours% vtollHours, Strike on the hour
@@ -1099,10 +1109,10 @@ VerifyOsdOptions(EnableApply:=1) {
 
     If (OSDsizingFactor>398 || OSDsizingFactor<12)
        GuiControl, , editF9, % calcOSDresizeFactor()
-    If (A_TickCount - LastInvoked>500)
+    If (A_TickCount - LastInvoked>900)
     {
-       OSDpreview()
        LastInvoked := A_TickCount
+       OSDpreview()
     }
 }
 
@@ -1140,7 +1150,7 @@ AboutWindow() {
     txtWid := 360
     Global btn1
     Gui, Font, s20 Bold, Arial, -wrap
-    Gui, Add, Text, x+7 y15, %appName% v%Version%
+    Gui, Add, Text, x+7 y15 Section, %appName% v%Version%
     Gui, Font
     If (PrefsLargeFonts=1)
     {
@@ -1154,8 +1164,8 @@ AboutWindow() {
     Gui, Font, Bold
     Gui, Add, Link, xp+25 y+10, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com">send me feedback</a>.
     Gui, Font, Normal
-    Gui, Add, Button, xs+0 y+20 w75 Default gCloseWindow, &Close
-    Gui, Add, Button, x+5 w75 Default gShowOSDsettings, &Settings
+    Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindow, &Deus lux est
+    Gui, Add, Button, x+5 hp w80 Default gShowOSDsettings, &Settings
     Gui, Add, Text, x+8 hp +0x200, Released: %ReleaseDate%
     Gui, Show, AutoSize, About %appName%
     verifySettingsWindowSize()
@@ -1261,7 +1271,7 @@ CheckSettings() {
     MinMaxVar(FontSize, 6, 300, 20)
     MinMaxVar(GuiX, -9999, 9999, 40)
     MinMaxVar(GuiY, -9999, 9999, 250)
-    MinMaxVar(BeepsVolume, 0, 99, 70)
+    MinMaxVar(BeepsVolume, 0, 99, 45)
     MinMaxVar(silentHours, 1, 3, 1)
     MinMaxVar(silentHoursA, 0, 23, 12)
     MinMaxVar(silentHoursB, 0, 23, 14)
@@ -1277,8 +1287,7 @@ CheckSettings() {
    HexyVar(OSDtextColor, "FFFEFA")
 
    FontName := (StrLen(FontName)>2) ? FontName
-             : (A_OSVersion!="WIN_XP") ? "Arial"
-             : FileExist(A_WinDir "\Fonts\ARIALUNI.TTF") ? "Arial Unicode MS" : "Arial"
+             : (A_OSVersion="WIN_XP") ? "Lucida Sans Unicode" : "Arial"
 }
 
 
@@ -1290,20 +1299,6 @@ CheckSettings() {
 ;
 ; Please note, some of the functions borrowed may or may not
 ; be modified/adapted/transformed by Marius Șucan or other people.
-;================================================================
-
-GetPhysicalCursorPos(ByRef mX, ByRef mY) {
-; function from: https://github.com/jNizM/AHK_DllCall_WinAPI/blob/master/src/Cursor%20Functions/GetPhysicalCursorPos.ahk
-; by jNizM, modified by Marius Șucan
-    Static POINT, init := VarSetCapacity(POINT, 8, 0) && NumPut(8, POINT, "Int")
-    If !(DllCall("user32.dll\GetPhysicalCursorPos", "Ptr", &POINT))
-       Return MouseGetPos, mX, mY
-;       Return DllCall("kernel32.dll\GetLastError")
-    mX := NumGet(POINT, 0, "Int")
-    mY := NumGet(POINT, 4, "Int")
-    Return
-}
-
 ;================================================================
 ; Functions by Drugwash. Direct contribuitor to this script. Many thanks!
 ; ===============================================================
