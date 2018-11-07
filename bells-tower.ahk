@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.7.2
+;@Ahk2Exe-SetVersion 1.7.6
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -60,6 +60,9 @@
  , strikeInterval       := 2000
  , AdditionalStrikes    := 0
  , strikeEveryMin       := 5
+ , showBibleQuotes      := 0
+ , BibleQuotesInterval  := 5
+ , maxBibleLength       := 55
 
 ; OSD settings
  , displayTimeFormat      := 1
@@ -73,7 +76,7 @@
  , FontSize               := 26
  , PrefsLargeFonts        := 0
  , OSDbgrColor            := "131209"
- , OSDalpha               := 200
+ , OSDalpha               := 230
  , OSDtextColor           := "FFFEFA"
  , OSDsizingFactorW       := 0
  , OSDsizingFactor        := calcOSDresizeFactor("A",1)
@@ -81,10 +84,11 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.7.2"
- , ReleaseDate            := "2018 / 10 / 18"
+ , Version                := "1.7.6"
+ , ReleaseDate            := "2018 / 10 / 23"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
+ , QuotesAlreadySeen := ""
  , LastNoon := 0, appName := "Church Bells Tower"
  , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-0"
 
@@ -121,26 +125,29 @@ Global Debug := 0    ; for testing purposes
  , PrefOpen := 0
  , FontList := []
  , actualVolume := 0
- , AdditionalStrikeFreq := strikeEveryMin * 60000
+ , AdditionalStrikeFreq := strikeEveryMin * 60000  ; minutes
+ , bibleQuoteFreq := BibleQuotesInterval * 3600000 ; hours
  , LargeUIfontValue := 13
  , ShowPreview := 0
  , ShowPreviewDate := 0
  , stopStrikesNow := 0
+ , stopAdditionalStrikes := 0
  , strikingBellsNow := 0
  , CurrentDPI := A_ScreenDPI
  , AnyWindowOpen := 0
+ , LastBibleQuoteDisplay := 1
  , CurrentPrefWindow := 0
  , ScriptelSuspendel := 0
  , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
  , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
- , hOSD, OSDhandles, dragOSDhandles, ColorPickerHandles
+ , hBibleTxt, hBibleOSD, hOSD, OSDhandles, dragOSDhandles, ColorPickerHandles
  , hMain := A_ScriptHwnd
  , CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
  , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
 
 ; Initializations of the core components and functionality
 
-If (A_IsCompiled)
+If (A_IsCompiled && storeSettingsREG=0)
    VerifyFiles()
 
 CreateOSDGUI()
@@ -152,21 +159,25 @@ hCursM := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32646, "Ptr")  ; IDC
 hCursH := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32649, "Ptr")  ; IDC_HAND
 OnMessage(0x200, "MouseMove")    ; WM_MOUSEMOVE
 OnMessage(0x404, "AHK_NOTIFYICON")
-OnMessage(0x11, "WM_QUERYENDSESSION")
+OnMessage(0x11, "WM_ENDSESSION")
+OnMessage(0x16, "WM_ENDSESSION")
 Sleep, 5
 If (tickTockNoise=1)
    SoundLoop(tickTockSound)
 theChimer()
-Sleep, 300
+Sleep, 30
 ScriptInitialized := 1      ; the end of the autoexec section and INIT
 ShowHotkey(generateDateTimeTxt())
 SetTimer, HideGUI, % -DisplayTime/2
 If (AdditionalStrikes=1)
    SetTimer, AdditionalStriker, %AdditionalStrikeFreq%
+If (showBibleQuotes=1)
+   SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
 Return
 
-WM_QUERYENDSESSION() {
-  Sleep, 5000
+WM_ENDSESSION() {
+  Sleep, 10
+  Return 1
   ExitApp
 }
 
@@ -175,13 +186,16 @@ VerifyFiles() {
         countFiles++
   Loop, Files, sounds\*.mp3
         countFiles++
-  If (countFiles<0)
+  If (countFiles<11)
      FileRemoveDir, sounds, 1
   Sleep, 50
   FileCreateDir, sounds
+  FileInstall, bible-quotes.txt, bible-quotes.txt
   FileInstall, bell-image.png, bell-image.png
   FileInstall, paypal.png, paypal.png
   FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
+  FileInstall, sounds\auxilliary-bell.wav, sounds\auxilliary-bell.wav
+  FileInstall, sounds\japanese-bell.wav, sounds\japanese-bell.wav
   FileInstall, sounds\quarters.wav, sounds\quarters.wav
   FileInstall, sounds\hours.wav, sounds\hours.wav
   FileInstall, sounds\evening.mp3, sounds\evening.mp3
@@ -221,6 +235,52 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
   }
 }
 
+InvokeBibleQuoteNow() {
+  Static bibleQuotesFile
+  
+  If (PrefOpen=0 && A_IsSuspended)
+     Return
+
+  If (PrefOpen=1)
+  {
+     GuiControlGet, maxBibleLength
+     VerifyOsdOptions()
+  }
+
+  If !bibleQuotesFile
+     Try FileRead, bibleQuotesFile, bible-quotes.txt
+
+  If (PrefOpen!=1)
+  {
+     countLines := st_count(bibleQuotesFile, "`n") + 1
+     Loop
+     {
+       Random, Line2Read, 1, %countLines%
+       If !InStr(QuotesAlreadySeen, "a" Line2Read "a")
+          stopLoop := 1
+     } Until (stopLoop=1 || A_Index>712)
+  } Else Line2Read := "R"
+ ;  FileReadLine, bibleQuote, bible-quotes.txt, %LineRead%
+  bibleQuote := ST_ReadLine(bibleQuotesFile, Line2Read)
+  QuotesAlreadySeen .= "a" Line2Read "a"
+  StringReplace, QuotesAlreadySeen, QuotesAlreadySeen, aa, a
+  StringRight, QuotesAlreadySeen, QuotesAlreadySeen, 95
+  If (StrLen(bibleQuote)>6)
+     CreateBibleGUI(bibleQuote)
+  If (PrefOpen!=1)
+  {
+     SetMyVolume(1)
+     INIaction(1, "QuotesAlreadySeen", "SavedSettings")
+     SoundPlay, sounds\japanese-bell.wav, 1
+  }
+  quoteDisplayTime := (PrefOpen=1) ? DisplayTime*1.5 : StrLen(bibleQuote) * 123
+  SetTimer, DestroyBibleGui, % -quoteDisplayTime
+}
+
+DestroyBibleGui() {
+  Gui, BibleGui: Destroy
+}
+
 SetMyVolume(noRestore:=0) {
   Static mustRestoreVol, LastInvoked := 1
 
@@ -242,7 +302,7 @@ SetMyVolume(noRestore:=0) {
   }
 
   If (ScriptInitialized=1 && AutoUnmute=1 && BeepsVolume>3)
-  && (A_TickCount - LastInvoked > 420500) && (noRestore=0)
+  && (A_TickCount - LastInvoked > 290100) && (noRestore=0)
   {
      mustRestoreVol := 0
      LastInvoked := A_TickCount
@@ -343,29 +403,21 @@ strikeHours() {
 }
 
 TollExtraNoon() {
+  Static lastToll := 1
+  If (AnyWindowOpen=1)
+     stopStrikesNow := 0
   If (stopStrikesNow=1 || PrefOpen=1)
+  || ((A_TickCount - lastToll<100000) && (AnyWindowOpen=1))
      Return
   ahkdll3 := AhkThread("#NoTrayIcon`nRandom, choice, 1, 3`nSoundPlay, sounds\noon%choice%.mp3, 1")
+  lastToll := A_TickCount
 }
 
 AdditionalStriker() {
-  Static lastStrikeType := 1
-
-  volumeAction := SetMyVolume()
-
-  If (lastStrikeType=1)
-     strikeQuarters()
-  Else
-     strikeHours()
-  lastStrikeType := !lastStrikeType
-
-  If (AutoUnmute=1 && volumeAction>0)
-  {
-     If (volumeAction=1 || volumeAction=3)
-        SoundSet, 1, , mute
-     If (volumeAction=2 || volumeAction=3)
-        SoundSet, %master_vol%
-  }
+  If (stopAdditionalStrikes=1 || A_IsSuspended || PrefOpen=1 || strikingBellsNow=1)
+     Return
+  SetMyVolume(1)
+  SoundPlay, sounds\auxilliary-bell.wav, 1
 }
 
 theChimer() {
@@ -380,16 +432,17 @@ theChimer() {
 
   If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=2)
      soundBells := 1
-
   If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=3)
   || (soundBells!=1 && silentHours=2) || (mustEndNow=1)
   {
+     If (mustEndNow!=1)
+        stopAdditionalStrikes := 1
      SetTimer, theChimer, % ((15 - Mod(A_Min, 15)) * 60 - A_Sec) * 1000 - A_MSec + 50      ; formula provided by Bon [AHK forums]
      Return
   }
 
   SoundGet, master_vol
-  stopStrikesNow := 0
+  stopStrikesNow := stopAdditionalStrikes := 0
   strikingBellsNow := 1
   If (displayClock=1)
      SetTimer, HideGUI, % -DisplayTime
@@ -537,6 +590,89 @@ calcOSDresizeFactor(given,retour:=0) {
      Return SizingFactor
   Else If (retour=2)
      Return OSDsizeW
+}
+
+ST_Count(string, searchFor="`n") {
+   StringReplace, string, string, %searchFor%, %searchFor%, UseErrorLevel
+   Return ErrorLevel
+}
+
+ST_ReadLine(string, line, delim="`n", exclude="`r") {
+; String Things - Common String & Array Functions, 2014
+; by tidbit https://autohotkey.com/board/topic/90972-string-things-common-text-and-array-functions/
+
+   StringReplace, string, string, %delim%, %delim%, UseErrorLevel
+   countE := ErrorLevel+1
+
+   if (abs(line)>countE && (line!="L" || line!="R"))
+      Return 0
+   if (Line="R")
+      Random, Rand, 1, %countE%
+   if (line<=0)
+      line := countE+line
+
+   loop, parse, String, %delim%, %exclude%
+   {
+      out := (Line="R" && A_Index==Rand)   ? A_LoopField
+          :  (Line="L" && A_Index==countE) ? A_LoopField
+          :  (A_Index==Line)               ? A_LoopField
+          :  -1
+      If (out!=-1) ; Something was found so stop searching.
+         Break
+   }
+   Return out
+}
+
+
+ST_wordWrap(string, column=56, indentChar="") {
+; String Things - Common String & Array Functions, 2014
+; by tidbit https://autohotkey.com/board/topic/90972-string-things-common-text-and-array-functions/
+; fixed by Marius Șucan, such that it does not give Continuable Exception Error on some systems
+
+    indentLength := StrLen(indentChar)
+    Loop, Parse, string, `n
+    {
+        If (StrLen(A_LoopField) > column)
+        {
+            pose := 1
+            Loop, Parse, A_LoopField, %A_Space%
+            {
+                loopLength := StrLen(A_LoopField)
+                If (pose + loopLength <= column)
+                {
+                   out .= (A_Index = 1 ? "" : " ") A_LoopField
+                   pose += loopLength + 1
+                } Else
+                {
+                   pose := loopLength + 1 + indentLength
+                   out .= "`n" indentChar A_LoopField
+                }
+            }
+            out .= "`n"
+        } Else
+            out .= A_LoopField "`n"
+    }
+    result := SubStr(out, 1, -1)
+    Return result
+}
+
+CreateBibleGUI(msg2Display) {
+    Critical, Off
+    FontSizeMin := Round(FontSize*0.6)
+    If (FontSizeMin<9)
+       FontSizeMin := 9
+    msg2Display := ST_wordWrap(msg2Display, maxBibleLength)
+    Gui, BibleGui: Destroy
+    Sleep, 125
+    LastBibleQuoteDisplay := A_TickCount
+    Gui, BibleGui: -DPIScale -Caption +HwndhBibleOSD
+    Gui, BibleGui: Margin, 20, 20
+    Gui, BibleGui: Color, %OSDbgrColor%
+    Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Bold, %FontName%
+    Gui, BibleGui: Add, Text, hwndhBibleTxt, %msg2Display%
+    Gui, BibleGui: Show, NoActivate AutoSize x%GuiX% y%GuiY%, ChurchTowerBibleWin
+    WinSet, Transparent, %OSDalpha%, ChurchTowerBibleWin
+    WinSet, AlwaysOnTop, On, ChurchTowerBibleWin
 }
 
 CreateOSDGUI() {
@@ -695,6 +831,12 @@ MouseMove(wP, lP, msg, hwnd) {
      If hwnd in %ColorPickerHandles%
         DllCall("user32\SetCursor", "Ptr", hCursH)
   }
+
+  If (InStr(hwnd, hBibleOSD) || InStr(hwnd, hBibleTxt))
+  {
+     If (A_TimeIdle<100) && (A_TickCount - LastBibleQuoteDisplay>900)
+        Gui, BibleGui: Destroy
+  }
 }
 
 trackMouseDragging() {
@@ -776,6 +918,7 @@ SuspendScript(partially:=0) {
       SoundLoop("")
    } Else
    {
+      stopStrikesNow := 0
       ScriptelSuspendel := 0
       Menu, Tray, Check, &%appName% activated
       If (tickTockNoise=1)
@@ -1177,7 +1320,7 @@ ShowOSDsettings() {
        SetTimer, HideGUI, Off  ; just update the text (avoids the flicker)
     Global CurrentPrefWindow := 5
     Global DoNotRepeatTimer := A_TickCount
-    Global positionB, editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel
+    Global editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel, editF40, editF60, Btn2, txt4
          , editF7, editF8, editF9, editF10, editF11, editF35, editF36, editF37, editF38, Btn2, txt1, txt2, txt3
     columnBpos1 := columnBpos2 := 160
     editFieldWid := 220
@@ -1206,6 +1349,9 @@ ShowOSDsettings() {
     Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%AdditionalStrikes% vAdditionalStrikes, Additional strike every (in minutes)
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38, %strikeEveryMin%
     Gui, Add, UpDown, gVerifyOsdOptions vstrikeEveryMin Range1-720, %strikeEveryMin%
+    Gui, Add, Checkbox, xs y+7 gVerifyOsdOptions Checked%showBibleQuotes% vshowBibleQuotes, Show a Bible quote every (in hours)
+    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF40, %BibleQuotesInterval%
+    Gui, Add, UpDown, gVerifyOsdOptions vBibleQuotesInterval Range3-11, %BibleQuotesInterval%
     Gui, Add, Text, xs y+10, Interval between tower strikes (in miliseconds):
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
     Gui, Add, UpDown, gVerifyOsdOptions vstrikeInterval Range500-5500, %strikeInterval%
@@ -1236,6 +1382,7 @@ ShowOSDsettings() {
     Gui, Add, Text, xs yp+30, OSD colors and opacity
     Gui, Add, Text, xs yp+30, Font size
     Gui, Add, Text, xs yp+30, Display time (in sec.)
+    Gui, Add, Text, xs yp+30 vTxt4, Max. line length, for Bible quotes
     Gui, Add, Checkbox, y+9 gVerifyOsdOptions Checked%OSDborder% vOSDborder, System border around OSD
     Gui, Add, Checkbox, xs yp+35 h30 +0x1000 gVerifyOsdOptions Checked%ShowPreview% vShowPreview, Show preview window
     Gui, Add, Checkbox, y+5 hp gVerifyOsdOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date into preview
@@ -1249,7 +1396,9 @@ ShowOSDsettings() {
     Gui, Add, UpDown, gVerifyOsdOptions vFontSize Range12-295, %FontSize%
     Gui, Add, Edit, xp+0 yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6, %DisplayTimeUser%
     Gui, Add, UpDown, vDisplayTimeUser gVerifyOsdOptions Range1-99, %DisplayTimeUser%
-
+    Gui, Add, Edit, xp+0 yp+30 w55 hp geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60, %maxBibleLength%
+    Gui, Add, UpDown, vmaxBibleLength gVerifyOsdOptions Range10-130, %maxBibleLength%
+    Gui, Add, Button, x+5 hp gInvokeBibleQuoteNow vBtn2, Preview quote
     If !FontList._NewEnum()[k, v]
     {
         Fnt_GetListOfFonts()
@@ -1281,9 +1430,14 @@ VerifyOsdOptions(EnableApply:=1) {
     GuiControlGet, tollHours
     GuiControlGet, tollQuarters
     GuiControlGet, AdditionalStrikes
+    GuiControlGet, showBibleQuotes
 
     GuiControl, % (EnableApply=0 ? "Disable" : "Enable"), ApplySettingsBTN
     GuiControl, % (AdditionalStrikes=0 ? "Disable" : "Enable"), editF38
+    GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), editF40
+    GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), editF60
+    GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Btn2
+    GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Txt4
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursA
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursB
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), editF35
@@ -1475,7 +1629,7 @@ AboutWindow() {
     txtWid := 360
     Global btn1
     Gui, Font, c1166AA s19 Bold, Arial, -wrap
-    Gui, Add, Picture, x14 y10 h65 w-1, bell-image.png
+    Gui, Add, Picture, x14 y10 h65 w-1 gTollExtraNoon hwndhBellIcon, bell-image.png
     Gui, Add, Text, x+14 yp+5 Section, %appName%
 
     Gui, Font
@@ -1558,23 +1712,23 @@ AboutWindow() {
     Gui, Add, Text, x15 y+20 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
     If (resultMarchEquinox ~= "until|here")
        Gui, Font, Bold
-    If !(resultMarchEquinox ~= "months")
+    If !(resultMarchEquinox ~= "month")
        Gui, Add, Text, y+7 w%txtWid%, %resultMarchEquinox%
     Gui, Font, Normal
     If (resultJuneSolstice ~= "until|here")
        Gui, Font, Bold
-    If !(resultJuneSolstice ~= "months")
+    If !(resultJuneSolstice ~= "month")
        Gui, Add, Text, y+7 w%txtWid%, %resultJuneSolstice%
     Gui, Font, Normal
     If (resultSeptemberEquinox ~= "until|here")
        Gui, Font, Bold
     Gui, Font, Normal
-    If !(resultSeptemberEquinox ~= "months")
+    If !(resultSeptemberEquinox ~= "month")
        Gui, Add, Text, y+7 w%txtWid%, %resultSeptemberEquinox%
     Gui, Font, Normal
     If (resultDecemberSolstice ~= "until|here")
        Gui, Font, Bold
-    If !(resultDecemberSolstice ~= "months")
+    If !(resultDecemberSolstice ~= "month")
        Gui, Add, Text, y+7 w%txtWid%, %resultDecemberSolstice%
     Gui, Font, Normal
     StringRight, weeksPassed, A_YWeek, 2
@@ -1602,7 +1756,7 @@ AboutWindow() {
     Gui, Add, Text, x+8 hp +0x200, v%Version% released on %ReleaseDate%
     Gui, Show, AutoSize, About %appName% v%Version%
     verifySettingsWindowSize()
-    ColorPickerHandles := hDonateBTN "," hIcon
+    ColorPickerHandles := hDonateBTN "," hBellIcon
     Sleep, 25
 }
 
@@ -1654,6 +1808,9 @@ INIsettings(a) {
   INIaction(a, "LastNoon", "SavedSettings")
   INIaction(a, "AdditionalStrikes", "SavedSettings")
   INIaction(a, "strikeEveryMin", "SavedSettings")
+  INIaction(a, "QuotesAlreadySeen", "SavedSettings")
+  INIaction(a, "showBibleQuotes", "SavedSettings")
+  INIaction(a, "BibleQuotesInterval", "SavedSettings")
 
 ; OSD settings
   INIaction(a, "CurrentDPI", "OSDprefs")
@@ -1668,6 +1825,7 @@ INIsettings(a) {
   INIaction(a, "OSDtextColor", "OSDprefs")
   INIaction(a, "OSDsizingFactorH", "OSDprefs")
   INIaction(a, "OSDsizingFactorW", "OSDprefs")
+  INIaction(a, "maxBibleLength", "OSDprefs")
 
   If (a=0) ; a=0 means to load from INI
      CheckSettings()
@@ -1711,6 +1869,7 @@ CheckSettings() {
     BinaryVar(tickTockNoise, 0)
     BinaryVar(DynamicVolume, 1)
     BinaryVar(AdditionalStrikes, 0)
+    BinaryVar(showBibleQuotes, 0)
 
 ; correct contradictory settings
 
@@ -1736,7 +1895,9 @@ CheckSettings() {
     MinMaxVar(silentHoursB, 0, 23, 14)
     MinMaxVar(LastNoon, 1, 3, 2)
     MinMaxVar(strikeInterval, 500, 5500, 2000)
-    MinMaxVar(OSDalpha, 24, 252, 200)
+    MinMaxVar(BibleQuotesInterval, 3, 11, 5)
+    MinMaxVar(maxBibleLength, 10, 130, 55)
+    MinMaxVar(OSDalpha, 24, 252, 230)
     MinMaxVar(OSDsizingFactorW, 10, 350, 0)
     MinMaxVar(OSDsizingFactorH, 10, 350, 86)
     If (silentHoursB<silentHoursA)
