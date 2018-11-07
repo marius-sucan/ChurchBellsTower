@@ -4,7 +4,7 @@
 
 <p>An application that can toll quarters, on the hour, show random Bible verses, remind the user of Christian feasts and... reproduce semantron drumming sounds. Dedicated to bell lovers and Christians.</p>
 
-<p>I coded the application as an <a href="https://autohotkey.com/">AHK script</a> for AutoHotkey_H v1.1.27. To execute/compile the source code one needs <a href="https://hotkeyit.github.io/v2/">AutoHotkey_H v1.1+</a>.</p>
+<p><img alt="Church Bells Tower - screenshot" src="http://marius.sucan.ro/media/files/blog/ahk-scripts/bells-tower-screenshot.jpg"></p>
 
 <h2><a href="http://marius.sucan.ro/media/files/blog/ahk-scripts/bells-tower.zip">Downloaded latest version</a>  (compiled for x64/x32, Windows binary)</h2>
 
@@ -25,3 +25,5 @@
 <li>option to regularly play semantron drumming sounds on days of feast in Christianity</li>
 <li>option to start at boot [if compiled]</li>
 </ul> 
+
+<p>I coded the application as an <a href="https://autohotkey.com/">AHK script</a> for AutoHotkey_H v1.1.27. To execute/compile the source code one needs <a href="https://hotkeyit.github.io/v2/">AutoHotkey_H v1.1+</a>.</p>

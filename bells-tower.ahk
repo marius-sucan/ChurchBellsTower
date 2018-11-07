@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.0
+;@Ahk2Exe-SetVersion 1.9.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -85,8 +85,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.0"
- , ReleaseDate            := "2018 / 11 / 05"
+ , Version                := "1.9.1"
+ , ReleaseDate            := "2018 / 11 / 07"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -128,6 +128,7 @@ Global Debug := 0    ; for testing purposes
  , AdditionalStrikeFreq := strikeEveryMin * 60000  ; minutes
  , bibleQuoteFreq := BibleQuotesInterval * 3600000 ; hours
  , LargeUIfontValue := 13
+ , msgboxID := 1
  , ShowPreview := 0
  , ShowPreviewDate := 0
  , OSDprefix := ""
@@ -139,6 +140,7 @@ Global Debug := 0    ; for testing purposes
  , AnyWindowOpen := 0
  , LastBibleQuoteDisplay := 1
  , CurrentPrefWindow := 0
+ , celebYear := A_Year
  , isHolidayToday := 0
  , ScriptelSuspendel := 0
  , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
@@ -980,7 +982,7 @@ ReloadScript(silent:=1) {
 }
 
 DeleteSettings() {
-    MsgBox, 4,, Are you sure you want to delete the stored settings?
+    MsgBox, 4, %appName%, Are you sure you want to delete the stored settings?
     IfMsgBox, Yes
     {
        If (storeSettingsREG=0)
@@ -1059,7 +1061,7 @@ verifySettingsWindowSize() {
     {
        Global DoNotRepeatTimer := A_TickCount
        SoundBeep, 300, 900
-       MsgBox, 4,, The option "Large UI fonts" is enabled. The window seems to exceed your screen resolution. `nDo you want to disable Large UI fonts?
+       MsgBox, 4, %appName%, The option "Large UI fonts" is enabled. The window seems to exceed your screen resolution. `nDo you want to disable Large UI fonts?
        IfMsgBox, Yes
        {
            ToggleLargeFonts()
@@ -1275,7 +1277,7 @@ ShowOSDsettings() {
 
     Global CurrentPrefWindow := 5
     Global DoNotRepeatTimer := A_TickCount
-    Global editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel, editF40, editF60, editF73, Btn2, txt4
+    Global editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel, editF40, editF60, editF73, Btn2, txt4, Btn3
          , editF7, editF8, editF9, editF10, editF11, editF13, editF35, editF36, editF37, editF38, Btn2, txt1, txt2, txt3
     columnBpos1 := columnBpos2 := 160
     editFieldWid := 220
@@ -1307,8 +1309,9 @@ ShowOSDsettings() {
     Gui, Add, Checkbox, xs y+7 gVerifyOsdOptions Checked%showBibleQuotes% vshowBibleQuotes, Show a Bible quote every (in hours)
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF40, %BibleQuotesInterval%
     Gui, Add, UpDown, gVerifyOsdOptions vBibleQuotesInterval Range2-12, %BibleQuotesInterval%
-    Gui, Add, Checkbox, xs y+7 gVerifyOsdOptions Checked%ObserveHolidays% vObserveHolidays, Observe feasts / holidays for
-    Gui, Add, DropDownList, x+5 w180 gVerifyOsdOptions AltSubmit Choose%UserReligion% vUserReligion, Catholic Christians|Orthodox Christians
+    Gui, Add, Checkbox, xs y+7 gVerifyOsdOptions Checked%ObserveHolidays% vObserveHolidays, Observe Christian feasts / holidays
+    Gui, Add, DropDownList, x+2 w100 gVerifyOsdOptions AltSubmit Choose%UserReligion% vUserReligion, Catholic|Orthodox
+    Gui, Add, Button, x+1 hp w50 gListCelebrationsBtn vBtn3, List
     Gui, Add, Checkbox, xs y+7 gVerifyOsdOptions Checked%SemantronHoliday% vSemantronHoliday, Mark days of feast by regular semantron drumming
     Gui, Add, Text, xs y+10, Interval between tower strikes (in miliseconds):
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
@@ -1317,7 +1320,7 @@ ShowOSDsettings() {
     Gui, Add, Text, xp+15 y+6 hp +0x200 vtxt1, from
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF35, %silentHoursA%
     Gui, Add, UpDown, gVerifyOsdOptions vsilentHoursA Range0-23, %silentHoursA%
-    Gui, Add, Text, x+1 hp  +0x200 vtxt2, :00   to
+    Gui, Add, Text, x+2 hp  +0x200 vtxt2, :00   to
     Gui, Add, Edit, x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF36, %silentHoursB%
     Gui, Add, UpDown, gVerifyOsdOptions vsilentHoursB Range0-23, %silentHoursB%
     Gui, Add, Text, x+1 hp  +0x200 vtxt3, :59
@@ -1390,6 +1393,8 @@ VerifyOsdOptions(EnableApply:=1) {
     GuiControlGet, tollQuarters
     GuiControlGet, AdditionalStrikes
     GuiControlGet, showBibleQuotes
+    GuiControlGet, SemantronHoliday
+    GuiControlGet, ObserveHolidays
 
     GuiControl, % (EnableApply=0 ? "Disable" : "Enable"), ApplySettingsBTN
     GuiControl, % (AdditionalStrikes=0 ? "Disable" : "Enable"), editF38
@@ -1408,6 +1413,8 @@ VerifyOsdOptions(EnableApply:=1) {
     GuiControl, % (tollHours=0 ? "Disable" : "Enable"), tollHoursAmount
     GuiControl, % (tollQuarters=0 ? "Disable" : "Enable"), tollQuartersException
     GuiControl, % (ShowPreview=0 ? "Disable" : "Enable"), ShowPreviewDate
+    GuiControl, % ((ObserveHolidays=0 && SemantronHoliday=0) ? "Disable" : "Enable"), UserReligion
+    GuiControl, % ((ObserveHolidays=0 && SemantronHoliday=0) ? "Disable" : "Enable"), btn3
 
     Static LastInvoked := 1
 
@@ -1419,7 +1426,8 @@ VerifyOsdOptions(EnableApply:=1) {
     }
 }
 
-trimArray(arr) { ; Hash O(n) 
+trimArray(arr) {
+; Hash O(n) 
 ; Function by errorseven from:
 ; https://stackoverflow.com/questions/46432447/how-do-i-remove-duplicates-from-an-autohotkey-array
     hash := {}, newArr := []
@@ -1469,13 +1477,11 @@ ST_Insert(insert,input,pos=1) {
   Return output
 }
 
-calcEasterDate(year:=0) {
-  If !year
-     year := A_Year
+calcEasterDate() {
   If (UserReligion=1)
-     result := CatholicEaster(year)
+     result := CatholicEaster(celebYear)
   Else
-     result := OrthodoxEaster(year)
+     result := OrthodoxEaster(celebYear)
 
   FormatTime, lola, %result%, yday
   If (lola=A_YDay)
@@ -1534,7 +1540,7 @@ ashwednesday() {
 
   FormatTime, lola, %result%, yday
   If (lola=A_YDay && UserReligion=1)
-     isHolidayToday := "Ash Wednesday - first day of Lent"
+     isHolidayToday := "Ash Wednesday - first day of Lent; a reminder we were made from dust and we will return to dust"
 
   return result
 }
@@ -1597,6 +1603,17 @@ SecondDayEaster() {
   return result
 }
 
+DivineMercy() {
+  result := calcEasterDate()
+  EnvAdd, result, 7, days
+
+  FormatTime, lola, %result%, yday
+  If (lola=A_YDay && UserReligion=1)
+     isHolidayToday := "Divine Mercy Sunday - related to His Merciful Divinity and Faustina Kowalska, a Polish Catholic nun"
+
+  return result
+}
+
 ascensionday() {
   result := calcEasterDate()
   EnvAdd, result, 39, days
@@ -1619,13 +1636,24 @@ pentecost() {
   return result
 }
 
+holyTrinityOrthdox() {
+  result := calcEasterDate()
+  EnvAdd, result, 50, days
+
+  FormatTime, lola, %result%, yday
+  If (lola=A_YDay && UserReligion=2)
+     isHolidayToday := "The Holy Trinity - celebrates the Christian doctrine of the Trinity, the three Persons of God: the Father, the Son, and the Holy Spirit"
+
+  return result
+}
+
 TrinitySunday() {
   result := calcEasterDate()
   EnvAdd, result, 56, days
 
   FormatTime, lola, %result%, yday
   If (lola=A_YDay)
-     isHolidayToday := (UserReligion=1) ? "Holy Trinity Sunday" : "All saints day"
+     isHolidayToday := (UserReligion=1) ? "Holy Trinity Sunday -  celebrates the Christian doctrine of the Trinity, the three Persons of God: the Father, the Son, and the Holy Spirit" : "All saints day"
 
   return result
 }
@@ -1647,7 +1675,7 @@ lifeGivingSpring() {
 
   FormatTime, lola, %result%, yday
   If (lola=A_YDay && UserReligion=2)
-     isHolidayToday := "The Life-giving Spring - when Blessed Mary healed a blind man by drinking water from a spring"
+     isHolidayToday := "The Life-Giving Spring - when Blessed Mary healed a blind man by drinking water from a spring"
 
   return result
 }
@@ -1658,6 +1686,7 @@ testCelebrations() {
      Return
 
   easterdate := calcEasterDate()
+  divineMercyDate := DivineMercy()
   2ndeasterdate := SecondDayEaster()
   palmdaydate := palmSunday()
   maundydate := MaundyT()
@@ -1669,32 +1698,41 @@ testCelebrations() {
   TrinitySundaydate := TrinitySunday()
   corpuschristidate := corpuschristi()
   lifeSpringDate := lifeGivingSpring()
+  holyTrinityOrthdoxDate := holyTrinityOrthdox()
 
   testFeast := A_MDay "." A_Mon
   If (testFeast="06.01")
      isHolidayToday := (UserReligion=1) ? "Epiphany - the revelation of God incarnate as Jesus Christ" : "Theophany - the baptism of Jesus in the Jordan River"
+  Else If (testFeast="07.01" && UserReligion=2)
+     isHolidayToday := "The Synaxis of Saint John the Baptist - a Jewish itinerant preacher, and a prophet"
   Else If (testFeast="30.01" && UserReligion=2)
      isHolidayToday := "The Three Holy Hierarchs - Basil the Great, John Chrysostom and Gregory the Theologian"
   Else If (testFeast="02.02")
      isHolidayToday := "The Presentation of Lord Jesus - at the Temple in Jerusalem to induct Him into Judaism"
-  Else If (testFeast="25.03" && UserReligion=2)
-     isHolidayToday := "The Annunciation of the Lord - when Virgin Mary was told she would conceive and become the mother of Jesus by the angel Gabriel"
+  Else If (testFeast="25.03" && !isHolidayToday)
+     isHolidayToday := "The Annunciation of the Lord [Virgin Mary] - when Virgin Mary was told she would conceive and become the mother of Jesus"
+  Else If (testFeast="23.04" && !isHolidayToday)
+     isHolidayToday := "Saint George - a Roman soldier of Greek origin under the Roman emperor Diocletian - he was sentenced to death for refusing to recant his Christian faith"
+  Else If (testFeast="24.06")
+     isHolidayToday := "Birth of John the Baptist - a Jewish itinerant preacher, and a prophet"
   Else If (testFeast="06.08")
      isHolidayToday := "The Feast of the Transfiguration of Jesus - when He becomes radiant in glory upon a mountain"
   Else If (testFeast="15.08")
-     isHolidayToday := (UserReligion=1) ? "Assumption of Virgin Mary" : "Falling Asleep of the Blessed Virgin Mary"
+     isHolidayToday := (UserReligion=1) ? "Assumption of Virgin Mary - her body and soul assumed into heavenly glory" : "Falling Asleep of the Blessed Virgin Mary"
   Else If (testFeast="29.08")
-     isHolidayToday := "The Beheading of Saint John the Baptist"
+     isHolidayToday := "The Beheading of Saint John the Baptist - he was killed on the orders of Herod Antipas through the vengeful request of his step-daughter Salomé and her mother Herodias"
   Else If (testFeast="08.09")
-     isHolidayToday := "The Birth of the Virgin Mary"
+     isHolidayToday := "Birth of the Virgin Mary"
   Else If (testFeast="14.09")
      isHolidayToday := "The Exaltation of the Holy Cross - the recovery of the cross on which Jesus Christ was crucified"
   Else If (testFeast="04.10" && UserReligion=1)
-     isHolidayToday := "Saint Francis of Assisi"
+     isHolidayToday := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of different orders within Catholic church"
   Else If (testFeast="14.10" && UserReligion=2)
-     isHolidayToday := "Saint Paraskeva of the Balkans"
+     isHolidayToday := "Saint Paraskeva of the Balkans - an ascetic female saint of the 10th century of half Serbian and half Greek origins"
   Else If (testFeast="01.11" && UserReligion=1)
      isHolidayToday := "All saints day"
+  Else If (testFeast="02.11" && UserReligion=1)
+     isHolidayToday := "All souls' day - commemoration of all the faithful departed"
   Else If (testFeast="21.11")
      isHolidayToday := "The Presentation of the Blessed Virgin Mary - when she was brought, as a child, to the Temple in Jerusalem to be consecrated to God"
   Else If (testFeast="08.12" && UserReligion=1)
@@ -1704,42 +1742,204 @@ testCelebrations() {
   Else If (testFeast="26.12")
      isHolidayToday := "Christmas 2nd day - the birth of Jesus Christ"
   Else If (testFeast="28.12" && UserReligion=1)
-     isHolidayToday := "Feast of the Holy Innocents - in remembrance of the massacre of young children in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus"
+     isHolidayToday := "Feast of the Holy Innocents - in remembrance of the young children killed in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus"
 
   OSDprefix := ""
   If (StrLen(isHolidayToday)>2 && ObserveHolidays=1)
   {
      OSDprefix := "✝ "
-     CreateBibleGUI(generateDateTimeTxt(1,1) " | " isHolidayToday, 1)
+     If (AnyWindowOpen!=1)
+        CreateBibleGUI(generateDateTimeTxt() " | " isHolidayToday, 1)
   }
+}
 
-/*
-FormatTime, easterdate, %easterdate%, LongDate
-FormatTime, palmdaydate, %palmdaydate%, LongDate
-FormatTime, maundydate, %maundydate%, LongDate
-FormatTime, HolySaturdaydate, %HolySaturdaydate%, LongDate
-FormatTime, goodFridaydate, %goodFridaydate%, LongDate
-FormatTime, ashwednesdaydate, %ashwednesdaydate%, LongDate
-FormatTime, ascensiondaydate, %ascensiondaydate%, LongDate
-FormatTime, pentecostdate, %pentecostdate%, LongDate
-FormatTime, TrinitySundaydate, %TrinitySundaydate%, LongDate
-FormatTime, corpuschristidate, %corpuschristidate%, LongDate
+ListCelebrationsBtn() {
+  celebYear := A_Year
+  VerifyOsdOptions()
+  ListCelebrations()
+}
 
-MsgBox,
-(
-Easter related: %testFeast%
-Ash Wednesday: %ashwednesdaydate%
-Palm Sunday: %palmdaydate%
-Maundy Thursday: %maundydate%
-Good Friday: %goodFridaydate%
-Holy Saturday: %HolySaturdaydate%
-Christian Easter: %easterdate%
-Ascension Day: %ascensiondaydate%
-Pentecost: %pentecostdate%
-Trinity Sunday: %TrinitySundaydate%
-Corpus Christi: %corpuschristidate%
-)
-*/
+ListCelebrations() {
+  easterdate := calcEasterDate()
+  divineMercyDate := DivineMercy()
+  palmdaydate := palmSunday()
+  maundydate := MaundyT()
+  HolySaturdaydate := HolySaturday()
+  goodFridaydate := goodFriday()
+  ashwednesdaydate := ashwednesday()
+  ascensiondaydate := ascensionday()
+  pentecostdate := pentecost()
+  TrinitySundaydate := TrinitySunday()
+  corpuschristidate := corpuschristi()
+  lifeSpringDate := lifeGivingSpring()
+  holyTrinityOrthdoxDate := holyTrinityOrthdox()
+
+  FormatTime, easterdate, %easterdate%, LongDate
+  FormatTime, divineMercyDate, %divineMercyDate%, LongDate
+  FormatTime, palmdaydate, %palmdaydate%, LongDate
+  FormatTime, maundydate, %maundydate%, LongDate
+  FormatTime, HolySaturdaydate, %HolySaturdaydate%, LongDate
+  FormatTime, goodFridaydate, %goodFridaydate%, LongDate
+  FormatTime, ashwednesdaydate, %ashwednesdaydate%, LongDate
+  FormatTime, ascensiondaydate, %ascensiondaydate%, LongDate
+  FormatTime, pentecostdate, %pentecostdate%, LongDate
+  FormatTime, TrinitySundaydate, %TrinitySundaydate%, LongDate
+  FormatTime, corpuschristidate, %corpuschristidate%, LongDate
+  FormatTime, holyTrinityOrthdoxDate, %holyTrinityOrthdoxDate%, LongDate
+  FormatTime, lifeSpringDate, %lifeSpringDate%, LongDate
+
+  Epiphany := celebYear 0106010101
+  SynaxisSaintJohnBaptist := celebYear 0107010101
+  ThreeHolyHierarchs := celebYear 0130010101
+  PresentationLord := celebYear 0202010101
+  AnnunciationLord := celebYear 0325010101
+  SaintGeorge := celebYear 0423010101
+  BirthJohnBaptist := celebYear 0624010101
+  FeastTransfiguration := celebYear 0806010101
+  AssumptionVirginMary := celebYear 0815010101
+  BeheadingJohnBaptist := celebYear 0829010101
+  BirthVirginMary := celebYear 0908010101
+  ExaltationHolyCross := celebYear 0914010101
+  SaintFrancisAssisi := celebYear 1004010101
+  SaintParaskeva := celebYear 1014010101
+  Allsaintsday := celebYear 1101010101
+  Allsoulsday := celebYear 1102010101
+  PresentationVirginMary := celebYear 1121010101
+  ImmaculateConception := celebYear 1208010101
+  Christmasday := celebYear 1225010101
+  FeastHolyInnocents := celebYear 1228010101
+
+  FormatTime, Epiphany, %Epiphany%, LongDate
+  FormatTime, SynaxisSaintJohnBaptist, %SynaxisSaintJohnBaptist%, LongDate
+  FormatTime, ThreeHolyHierarchs, %ThreeHolyHierarchs%, LongDate
+  FormatTime, PresentationLord, %PresentationLord%, LongDate
+  FormatTime, AnnunciationLord, %AnnunciationLord%, LongDate
+  FormatTime, SaintGeorge, %SaintGeorge%, LongDate
+  FormatTime, BirthJohnBaptist, %BirthJohnBaptist%, LongDate
+  FormatTime, FeastTransfiguration, %FeastTransfiguration%, LongDate
+  FormatTime, AssumptionVirginMary, %AssumptionVirginMary%, LongDate
+  FormatTime, BeheadingJohnBaptist, %BeheadingJohnBaptist%, LongDate
+  FormatTime, BirthVirginMary, %BirthVirginMary%, LongDate
+  FormatTime, ExaltationHolyCross, %ExaltationHolyCross%, LongDate
+  FormatTime, SaintFrancisAssisi, %SaintFrancisAssisi%, LongDate
+  FormatTime, SaintParaskeva, %SaintParaskeva%, LongDate
+  FormatTime, Allsaintsday, %Allsaintsday%, LongDate
+  FormatTime, Allsoulsday, %Allsoulsday%, LongDate
+  FormatTime, PresentationVirginMary, %PresentationVirginMary%, LongDate
+  FormatTime, ImmaculateConception, %ImmaculateConception%, LongDate
+  FormatTime, Christmasday, %Christmasday%, LongDate
+  FormatTime, FeastHolyInnocents, %FeastHolyInnocents%, LongDate
+  relName := (UserReligion=1) ? "Catholic" : "Orthodox"
+  msgboxID := 1
+  If (UserReligion=1)
+  {
+     OnMessage(0x44, "OnMsgBox")
+     MsgBox 0x2001, %relName% celebrations in %celebYear%,
+     (Ltrim
+       Easter related celebrations:
+       Ash Wednesday: %ashwednesdaydate%
+       Palm Sunday: %palmdaydate%
+       Maundy Thursday: %maundydate%
+       Good Friday: %goodFridaydate%
+       Holy Saturday: %HolySaturdaydate%
+       Catholic Easter: %easterdate%
+       Divine Mercy: %divineMercyDate%
+       Ascension of Jesus: %ascensiondaydate%
+       Pentecost: %pentecostdate%
+       Trinity Sunday: %TrinitySundaydate%
+       Corpus Christi: %corpuschristidate%
+     )
+     OnMessage(0x44, "")
+
+     IfMsgBox, OK
+     {
+       msgboxID := 2
+       OnMessage(0x44, "OnMsgBox")
+       MsgBox 0x2001, %relName% celebrations in %celebYear%,
+       (Ltrim
+         Other celebrations:
+         Epiphany: %Epiphany%
+         The Presentation of Lord Jesus: %PresentationLord%
+         The Annunciation of the Virgin Mary: %AnnunciationLord%
+         Saint George: %SaintGeorge%
+         Birth of John the Baptist: %BirthJohnBaptist%
+         Feast of Transfiguration: %FeastTransfiguration%
+         Assumption of Virgin Mary: %AssumptionVirginMary%
+         The Beheading of Saint John the Baptist: %BeheadingJohnBaptist%
+         Birth of Virgin Mary: %BirthVirginMary%
+         The Exaltation of the Holy Cross: %ExaltationHolyCross%
+         Saint Francis of Assisi: %SaintFrancisAssisi%
+         All saints day: %Allsaintsday%
+         All souls' day: %Allsoulsday%
+         The Presentation of the Virgin Mary: %PresentationVirginMary%
+         The Solemnity of Immaculate Conception: %ImmaculateConception%
+         Christmas day: %Christmasday%
+         Feast of the Holy Innocents: %FeastHolyInnocents%
+       )
+       IfMsgBox OK, {
+         celebYear++
+         ListCelebrations()
+       } Else Return
+   
+     } Else Return
+  } Else
+  {
+     OnMessage(0x44, "OnMsgBox")
+     MsgBox 0x2001, %relName% celebrations in %celebYear%,
+     (Ltrim
+       Easter related celebrations:
+       Flowery Sunday: %palmdaydate%
+       Maundy Thursday: %maundydate%
+       Holy Friday: %goodFridaydate%
+       Holy Saturday: %HolySaturdaydate%
+       Orthodox Easter: %easterdate%
+       Life-giving Spring: %lifeSpringDate%
+       Ascension of Jesus: %ascensiondaydate%
+       Pentecost: %pentecostdate%
+       Holy Trinity: %holyTrinityOrthdoxDate%
+       All saints day: %TrinitySundaydate%
+     )
+     OnMessage(0x44, "")
+
+     IfMsgBox, OK
+     {
+       msgboxID := 2
+       OnMessage(0x44, "OnMsgBox")
+       MsgBox 0x2001, %relName% celebrations in %celebYear%,
+       (Ltrim
+         Other celebrations:
+         Theophany: %Epiphany%
+         The Synaxis of Saint John the Baptist: %SynaxisSaintJohnBaptist%
+         The Three Holy Hierarchs: %ThreeHolyHierarchs%
+         The Presentation of Lord Jesus: %PresentationLord%
+         The Annunciation of the Virgin Mary: %AnnunciationLord%
+         Saint George: %SaintGeorge%
+         Birth of John the Baptist: %BirthJohnBaptist%
+         Feast of Transfiguration: %FeastTransfiguration%
+         Falling Asleep of Virgin Mary: %AssumptionVirginMary%
+         The Beheading of Saint John the Baptist: %BeheadingJohnBaptist%
+         Birth of Virgin Mary: %BirthVirginMary%
+         The Exaltation of the Holy Cross: %ExaltationHolyCross%
+         Saint Paraskeva of the Balkans: %SaintParaskeva%
+         The Presentation of the Virgin Mary: %PresentationVirginMary%
+         Christmas day: %Christmasday%
+       )
+       IfMsgBox OK, {
+         celebYear++
+         ListCelebrations()
+       } Else Return
+   
+     } Else Return
+  }
+}
+
+OnMsgBox() {
+    DetectHiddenWindows, On
+    Process, Exist
+    If (WinExist("ahk_class #32770 ahk_pid " . ErrorLevel)) {
+        ControlSetText Button1, % (msgboxID=2) ? "&Next year" : "&Others"
+        ControlSetText Button2, &Close
+    }
 }
 
 compareYearDays(givenDay, CurrentDay) {
@@ -1888,7 +2088,7 @@ AboutWindow() {
     {
        relName := (UserReligion=1) ? "Catholic" : "Orthodox"
        Gui, Font, Bold
-       Gui, Add, Text, y+7 w%txtWid%, % "Today " relName " Christians celebrate: " isHolidayToday "."
+       Gui, Add, Text, y+7 w%txtWid%, % relName " Christians celebrate today: " isHolidayToday "."
        Gui, Font, Normal
     }
 
@@ -1903,6 +2103,8 @@ AboutWindow() {
     Gui, Add, Text, xs y+15 w%txtWid%, This application contains code from various entities. You can find more details in the source code.
     If (storeSettingsREG=1)
        Gui, Add, Link, xs y+15 w%txtWid%, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
+    Else      
+       Gui, Add, Link, xs y+15 w%txtWid%, For the latest version, check the development page <a href="https://github.com/marius-sucan/ChurchBellsTower">on GitHub</a>.
     Gui, Font, Bold
     Gui, Add, Link, xp+30 y+10, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
     Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, paypal.png
@@ -2007,7 +2209,7 @@ MinMaxVar(ByRef givenVar, miny, maxy, defy) {
 
     If testNumber is not digit
     {
-       testNumber := defy
+       givenVar := defy
        Return
     }
 
