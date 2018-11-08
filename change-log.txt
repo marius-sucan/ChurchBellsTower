@@ -5,6 +5,12 @@
 
 Work began on this project in August 2018.
 
+v1.9.2 - 2018 / 11 / 08
+- [new] "Locate" button at OSD options, meant to help users with OSD positioning, if they do not figure that they can drag the OSD :-)
+- [new] "Display last Bible quote", menu option; only enabled after a quote was displayied
+- [improvement] Bible quotes are now centered on screen, on the monitor where the mouse cursor is
+
+
 v1.9.1 - 2018 / 11 / 07
 - [new] option to list the feasts/holidays/celebrations recognized by this script; the button for this is at Settings; applies to both Catholic or Orthodox religions
 - added more feasts and corrected errors related to them

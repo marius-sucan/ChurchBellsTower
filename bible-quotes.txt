@@ -71,7 +71,13 @@
 2 Timothy 2:6-7 | And hardworking farmers should be the first to enjoy the fruit of their labor. Think about what I am saying. The Lord will help you understand all these things.
 2 Timothy 3:1-5 | Mark this! There will be terrible times in the last days. People will be lovers of themselves, lovers of money, boastful, proud, abusive, disobedient to their parents, ungrateful, unholy, without love, unforgiving, slanderous, without self-control, brutal, not lovers of the good, treacherous, rash, conceited, lovers of pleasure rather than lovers of God, having a form of godliness but denying its power. Have nothing to do with such people.
 2 Timothy 4:7-8 | I have fought the good fight, I have finished the race, I have kept the faith. Henceforth there is laid up for me the crown of righteousness, which the Lord, the righteous judge, will award to me on that Day, and not only to me but also to all who have loved his appearing.
+Acts 17:24-25 | The God who made the world and everything in it is the Lord of heaven and earth and does not live in temples built by human hands. And he is not served by human hands, as if he needed anything. Rather, He Himself gives everyone life and breath and everything else.
+Acts 17:28 | In Him we live and move and have our being.
+Acts 17:29 | Since we are God’s offspring, we should not think that the divine being is like gold or silver or stone – an image made by human design and skill. 
+Acts 17:31 | He has set a day when He will judge the world with justice by the man He has appointed. He has given proof of this to everyone by raising Him from the dead.
 Acts 1:6b-8a | "Lord, are you at this time going to restore the kingdom to Israel?" He said to them: "It is not for you to know the times or dates the Father has set by His own authority". You will receive power when the Holy Spirit comes on you.
+Acts 20:28c-30 | Be shepherds of the church of God, which He bought with His own blood. I know that after I leave, savage wolves will come in among you and will not spare the flock. Even from your own number men will arise and distort the truth in order to draw away disciples after them.
+Acts 20:35 | [Paul] In everything I did, I showed you that by this kind of hard work we must help the weak, remembering the words the Lord Jesus himself said: "It is more blessed to give than to receive."
 Acts 2:17 | In the last days, God says, I will pour out my Spirit on all people. Your sons and daughters will prophesy, your young men will see visions, your old men will dream dreams.
 Acts 2:36 | Let all Israel be assured of this: God has made this Jesus, whom you crucified, both Lord and Messiah.
 Acts 2:38 | Repent and be baptised, every one of you, in the name of Jesus Christ for the forgiveness of your sins. And you will receive the gift of the Holy Spirit. 
@@ -79,12 +85,6 @@ Acts 3:19 | Repent and turn to God, so that your sins may be wiped out, that tim
 Acts 4:11 | Jesus is the stone you builders rejected, which has become the cornerstone.
 Acts 4:12 | Salvation is found in no one else but Jesus, for there is no other name under Heaven given to mankind by which we must be saved.
 Acts 7:49-50 | "Heaven is my throne, and the earth is my footstool. What kind of house will you build for me?" says the Lord. "Where will my resting place be? Has not my hand made all these things?"
-Acts 17:24-25 | The God who made the world and everything in it is the Lord of heaven and earth and does not live in temples built by human hands. And he is not served by human hands, as if he needed anything. Rather, He Himself gives everyone life and breath and everything else.
-Acts 17:28 | In Him we live and move and have our being.
-Acts 17:29 | Since we are God’s offspring, we should not think that the divine being is like gold or silver or stone – an image made by human design and skill. 
-Acts 17:31 | He has set a day when He will judge the world with justice by the man He has appointed. He has given proof of this to everyone by raising Him from the dead.
-Acts 20:28c-30 | Be shepherds of the church of God, which He bought with His own blood. I know that after I leave, savage wolves will come in among you and will not spare the flock. Even from your own number men will arise and distort the truth in order to draw away disciples after them.
-Acts 20:35 | [Paul] In everything I did, I showed you that by this kind of hard work we must help the weak, remembering the words the Lord Jesus himself said: "It is more blessed to give than to receive."
 Amos 4:13 | He who forms the mountains, who creates the wind, and who reveals His thoughts to mankind, who turns dawn to darkness, and treads on the heights of the Earth - the Lord God Almighty is His name.
 Amos 5:10 | There are those who hate the one who upholds justice in court and detest the one who tells the truth.
 Amos 5:12-13 | I know how many are your offenses and how great your sins are. There are those who oppress the innocent and take bribes and deprive the poor of justice in the courts. Therefore the prudent keep quiet in such times, for the times are evil.
@@ -172,8 +172,7 @@ Ephesians 5:14 | Wake up, sleeper, rise from the dead, and Christ will shine on 
 Ephesians 5:20 | Always giving thanks to God the Father for everything, in the name of our Lord Jesus Christ.
 Ephesians 5:21 | Submit to one another out of reverence for Christ.
 Ephesians 5:22 | Wives, submit yourselves to your own husbands as you do to the Lord.
-Ephesians 5:25-26 | Husbands, love your wives, just as Christ loved the church and gave Himself up for her to make her holy, cleansing her by the washing with water through the word.
-Ephesians 5:25-33 | Husbands, love your wives, as Christ loved the church and gave himself up for her, that he might sanctify her, having cleansed her by the washing of water with the word, so that he might present the church to himself in splendor, without spot or wrinkle or any such thing, that she might be holy and without blemish. In the same way husbands should love their wives as their own bodies. He who loves his wife loves himself. For no one ever hated his own flesh, but nourishes and cherishes it, just as Christ does the church.
+Ephesians 5:25-26 | Husbands, love your wives, just as Christ loved the church and gave Himself up for her to make her holy, cleansing her by the washing with water through The Word.
 Ephesians 5:28 | Husbands ought to love their wives as their own bodies. He who loves his wife loves himself.
 Ephesians 6:12 | Our struggle is not against flesh and blood, but against the rulers, against the authorities, against the powers of this dark world and against the spiritual forces of evil in the heavenly realms.
 Exodus 15:2 | The Lord is my strength and my song; he has given me victory. This is my God, and I will praise Him, my father’s God, and I will exalt Him!
@@ -184,7 +183,7 @@ Exodus 20:16 | You shall not give false testimony against your neighbor.
 Exodus 20:17b | Thou shalt not covet neighbour's wife.
 Exodus 20:2 | I am the Lord your God, who brought you out of Egypt, out of the land of slavery.
 Exodus 20:20 | Moses said to the people, "Do not be afraid. God has come to test you, so that the fear of God will be with you to keep you from sinning."
-Exodus 20:3 | You shall have no other gods before me.
+Exodus 20:3 | You shall have no other gods before Me.
 Exodus 20:4-5 | You shall not make for yourself an image in the form of anything in heaven above or on the earth beneath or in the waters below.You shall not bow down to them or worship them; for I, the Lord your God, am a jealous God...
 Exodus 20:7 | You shall not misuse the name of the Lord your God, for the Lord will not hold anyone guiltless who misuses His name.
 Exodus 20:8-9 | Remember the Sabbath day by keeping it holy. Six days you shall labor and do all your work.
@@ -225,7 +224,7 @@ Genesis 9:6 | Whoever sheds human blood, by humans shall their blood be shed; fo
 Habakkuk 2:1 | I will stand at my watch and station myself on the ramparts; I will look to see what he will say to me, and what answer I am to give to this complaint.
 Habakkuk 3:17-18 | Though the fig tree does not bud and there are no grapes on the vines, though the olive crop fails and the fields produce no food, though there are no sheep in the pen and no cattle in the stalls, yet I will rejoice in the Lord, I will be joyful in God my Savior.
 Haggai 1:5-6 | The Lord Almighty says: "Give careful thought to your ways. You have planted much, but harvested little. You eat, but never have enough. You drink, but never have your fill. You put on clothes, but are not warm. You earn wages, only to put them in a purse with holes in it."
-Hebrews 10:19-23 | Therefore, brothers, since we have confidence to enter the holy places by the blood of Jesus, by the new and living way that he opened for us through the curtain, that is, through His flesh, and since we have a great priest over the house of God, let us draw near with a true heart in full assurance of faith, with our hearts sprinkled clean from an evil conscience and our bodies washed with pure water. Let us hold fast the confession of our hope without wavering, for he who promised is faithful.
+Hebrews 10:19-23 | Therefore, brothers, since we have confidence to enter the holy places by the blood of Jesus, by the new and living way that He opened for us through the curtain, that is, through His flesh, and since we have a great priest over the house of God, let us draw near with a true heart in full assurance of faith, with our hearts sprinkled clean from an evil conscience and our bodies washed with pure water. Let us hold fast the confession of our hope without wavering, for he who promised is faithful.
 Hebrews 10:24-25 | And let us consider how we may spur one another on toward love and good deeds, not giving up meeting together, as some are in the habit of doing, but encouraging one another, and all the more as you see the Day approaching.
 Hebrews 12:1-2 | Therefore, since we are surrounded by so great a cloud of witnesses, let us also lay aside every weight, and sin which clings so closely, and let us run with endurance the race that is set before us, looking to Jesus, the founder and perfecter of our faith, who for the joy that was set before Him endured the cross, despising the shame, and is seated at the right hand of the throne of God.
 Hebrews 4:12 | For the word of God is alive and active. Sharper than any double-edged sword, it penetrates even to dividing soul and spirit, joints and marrow; it judges the thoughts and attitudes of the heart.
@@ -279,7 +278,7 @@ Isaiah 55:8-9 | "For My thoughts are not your thoughts, neither are your ways My
 Isaiah 56:1 | The Lord says: "Maintain justice and do what is right, for My salvation is close at hand and My righteousness will soon be revealed."
 Isaiah 57:1-2 | The righteous perish, and no one takes it to heart; the devout are taken away, and no one understands that the righteous are taken away to be spared from evil. Those who walk uprightly enter into peace; they find rest as they lie in death.
 Isaiah 57:15-16 | This is what the high and exalted One says: "I live in a high and holy place, but also with the one who is contrite and lowly in spirit, to revive the spirit of the lowly and to revive the heart of the contrite. I will not accuse them forever, nor will I always be angry, for then they would faint away because of me, the very people I have created.
-Isaiah 57:21 | "There is no peace," says my God, "for the wicked."
+Isaiah 57:21 | "There is no peace" says my God, "for the wicked."
 Isaiah 58:10 | If you spend yourselves in behalf of the hungry and satisfy the needs of the oppressed, then your light will rise in the darkness, and your night will become like the noonday.
 Isaiah 58:4 | Your fasting ends in quarreling and strife, and in striking each other with wicked fists. You cannot fast as you do today and expect your voice to be heard on high.
 Isaiah 59:12 | For our offenses are many in Your sight, and our sins testify against us. Our offenses are ever with us, and we acknowledge our iniquities.
@@ -342,7 +341,7 @@ Luke 6:37 | Do not judge, and you will not be judged. Do not condemn, and you wi
 Luke 6:38 | Give, and it will be given to you. A good measure, pressed down, shaken together and running over, will be poured into your lap. For with the measure you use, it will be measured to you.
 Luke 6:41 | Why do you look at the speck of sawdust in your brother’s eye and pay no attention to the plank in your own eye?
 Luke 6:42 | How can you say to your brother, ‘Brother, let me take the speck out of your eye,’ when you yourself fail to see the plank in your own eye? You hypocrite, first take the plank out of your eye, and then you will see clearly to remove the speck from your brother’s eye.
-Luke 6:46 | Why do you call me, "Lord, Lord," and do not do what I say?
+Luke 6:46 | Why do you call me, "Lord, Lord" and do not do what I say?
 Malachi 1:4-5 | Edom may say, "Though we have been crushed, we will rebuild the ruins." But the Lord Almighty says: "They may build, but I will demolish. They will be called the Wicked Land, a people always under the wrath of the Lord. You will see it with your own eyes and say, «Great is the Lord even beyond the borders of Israel!»"
 Malachi 1:6 | "A son honors his father, and a slave his master. If I am a father, where is the honor due me? If I am a master, where is the respect due me?" says the Lord Almighty. "It is you priests who show contempt for my name." But you ask, ‘How have we shown contempt for your name?’
 Malachi 1:8 | When you offer blind animals for sacrifice, is that not wrong? When you sacrifice lame or diseased animals, is that not wrong? Try offering them to your governor! Would he be pleased with you? Would he accept you?" says the Lord Almighty.
@@ -380,7 +379,7 @@ Numbers 21:2-3 | Israel made this vow to the Lord: ‘If you will deliver these 
 Philippians 1:21-23 | For to me to live is Christ, and to die is gain. If I am to live in the flesh, that means fruitful labor for me. Yet which I shall choose I cannot tell. I am hard pressed between the two. My desire is to depart and be with Christ, for that is far better.
 Philippians 2:14 | Do everything without grumbling or arguing.
 Philippians 3:20-21 | But our commonwealth is in Heaven, and from it we await a Savior, the Lord Jesus Christ, who will change our lowly body to be like his glorious body, by the power which enables him even to subject all things to himself.
-Philippians 3:7-9 | But whatever gain I had, I counted as loss for the sake of Christ. Indeed, I count everything as loss because of the surpassing worth of knowing Christ Jesus my Lord. For His sake I have suffered the loss of all things and count them as rubbish, in order that I may gain Christ and be found in Him, not having a righteousness of my own that comes from the law, but that which comes through faith in Christ, the righteousness from God that depends on faith.
+Philippians 3:7-9 | Whatever gain I had, I counted as loss for the sake of Christ. Indeed, I count everything as loss because of the surpassing worth of knowing Christ Jesus my Lord. For His sake I have suffered the loss of all things and count them as rubbish, in order that I may gain Christ and be found in Him, not having a righteousness of my own that comes from the law, but that which comes through faith in Christ, the righteousness from God that depends on faith.
 Philippians 4:12-13 | I know what it is to be in need, and I know what it is to have plenty. I have learned the secret of being content in any and every situation... I can do everything through him who gives me strength.
 Philippians 4:13 | For I can do everything through Christ, who gives me strength.
 Philippians 4:19 | And my God will supply every need of yours according to his riches in glory in Christ Jesus.

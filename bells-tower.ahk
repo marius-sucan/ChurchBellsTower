@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.1
+;@Ahk2Exe-SetVersion 1.9.2
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -36,6 +36,7 @@
  ; #Warn Debug
  ComObjError(false)
  SetTitleMatchMode, 2
+ Coordmode, Mouse, Screen
  SetBatchLines, -1
  ListLines, Off
  SetWorkingDir, %A_ScriptDir%
@@ -85,8 +86,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.1"
- , ReleaseDate            := "2018 / 11 / 07"
+ , Version                := "1.9.2"
+ , ReleaseDate            := "2018 / 11 / 08"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -139,6 +140,7 @@ Global Debug := 0    ; for testing purposes
  , FontChangedTimes := 0
  , AnyWindowOpen := 0
  , LastBibleQuoteDisplay := 1
+ , LastBibleMsg := ""
  , CurrentPrefWindow := 0
  , celebYear := A_Year
  , isHolidayToday := 0
@@ -248,7 +250,7 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
 }
 
 InvokeBibleQuoteNow() {
-  Static bibleQuotesFile, countLines
+  Static bibleQuotesFile, countLines, menuAdded
   
   If (PrefOpen=0 && A_IsSuspended)
      Return
@@ -274,25 +276,44 @@ InvokeBibleQuoteNow() {
      } Until (stopLoop=1 || A_Index>712)
   } Else Line2Read := "R"
   bibleQuote := ST_ReadLine(bibleQuotesFile, Line2Read)
+  LastBibleMsg := bibleQuote
   QuotesAlreadySeen .= "a" Line2Read "a"
   StringReplace, QuotesAlreadySeen, QuotesAlreadySeen, aa, a
   StringRight, QuotesAlreadySeen, QuotesAlreadySeen, 155
   If (StrLen(bibleQuote)>6)
-     CreateBibleGUI(bibleQuote, 1)
+     CreateBibleGUI(bibleQuote, 1, 1)
   If (PrefOpen!=1)
   {
+     If (menuAdded!=1)
+     {
+        menuAdded := 1
+        Menu, Tray, Enable, Show previous Bible &quote
+     }
      SetMyVolume(1)
      INIaction(1, "QuotesAlreadySeen", "SavedSettings")
      If (stopAdditionalStrikes!=1)
-        SoundPlay, sounds\japanese-bell.wav, 1
+        ahkdll4 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\japanese-bell.wav, 1")
   } Else SoundPlay, sounds\japanese-bell.wav
-  quoteDisplayTime := (PrefOpen=1) ? DisplayTime*1.5 : StrLen(bibleQuote) * 123
+  quoteDisplayTime := 1500 + StrLen(bibleQuote) * 123
+  If (quoteDisplayTime>120100)
+     quoteDisplayTime := 120100
+  Else If (PrefOpen=1)
+     quoteDisplayTime := quoteDisplayTime/2 + DisplayTime
   SetTimer, DestroyBibleGui, % -quoteDisplayTime
 }
 
 DestroyBibleGui() {
   Gui, BibleGui: Destroy
   BibleGuiVisible := 0
+}
+
+ShowLastBibleMsg() {
+  If (StrLen(LastBibleMsg)>6 && PrefOpen!=1)
+  {
+     CreateBibleGUI(LastBibleMsg, 1)
+     quoteDisplayTime := 1500 + StrLen(LastBibleMsg) * 123
+     SetTimer, DestroyBibleGui, % -quoteDisplayTime
+  }
 }
 
 SetMyVolume(noRestore:=0) {
@@ -446,7 +467,7 @@ AdditionalStriker() {
   If (stopAdditionalStrikes=1 || A_IsSuspended || PrefOpen=1 || strikingBellsNow=1)
      Return
   SetMyVolume(1)
-  SoundPlay, sounds\auxilliary-bell.wav, 1
+  ahkdll4 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\auxilliary-bell.wav, 1")
 }
 
 theChimer() {
@@ -691,7 +712,7 @@ ST_wordWrap(string, column=56, indentChar="") {
     Return result
 }
 
-CreateBibleGUI(msg2Display, isBibleQuote:=0) {
+CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     Critical, On
     bibleQuoteVisible := (isBibleQuote=1) ? 1 : 0
     FontSizeMin := (isBibleQuote=1) ? FontSizeQuotes : FontSize
@@ -720,17 +741,18 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0) {
     If (isBibleQuote=0)
        Gui, BibleGui: Add, Text, w2 y+0 h%OSDmarginBottom% BackgroundTrans, .
     Gui, BibleGui: Show, NoActivate AutoSize %hideDisplay% x%GuiX% y%GuiY%, ChurchTowerBibleWin
-    If (isBibleQuote=1)
+    If (centerMsg=1)
     {
-       Sleep, 10
        GuiGetSize(mainWid, mainHeig, 0)
-       mGuiY := GuiY - Round(mainHeig/1.25)
-       If (mGuiY<1 && GuiY>0)
-          mGuiY := 5
-       If (mGuiY>GuiY || GuiY<0)
-          mGuiY := GuiY
-       Gui, BibleGui: Show, NoActivate AutoSize x%GuiX% y%mGuiY%, ChurchTowerBibleWin
+       ActiveMon := MWAGetMonitorMouseIsIn()
+       SysGet, BoundingCoordinates, Monitor, %ActiveMon%
+       ResolutionWidth := BoundingCoordinatesRight - BoundingCoordinatesLeft
+       ResolutionHeight := BoundingCoordinatesBottom - BoundingCoordinatesTop
+       mGuiX := Round(ResolutionWidth/2 - mainWid/2)
+       mGuiY := Round(ResolutionHeight/2 - mainHeig/2)
+       Gui, BibleGui: Show, NoActivate AutoSize x%mGuiX% y%mGuiY%, ChurchTowerBibleWin
     }
+
     WinSet, Transparent, %OSDalpha%, ChurchTowerBibleWin
     WinSet, AlwaysOnTop, On, ChurchTowerBibleWin
     BibleGuiVisible := 1
@@ -759,28 +781,28 @@ MouseMove(wP, lP, msg, hwnd) {
   hwnd+=0, A := WinExist("A"), hwnd .= "", A .= ""
   SetFormat, Integer, D
 
-  If InStr(hBibleOSD, hwnd) && (A_TickCount - LastBibleQuoteDisplay>1500)
+  If (InStr(hBibleOSD, hwnd) && (A_TickCount - LastBibleQuoteDisplay>1990))
   {
-        Tickcount_start2 := A_TickCount
-        If (PrefOpen=0)
-           DestroyBibleGui()
-        DllCall("user32\SetCursor", "Ptr", hCursM)
-        If !(wP&0x13)    ; no LMR mouse button is down, we hover
+     Tickcount_start2 := A_TickCount
+     If (PrefOpen=0)
+        DestroyBibleGui()
+     DllCall("user32\SetCursor", "Ptr", hCursM)
+     If !(wP&0x13)    ; no LMR mouse button is down, we hover
+     {
+        If A not in %hBibleOSD%
+           hAWin := A
+     } Else If (wP&0x1) && (bibleQuoteVisible=0) ; L mouse button is down, we're dragging
+     {
+        SetTimer, DestroyBibleGui, Off
+        While GetKeyState("LButton", "P")
         {
-           If A not in %hBibleOSD%
-              hAWin := A
-        } Else If (wP&0x1) && (bibleQuoteVisible=0) ; L mouse button is down, we're dragging
-        {
-           SetTimer, DestroyBibleGui, Off
-           While GetKeyState("LButton", "P")
-           {
-              PostMessage, 0xA1, 2,,, ahk_id %hBibleOSD%
-              DllCall("user32\SetCursor", "Ptr", hCursM)
-           }
-           SetTimer, trackMouseDragging, -1
-           Sleep, 0
-        } Else If ((wP&0x2) || (wP&0x10) || bibleQuoteVisible=1)
-           DestroyBibleGui()
+           PostMessage, 0xA1, 2,,, ahk_id %hBibleOSD%
+           DllCall("user32\SetCursor", "Ptr", hCursM)
+        }
+        SetTimer, trackMouseDragging, -1
+        Sleep, 0
+     } Else If ((wP&0x2) || (wP&0x10) || bibleQuoteVisible=1)
+        DestroyBibleGui()
   } Else If ColorPickerHandles
   {
      If hwnd in %ColorPickerHandles%
@@ -789,7 +811,7 @@ MouseMove(wP, lP, msg, hwnd) {
 
   If (InStr(hwnd, hBibleOSD) || InStr(hwnd, hBibleTxt)) && (PrefOpen=0)
   {
-     If (A_TimeIdle<100) && (A_TickCount - LastBibleQuoteDisplay>1500)
+     If (A_TimeIdle<100) && (A_TickCount - LastBibleQuoteDisplay>1900)
         DestroyBibleGui()
   }
 }
@@ -895,10 +917,16 @@ ReloadScriptNow() {
 
 InitializeTray() {
     Menu, Tray, NoStandard
+    If (ShowBibleQuotes=1)
+    {
+       Menu, Tray, Add, Show previous Bible &quote, ShowLastBibleMsg
+       Menu, Tray, Disable, Show previous Bible &quote
+    }
     Menu, Tray, Add, &Customize, ShowOSDsettings
     Menu, Tray, Add, L&arge UI fonts, ToggleLargeFonts
     If (storeSettingsREG=0)
        Menu, Tray, Add, Sta&rt at boot, SetStartUp
+
     Menu, Tray, Add
 
     RegRead, currentReg, %StartRegPath%, %appName%
@@ -1278,7 +1306,7 @@ ShowOSDsettings() {
     Global CurrentPrefWindow := 5
     Global DoNotRepeatTimer := A_TickCount
     Global editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel, editF40, editF60, editF73, Btn2, txt4, Btn3
-         , editF7, editF8, editF9, editF10, editF11, editF13, editF35, editF36, editF37, editF38, Btn2, txt1, txt2, txt3
+         , editF7, editF8, editF9, editF10, editF11, editF13, editF35, editF36, editF37, editF38, txt1, txt2, txt3, Btn4
     columnBpos1 := columnBpos2 := 160
     editFieldWid := 220
     If (PrefsLargeFonts=1)
@@ -1329,8 +1357,9 @@ ShowOSDsettings() {
     Gui, Add, Text, x+15 y+15 Section, OSD position (x, y)
     Gui, Add, Edit, xs+%columnBpos2% ys w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF1, %GuiX%
     Gui, Add, UpDown, vGuiX gVerifyOsdOptions 0x80 Range-9995-9998, %GuiX%
-    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF2, %GuiY%
+    Gui, Add, Edit, x+5 w70 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF2, %GuiY%
     Gui, Add, UpDown, vGuiY gVerifyOsdOptions 0x80 Range-9995-9998, %GuiY%
+    Gui, Add, Button, x+5 w60 hp gLocatePositionA vBtn4, Locate
 
     Gui, Add, Text, xm+15 ys+30 Section, Margins (top, bottom, sides)
     Gui, Add, Edit, xs+%columnBpos2% ys+0 Section w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF11, %OSDmarginTop%
@@ -1361,7 +1390,7 @@ ShowOSDsettings() {
     Gui, Add, UpDown, vDisplayTimeUser gVerifyOsdOptions Range1-99, %DisplayTimeUser%
     Gui, Add, Edit, xp+0 yp+30 w55 hp geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60, %maxBibleLength%
     Gui, Add, UpDown, vmaxBibleLength gVerifyOsdOptions Range20-130, %maxBibleLength%
-    Gui, Add, Button, x+5 hp gInvokeBibleQuoteNow vBtn2, Preview quote
+    Gui, Add, Button, x+0 hp w120 gInvokeBibleQuoteNow vBtn2, Preview quote
     If !FontList._NewEnum()[k, v]
     {
         Fnt_GetListOfFonts()
@@ -1435,6 +1464,64 @@ trimArray(arr) {
         If (!hash.Haskey(v))
             hash[(v)] := 1, newArr.push(v)
     Return newArr
+}
+
+MWAGetMonitorMouseIsIn() {
+; function from: https://autohotkey.com/boards/viewtopic.php?f=6&t=54557
+; by Maestr0
+
+  ; get the mouse coordinates first
+  MouseGetPos, Mx, My
+  SysGet, MonitorCount, 80  ; monitorcount, so we know how many monitors there are, and the number of loops we need to do
+
+  Loop, %MonitorCount%
+  {
+    SysGet, mon%A_Index%, Monitor, %A_Index%  ; "Monitor" will get the total desktop space of the monitor, including taskbars
+
+    If (Mx>=mon%A_Index%left) && (Mx<mon%A_Index%right)
+    && (My>=mon%A_Index%top) && (My<mon%A_Index%bottom)
+    {
+      ActiveMon := A_Index
+      break
+    }
+  }
+  return ActiveMon
+}
+
+ScreenBlocker(killNow:=0) {
+    Static
+    If (killNow=1)
+    {
+       Gui, ScreenBl: Destroy
+       Return
+    }
+
+    ActiveMon := MWAGetMonitorMouseIsIn()
+    SysGet, BoundingCoordinates, Monitor, %ActiveMon%
+    ResolutionWidth := BoundingCoordinatesRight - BoundingCoordinatesLeft
+    ResolutionHeight := BoundingCoordinatesBottom - BoundingCoordinatesTop
+
+    Gui, ScreenBl: Destroy
+    Gui, ScreenBl: +AlwaysOnTop -Caption +ToolWindow
+    Gui, ScreenBl: Margin, 0, 0
+    Gui, ScreenBl: Color, 543210
+    Gui, ScreenBl: Show, x%BoundingCoordinatesLeft% y%BoundingCoordinatesTop% w%ResolutionWidth% h%ResolutionHeight%, ScreenShader
+    WinSet, Transparent, 30, ScreenShader
+    WinSet, AlwaysOnTop, On, ScreenShader
+}
+
+LocatePositionA() {
+    ScreenBlocker()
+    ToolTip, Move mouse to desired location and click
+    KeyWait, LButton, D, T10
+    MouseGetPos, mX, mY
+    ToolTip
+    ScreenBlocker(1)
+    GuiControl, , ShowPreview, 1
+    GuiControl, , GuiX, %mX%
+    GuiControl, , GuiY, %mY%
+    OSDpreview()
+    VerifyOsdOptions()
 }
 
 DonateNow() {
@@ -1749,7 +1836,7 @@ testCelebrations() {
   {
      OSDprefix := "✝ "
      If (AnyWindowOpen!=1)
-        CreateBibleGUI(generateDateTimeTxt() " | " isHolidayToday, 1)
+        CreateBibleGUI(generateDateTimeTxt() " || " isHolidayToday, 1, 1)
   }
 }
 
@@ -2104,7 +2191,7 @@ AboutWindow() {
     If (storeSettingsREG=1)
        Gui, Add, Link, xs y+15 w%txtWid%, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
     Else      
-       Gui, Add, Link, xs y+15 w%txtWid%, For the latest version, check the development page <a href="https://github.com/marius-sucan/ChurchBellsTower">on GitHub</a>.
+       Gui, Add, Link, xs y+15 w%txtWid%, The development page is <a href="https://github.com/marius-sucan/ChurchBellsTower">on GitHub</a>.
     Gui, Font, Bold
     Gui, Add, Link, xp+30 y+10, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
     Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, paypal.png
