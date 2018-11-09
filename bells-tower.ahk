@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.2
+;@Ahk2Exe-SetVersion 1.9.3
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -33,7 +33,6 @@
  #NoEnv
  #MaxMem 128
  DetectHiddenWindows, On
- ; #Warn Debug
  ComObjError(false)
  SetTitleMatchMode, 2
  Coordmode, Mouse, Screen
@@ -62,6 +61,7 @@
  , AdditionalStrikes    := 0
  , strikeEveryMin       := 5
  , showBibleQuotes      := 0
+ , makeScreenDark       := 0
  , BibleQuotesInterval  := 5
  , UserReligion         := 1
  , SemantronHoliday     := 0
@@ -86,8 +86,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.2"
- , ReleaseDate            := "2018 / 11 / 08"
+ , Version                := "1.9.3"
+ , ReleaseDate            := "2018 / 11 / 09"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -110,12 +110,10 @@
 
 ; Initialization variables. Altering these may lead to undesired results.
 
-Global Debug := 0    ; for testing purposes
- , CSthin      := "░"   ; light gray 
+Global CSthin      := "░"   ; light gray 
  , CSmid       := "▒"   ; gray 
  , CSdrk       := "▓"   ; dark gray
  , CSblk       := "█"   ; full block
-
  , DisplayTime := DisplayTimeUser*1000
  , BibleGuiVisible := 0
  , bibleQuoteVisible := 0
@@ -304,6 +302,7 @@ InvokeBibleQuoteNow() {
 
 DestroyBibleGui() {
   Gui, BibleGui: Destroy
+  Gui, ScreenBl: Destroy
   BibleGuiVisible := 0
 }
 
@@ -737,22 +736,31 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     Gui, BibleGui: Font, s%FontSizeMin%
     Gui, BibleGui: Add, Text, y+%HorizontalMargins% hwndhBibleTxt, %msg2Display%
     Gui, BibleGui: Font, s1
-    hideDisplay := (isBibleQuote=1) ? "Hide" : ""
     If (isBibleQuote=0)
        Gui, BibleGui: Add, Text, w2 y+0 h%OSDmarginBottom% BackgroundTrans, .
-    Gui, BibleGui: Show, NoActivate AutoSize %hideDisplay% x%GuiX% y%GuiY%, ChurchTowerBibleWin
+    Gui, BibleGui: Show, NoActivate AutoSize Hide x%GuiX% y%GuiY%, ChurchTowerBibleWin
+    GuiGetSize(mainWid, mainHeig, 0)
     If (centerMsg=1)
     {
-       GuiGetSize(mainWid, mainHeig, 0)
+       If (makeScreenDark=1)
+          ScreenBlocker(0,1)
        ActiveMon := MWAGetMonitorMouseIsIn()
-       SysGet, BoundingCoordinates, Monitor, %ActiveMon%
-       ResolutionWidth := BoundingCoordinatesRight - BoundingCoordinatesLeft
-       ResolutionHeight := BoundingCoordinatesBottom - BoundingCoordinatesTop
+       SysGet, BoundingCoordinates, MonitorWorkArea, %ActiveMon%
+       ResolutionWidth := min(BoundingCoordinatesRight, BoundingCoordinatesLeft) + max(BoundingCoordinatesRight, BoundingCoordinatesLeft)
+       ResolutionHeight := min(BoundingCoordinatesTop, BoundingCoordinatesBottom) + max(BoundingCoordinatesTop, BoundingCoordinatesBottom)
        mGuiX := Round(ResolutionWidth/2 - mainWid/2)
        mGuiY := Round(ResolutionHeight/2 - mainHeig/2)
-       Gui, BibleGui: Show, NoActivate AutoSize x%mGuiX% y%mGuiY%, ChurchTowerBibleWin
+       Final_x := max(BoundingCoordinatesLeft, min(mGuiX, BoundingCoordinatesRight - mainWid))
+       Final_y := max(BoundingCoordinatesTop, min(mGuiY, BoundingCoordinatesBottom - mainHeig))
+       Gui, BibleGui: Show, NoActivate x%Final_x% y%Final_y%, ChurchTowerBibleWin
+    } Else
+    {
+       ActiveMon := MWAGetMonitorMouseIsIn(GuiX, GuiY)
+       SysGet, BoundingCoordinates, MonitorWorkArea, %ActiveMon%
+       Final_x := max(BoundingCoordinatesLeft, min(GuiX, BoundingCoordinatesRight - mainWid))
+       Final_y := max(BoundingCoordinatesTop, min(GuiY, BoundingCoordinatesBottom - mainHeig))
+       Gui, BibleGui: Show, NoActivate x%Final_x% y%Final_y%, ChurchTowerBibleWin
     }
-
     WinSet, Transparent, %OSDalpha%, ChurchTowerBibleWin
     WinSet, AlwaysOnTop, On, ChurchTowerBibleWin
     BibleGuiVisible := 1
@@ -780,8 +788,8 @@ MouseMove(wP, lP, msg, hwnd) {
   SetFormat, Integer, H
   hwnd+=0, A := WinExist("A"), hwnd .= "", A .= ""
   SetFormat, Integer, D
-
-  If (InStr(hBibleOSD, hwnd) && (A_TickCount - LastBibleQuoteDisplay>1990))
+  HideDelay := (PrefOpen=1) ? 600 : 1950
+  If (InStr(hBibleOSD, hwnd) && (A_TickCount - LastBibleQuoteDisplay>HideDelay))
   {
      Tickcount_start2 := A_TickCount
      If (PrefOpen=0)
@@ -811,7 +819,7 @@ MouseMove(wP, lP, msg, hwnd) {
 
   If (InStr(hwnd, hBibleOSD) || InStr(hwnd, hBibleTxt)) && (PrefOpen=0)
   {
-     If (A_TimeIdle<100) && (A_TickCount - LastBibleQuoteDisplay>1900)
+     If (A_TimeIdle<100) && (A_TickCount - LastBibleQuoteDisplay>HideDelay)
         DestroyBibleGui()
   }
 }
@@ -1374,6 +1382,7 @@ ShowOSDsettings() {
     Gui, Add, Text, xs yp+30, Font size (normal, quotes)
     Gui, Add, Text, xs yp+30, Display time (in sec.)
     Gui, Add, Text, xs yp+30 vTxt4, Max. line length, for Bible quotes
+    Gui, Add, Checkbox, xs yp+30 gVerifyOsdOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen for Bible quotes
     Gui, Add, Checkbox, xs yp+35 h30 +0x1000 gVerifyOsdOptions Checked%ShowPreview% vShowPreview, Show preview window
     Gui, Add, Checkbox, y+5 hp gVerifyOsdOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date into preview
 
@@ -1432,6 +1441,7 @@ VerifyOsdOptions(EnableApply:=1) {
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), editF73
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Btn2
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Txt4
+    GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), makeScreenDark
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursA
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursB
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), editF35
@@ -1466,14 +1476,19 @@ trimArray(arr) {
     Return newArr
 }
 
-MWAGetMonitorMouseIsIn() {
+MWAGetMonitorMouseIsIn(coordX:=0,coordY:=0) {
 ; function from: https://autohotkey.com/boards/viewtopic.php?f=6&t=54557
 ; by Maestr0
 
   ; get the mouse coordinates first
   MouseGetPos, Mx, My
-  SysGet, MonitorCount, 80  ; monitorcount, so we know how many monitors there are, and the number of loops we need to do
+  If (coordX && coordY)
+  {
+     Mx := coordX
+     My := coordY
+  }
 
+  SysGet, MonitorCount, 80  ; monitorcount, so we know how many monitors there are, and the number of loops we need to do
   Loop, %MonitorCount%
   {
     SysGet, mon%A_Index%, Monitor, %A_Index%  ; "Monitor" will get the total desktop space of the monitor, including taskbars
@@ -1488,9 +1503,9 @@ MWAGetMonitorMouseIsIn() {
   return ActiveMon
 }
 
-ScreenBlocker(killNow:=0) {
+ScreenBlocker(killNow:=0, darkner:=0) {
     Static
-    If (killNow=1)
+    If (killNow=1) || (darkner=1 && makeScreenDark=0)
     {
        Gui, ScreenBl: Destroy
        Return
@@ -1502,11 +1517,13 @@ ScreenBlocker(killNow:=0) {
     ResolutionHeight := BoundingCoordinatesBottom - BoundingCoordinatesTop
 
     Gui, ScreenBl: Destroy
-    Gui, ScreenBl: +AlwaysOnTop -Caption +ToolWindow
+    Gui, ScreenBl: +AlwaysOnTop -DPIScale -Caption +ToolWindow
     Gui, ScreenBl: Margin, 0, 0
-    Gui, ScreenBl: Color, 543210
+    Gui, ScreenBl: Color, % (darkner=1) ? 221122 : 543210
     Gui, ScreenBl: Show, x%BoundingCoordinatesLeft% y%BoundingCoordinatesTop% w%ResolutionWidth% h%ResolutionHeight%, ScreenShader
-    WinSet, Transparent, 30, ScreenShader
+    WinSet, Transparent, % (darkner=1) ? 125 : 30, ScreenShader
+    If (darkner=1)
+       Gui, ScreenBl: +E0x20
     WinSet, AlwaysOnTop, On, ScreenShader
 }
 
@@ -2256,6 +2273,7 @@ INIsettings(a) {
   INIaction(a, "strikeEveryMin", "SavedSettings")
   INIaction(a, "QuotesAlreadySeen", "SavedSettings")
   INIaction(a, "showBibleQuotes", "SavedSettings")
+  INIaction(a, "makeScreenDark", "SavedSettings")
   INIaction(a, "BibleQuotesInterval", "SavedSettings")
   INIaction(a, "SemantronHoliday", "SavedSettings")
   INIaction(a, "ObserveHolidays", "SavedSettings")
@@ -2319,6 +2337,7 @@ CheckSettings() {
     BinaryVar(DynamicVolume, 1)
     BinaryVar(AdditionalStrikes, 0)
     BinaryVar(showBibleQuotes, 0)
+    BinaryVar(makeScreenDark, 0)
     BinaryVar(SemantronHoliday, 0)
     BinaryVar(ObserveHolidays, 0)
 
