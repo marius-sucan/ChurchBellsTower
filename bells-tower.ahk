@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.3
+;@Ahk2Exe-SetVersion 1.9.4
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -86,8 +86,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.3"
- , ReleaseDate            := "2018 / 11 / 09"
+ , Version                := "1.9.4"
+ , ReleaseDate            := "2018 / 11 / 11"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -142,13 +142,13 @@ Global CSthin      := "░"   ; light gray
  , CurrentPrefWindow := 0
  , celebYear := A_Year
  , isHolidayToday := 0
- , ScriptelSuspendel := 0
  , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
  , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
  , hBibleTxt, hBibleOSD, hOSD, OSDhandles, dragOSDhandles, ColorPickerHandles
  , hMain := A_ScriptHwnd
  , CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
  , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
+ , ahkdll1, ahkdll2, ahkdll3, ahkdll4
 
 ; Initializations of the core components and functionality
 
@@ -178,9 +178,9 @@ ScriptInitialized := 1      ; the end of the autoexec section and INIT
 If !isHolidayToday
    CreateBibleGUI(generateDateTimeTxt())
 If (AdditionalStrikes=1)
-   SetTimer, AdditionalStriker, %AdditionalStrikeFreq%
+   SetTimer, AdditionalStriker, %AdditionalStrikeFreq%, 200
 If (showBibleQuotes=1)
-   SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
+   SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%, 400
 Return
 
 WM_ENDSESSION() {
@@ -297,7 +297,7 @@ InvokeBibleQuoteNow() {
      quoteDisplayTime := 120100
   Else If (PrefOpen=1)
      quoteDisplayTime := quoteDisplayTime/2 + DisplayTime
-  SetTimer, DestroyBibleGui, % -quoteDisplayTime
+  SetTimer, DestroyBibleGui, % -quoteDisplayTime, 100
 }
 
 DestroyBibleGui() {
@@ -311,7 +311,7 @@ ShowLastBibleMsg() {
   {
      CreateBibleGUI(LastBibleMsg, 1)
      quoteDisplayTime := 1500 + StrLen(LastBibleMsg) * 123
-     SetTimer, DestroyBibleGui, % -quoteDisplayTime
+     SetTimer, DestroyBibleGui, % -quoteDisplayTime, 100
   }
 }
 
@@ -486,7 +486,7 @@ theChimer() {
   {
      If (mustEndNow!=1)
         stopAdditionalStrikes := 1
-     SetTimer, theChimer, % calcNextQuarter()
+     SetTimer, theChimer, % calcNextQuarter(), 900
      Return
   }
 
@@ -609,7 +609,7 @@ theChimer() {
            Random, newDelay, 35000, 85000
            SoundPlay, sounds\noon%choice%.mp3
            If (A_WDay=1)  ; on Sundays
-              SetTimer, TollExtraNoon, % -newDelay
+              SetTimer, TollExtraNoon, % -newDelay, 900
         }
      }
   }
@@ -639,7 +639,8 @@ theChimer() {
   }
   strikingBellsNow := 0
   lastChimed := CurrentTime
-  SetTimer, theChimer, % calcNextQuarter()
+  SetTimer, theChimer, % calcNextQuarter(), 900
+  SetTimer, FreeAhkResources, -270100, 950
 }
 
 calcNextQuarter() {
@@ -765,7 +766,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     WinSet, AlwaysOnTop, On, ChurchTowerBibleWin
     BibleGuiVisible := 1
     If (isBibleQuote=0 && PrefOpen!=1)
-       SetTimer, DestroyBibleGui, % -DisplayTime
+       SetTimer, DestroyBibleGui, % -DisplayTime, 100
 }
 
 GuiGetSize(ByRef W, ByRef H, vindov) {
@@ -847,7 +848,7 @@ saveGuiPositions() {
   If (PrefOpen=0)
   {
      Sleep, 700
-     SetTimer, DestroyBibleGui, -1500
+     SetTimer, DestroyBibleGui, -1500, 100
      INIaction(1, "GuiX", "OSDprefs")
      INIaction(1, "GuiY", "OSDprefs")
   } Else If (PrefOpen=1)
@@ -891,17 +892,16 @@ SuspendScript(partially:=0) {
       SoundBeep, 300, 900
       Return
    }
+   FreeAhkResources()
    If !A_IsSuspended
    {
       stopStrikesNow := 1
-      ScriptelSuspendel := 1
       SetTimer, theChimer, Off
       Menu, Tray, Uncheck, &%appName% activated
       SoundLoop("")
    } Else
    {
       stopStrikesNow := 0
-      ScriptelSuspendel := 0
       Menu, Tray, Check, &%appName% activated
       If (tickTockNoise=1)
          SoundLoop(tickTockSound)
@@ -1520,7 +1520,7 @@ ScreenBlocker(killNow:=0, darkner:=0) {
     Gui, ScreenBl: +AlwaysOnTop -DPIScale -Caption +ToolWindow
     Gui, ScreenBl: Margin, 0, 0
     Gui, ScreenBl: Color, % (darkner=1) ? 221122 : 543210
-    Gui, ScreenBl: Show, x%BoundingCoordinatesLeft% y%BoundingCoordinatesTop% w%ResolutionWidth% h%ResolutionHeight%, ScreenShader
+    Gui, ScreenBl: Show, NoActivate x%BoundingCoordinatesLeft% y%BoundingCoordinatesTop% w%ResolutionWidth% h%ResolutionHeight%, ScreenShader
     WinSet, Transparent, % (darkner=1) ? 125 : 30, ScreenShader
     If (darkner=1)
        Gui, ScreenBl: +E0x20
@@ -2394,6 +2394,7 @@ Cleanup() {
     DllCall("wtsapi32\WTSUnRegisterSessionNotification", "Ptr", hMain)
     DllCall("kernel32\FreeLibrary", "Ptr", hWinMM)
     Fnt_DeleteFont(hFont)
+    FreeAhkResources()
 }
 ; ------------------------------------------------------------- ; from Drugwash
 
@@ -2694,4 +2695,23 @@ SoundLoop(File := "") {
 
 dummy() {
     Return
+}
+
+FreeAhkResources() {
+  Static lastExec := 1
+  If (A_TickCount - lastExec<1900)
+     Return
+  Loop, 2
+  {
+    ahkthread_free(ahkdll1)
+    ahkdll1 := ""
+    ahkthread_free(ahkdll2)
+    ahkdll2 := ""
+    ahkthread_free(ahkdll3)
+    ahkdll3 := ""
+    ahkthread_free(ahkdll4)
+    ahkdll4 := ""
+    Sleep, 100
+  }
+  lastExec := A_TickCount
 }
