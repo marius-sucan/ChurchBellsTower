@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.4
+;@Ahk2Exe-SetVersion 1.9.5
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -44,6 +44,7 @@
 ; Default Settings
 
  Global IniFile         := "bells-tower.ini"
+ , LargeUIfontValue     := 13
  , tollQuarters         := 1 
  , tollQuartersException := 0 
  , tollHours            := 1
@@ -86,7 +87,7 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.4"
+ , Version                := "1.9.5"
  , ReleaseDate            := "2018 / 11 / 11"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
@@ -126,7 +127,6 @@ Global CSthin      := "░"   ; light gray
  , actualVolume := 0
  , AdditionalStrikeFreq := strikeEveryMin * 60000  ; minutes
  , bibleQuoteFreq := BibleQuotesInterval * 3600000 ; hours
- , LargeUIfontValue := 13
  , msgboxID := 1
  , ShowPreview := 0
  , ShowPreviewDate := 0
@@ -144,7 +144,7 @@ Global CSthin      := "░"   ; light gray
  , isHolidayToday := 0
  , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
  , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
- , hBibleTxt, hBibleOSD, hOSD, OSDhandles, dragOSDhandles, ColorPickerHandles
+ , hBibleTxt, hBibleOSD, hSetWinGui, ColorPickerHandles
  , hMain := A_ScriptHwnd
  , CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
  , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
@@ -178,9 +178,9 @@ ScriptInitialized := 1      ; the end of the autoexec section and INIT
 If !isHolidayToday
    CreateBibleGUI(generateDateTimeTxt())
 If (AdditionalStrikes=1)
-   SetTimer, AdditionalStriker, %AdditionalStrikeFreq%, 200
+   SetTimer, AdditionalStriker, %AdditionalStrikeFreq%
 If (showBibleQuotes=1)
-   SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%, 400
+   SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
 Return
 
 WM_ENDSESSION() {
@@ -297,7 +297,7 @@ InvokeBibleQuoteNow() {
      quoteDisplayTime := 120100
   Else If (PrefOpen=1)
      quoteDisplayTime := quoteDisplayTime/2 + DisplayTime
-  SetTimer, DestroyBibleGui, % -quoteDisplayTime, 100
+  SetTimer, DestroyBibleGui, % -quoteDisplayTime
 }
 
 DestroyBibleGui() {
@@ -311,7 +311,7 @@ ShowLastBibleMsg() {
   {
      CreateBibleGUI(LastBibleMsg, 1)
      quoteDisplayTime := 1500 + StrLen(LastBibleMsg) * 123
-     SetTimer, DestroyBibleGui, % -quoteDisplayTime, 100
+     SetTimer, DestroyBibleGui, % -quoteDisplayTime
   }
 }
 
@@ -486,7 +486,7 @@ theChimer() {
   {
      If (mustEndNow!=1)
         stopAdditionalStrikes := 1
-     SetTimer, theChimer, % calcNextQuarter(), 900
+     SetTimer, theChimer, % calcNextQuarter()
      Return
   }
 
@@ -609,7 +609,7 @@ theChimer() {
            Random, newDelay, 35000, 85000
            SoundPlay, sounds\noon%choice%.mp3
            If (A_WDay=1)  ; on Sundays
-              SetTimer, TollExtraNoon, % -newDelay, 900
+              SetTimer, TollExtraNoon, % -newDelay
         }
      }
   }
@@ -639,7 +639,7 @@ theChimer() {
   }
   strikingBellsNow := 0
   lastChimed := CurrentTime
-  SetTimer, theChimer, % calcNextQuarter(), 900
+  SetTimer, theChimer, % calcNextQuarter()
   SetTimer, FreeAhkResources, -270100, 950
 }
 
@@ -740,46 +740,38 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     If (isBibleQuote=0)
        Gui, BibleGui: Add, Text, w2 y+0 h%OSDmarginBottom% BackgroundTrans, .
     Gui, BibleGui: Show, NoActivate AutoSize Hide x%GuiX% y%GuiY%, ChurchTowerBibleWin
-    GuiGetSize(mainWid, mainHeig, 0)
+    WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
     If (centerMsg=1)
     {
        If (makeScreenDark=1)
           ScreenBlocker(0,1)
        ActiveMon := MWAGetMonitorMouseIsIn()
-       SysGet, BoundingCoordinates, MonitorWorkArea, %ActiveMon%
-       ResolutionWidth := min(BoundingCoordinatesRight, BoundingCoordinatesLeft) + max(BoundingCoordinatesRight, BoundingCoordinatesLeft)
-       ResolutionHeight := min(BoundingCoordinatesTop, BoundingCoordinatesBottom) + max(BoundingCoordinatesTop, BoundingCoordinatesBottom)
-       mGuiX := Round(ResolutionWidth/2 - mainWid/2)
-       mGuiY := Round(ResolutionHeight/2 - mainHeig/2)
-       Final_x := max(BoundingCoordinatesLeft, min(mGuiX, BoundingCoordinatesRight - mainWid))
-       Final_y := max(BoundingCoordinatesTop, min(mGuiY, BoundingCoordinatesBottom - mainHeig))
-       Gui, BibleGui: Show, NoActivate x%Final_x% y%Final_y%, ChurchTowerBibleWin
+       SysGet, mCoord, MonitorWorkArea, %ActiveMon%
+       semiFinal_x := max(mCoordLeft, min(mCoordLeft+1, mCoordRight - 100))
+       semiFinal_y := max(mCoordTop, min(mCoordTop+1, mCoordBottom - 100))
+       Gui, BibleGui: Show, NoActivate Hide AutoSize x%semiFinal_x% y%semiFinal_y%
+       Sleep, 25
+       WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
+       dummyA := min(mCoordRight, mCoordLeft) + max(mCoordRight, mCoordLeft)
+       dummyB := min(mCoordTop, mCoordBottom) + max(mCoordTop, mCoordBottom)
+       bGuiX := Round(dummyA/2 - mainWid/2)
+       bGuiY := Round(dummyB/2 - mainHeig/2)
+       Final_x := max(mCoordLeft, min(bGuiX, mCoordRight - mainWid))
+       Final_y := max(mCoordTop, min(bGuiY, mCoordBottom - mainHeig))
+       Gui, BibleGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, ChurchTowerBibleWin
     } Else
     {
        ActiveMon := MWAGetMonitorMouseIsIn(GuiX, GuiY)
-       SysGet, BoundingCoordinates, MonitorWorkArea, %ActiveMon%
-       Final_x := max(BoundingCoordinatesLeft, min(GuiX, BoundingCoordinatesRight - mainWid))
-       Final_y := max(BoundingCoordinatesTop, min(GuiY, BoundingCoordinatesBottom - mainHeig))
+       SysGet, mCoord, MonitorWorkArea, %ActiveMon%
+       Final_x := max(mCoordLeft, min(GuiX, mCoordRight - mainWid))
+       Final_y := max(mCoordTop, min(GuiY, mCoordBottom - mainHeig))
        Gui, BibleGui: Show, NoActivate x%Final_x% y%Final_y%, ChurchTowerBibleWin
     }
     WinSet, Transparent, %OSDalpha%, ChurchTowerBibleWin
     WinSet, AlwaysOnTop, On, ChurchTowerBibleWin
     BibleGuiVisible := 1
     If (isBibleQuote=0 && PrefOpen!=1)
-       SetTimer, DestroyBibleGui, % -DisplayTime, 100
-}
-
-GuiGetSize(ByRef W, ByRef H, vindov) {
-; function by VxE from https://autohotkey.com/board/topic/44150-how-to-properly-getset-gui-size/
-
-  If (vindov=0)
-     Gui, BibleGui: +LastFoundExist
-  Else If (vindov=5)
-     Gui, SettingsGUIA: +LastFoundExist
-  VarSetCapacity(rect, 16, 0)
-  DllCall("user32\GetClientRect", "Ptr", MyGuiHWND := WinExist(), "Ptr", &rect)
-  W := NumGet(rect, 8, "UInt")
-  H := NumGet(rect, 12, "UInt")
+       SetTimer, DestroyBibleGui, % -DisplayTime
 }
 
 MouseMove(wP, lP, msg, hwnd) {
@@ -848,7 +840,7 @@ saveGuiPositions() {
   If (PrefOpen=0)
   {
      Sleep, 700
-     SetTimer, DestroyBibleGui, -1500, 100
+     SetTimer, DestroyBibleGui, -1500
      INIaction(1, "GuiX", "OSDprefs")
      INIaction(1, "GuiY", "OSDprefs")
   } Else If (PrefOpen=1)
@@ -1064,8 +1056,7 @@ SettingsGUI(whiteBgr:=0) {
    Gui, SettingsGUIA: Destroy
    Sleep, 15
    Gui, SettingsGUIA: Default
-   Gui, SettingsGUIA: -MaximizeBox
-   Gui, SettingsGUIA: -MinimizeBox
+   Gui, SettingsGUIA: -MaximizeBox -MinimizeBox hwndhSetWinGui
    Gui, SettingsGUIA: Margin, 15, 15
    If (whiteBgr=1)
       Gui, SettingsGUIA: Color, FAfaFA
@@ -1087,25 +1078,51 @@ initSettingsWindow() {
     SettingsGUI()
 }
 
-verifySettingsWindowSize() {
-    If (PrefsLargeFonts=0) || (A_TickCount-DoNotRepeatTimer<40000)
-       Return
-    GuiGetSize(Wid, Heig, 5)
-    SysGet, SM_CXMAXIMIZED, 61
-    SysGet, SM_CYMAXIMIZED, 62
-    If (Heig>SM_CYMAXIMIZED-75) || (Wid>SM_CXMAXIMIZED-50)
+verifySettingsWindowSize(noCheckLargeUI:=0) {
+    Static lastAsked := 1
+    SysGet, MonitorCount, 80
+    ActiveMon := MWAGetMonitorMouseIsIn()
+    SysGet, mCoord, MonitorWorkArea, %ActiveMon%
+    ResolutionWidth := Abs(max(mCoordRight, mCoordLeft) - min(mCoordRight, mCoordLeft))
+    ResolutionHeight := Abs(max(mCoordTop, mCoordBottom) - min(mCoordTop, mCoordBottom))
+    If (MonitorCount>1)
     {
-       Global DoNotRepeatTimer := A_TickCount
-       SoundBeep, 300, 900
-       MsgBox, 4, %appName%, The option "Large UI fonts" is enabled. The window seems to exceed your screen resolution. `nDo you want to disable Large UI fonts?
-       IfMsgBox, Yes
+       semiFinal_x := max(mCoordLeft, min(mCoordLeft+1, mCoordRight - 100))
+       semiFinal_y := max(mCoordTop, min(mCoordTop+1, mCoordBottom - 100))
+       Gui, SettingsGUIA: Show, Hide AutoSize x%semiFinal_x% y%semiFinal_y%
+       Sleep, 25
+       WinGetPos,,, setWid, setHeig, ahk_id %hSetWinGui%
+       dummyA := min(mCoordRight, mCoordLeft) + max(mCoordRight, mCoordLeft)
+       dummyB := min(mCoordTop, mCoordBottom) + max(mCoordTop, mCoordBottom)
+       mGuiX := Round(dummyA/2 - setWid/2)
+       mGuiY := Round(dummyB/2 - setHeig/2)
+       Final_x := max(mCoordLeft, min(mGuiX, mCoordRight - setWid))
+       Final_y := max(mCoordTop, min(mGuiY, mCoordBottom - setHeig))
+       Gui, SettingsGUIA: Show, x%Final_x% y%Final_y%
+    } Else
+    {
+      WinGetPos,,, setWid, setHeig, ahk_id %hSetWinGui%
+    }
+
+    If (setHeig>ResolutionHeight*0.95) || (setWid>ResolutionWidth*0.95)
+    {
+       If (LargeUIfontValue>10)
        {
-           ToggleLargeFonts()
-           If (PrefOpen=1)
-              SwitchPreferences(1)
-           Else If (AnyWindowOpen=1)
-              AboutWindow()
+          LargeUIfontValue := LargeUIfontValue - 1
+          INIaction(1, "LargeUIfontValue", "SavedSettings")
        }
+    }
+
+    If (PrefsLargeFonts=0) || (A_TickCount-lastAsked<30000) || (noCheckLargeUI=1)
+       Return
+
+    If (setHeig>ResolutionHeight-2) || (setWid>ResolutionWidth-2)
+    {
+       SoundBeep, 300, 900
+       lastAsked := A_TickCount
+       MsgBox, 52, %appName%: warning, The option "Large UI fonts" is enabled. The window seems to exceed your screen resolution. `n`nDo you want to disable Large UI fonts?
+       IfMsgBox, Yes
+         ToggleLargeFonts()
     }
 }
 
@@ -1232,7 +1249,6 @@ UpdateFntNow() {
   Fnt_DeleteFont(hfont)
   fntOptions := "s" FontSize " Bold Q5"
   hFont := Fnt_CreateFont(FontName,fntOptions)
-  ; Fnt_SetFont(hOSDctrl,hfont,true)
   Fnt_SetFont(hBibleTxt,hfont,true)
 }
 
@@ -1497,10 +1513,10 @@ MWAGetMonitorMouseIsIn(coordX:=0,coordY:=0) {
     && (My>=mon%A_Index%top) && (My<mon%A_Index%bottom)
     {
       ActiveMon := A_Index
-      break
+      Break
     }
   }
-  return ActiveMon
+  Return ActiveMon
 }
 
 ScreenBlocker(killNow:=0, darkner:=0) {
@@ -1512,15 +1528,15 @@ ScreenBlocker(killNow:=0, darkner:=0) {
     }
 
     ActiveMon := MWAGetMonitorMouseIsIn()
-    SysGet, BoundingCoordinates, Monitor, %ActiveMon%
-    ResolutionWidth := BoundingCoordinatesRight - BoundingCoordinatesLeft
-    ResolutionHeight := BoundingCoordinatesBottom - BoundingCoordinatesTop
+    SysGet, mCoord, MonitorWorkArea, %ActiveMon%
+    ResolutionWidth := Abs(max(mCoordRight, mCoordLeft) - min(mCoordRight, mCoordLeft))
+    ResolutionHeight := Abs(max(mCoordTop, mCoordBottom) - min(mCoordTop, mCoordBottom))
 
     Gui, ScreenBl: Destroy
     Gui, ScreenBl: +AlwaysOnTop -DPIScale -Caption +ToolWindow
     Gui, ScreenBl: Margin, 0, 0
     Gui, ScreenBl: Color, % (darkner=1) ? 221122 : 543210
-    Gui, ScreenBl: Show, NoActivate x%BoundingCoordinatesLeft% y%BoundingCoordinatesTop% w%ResolutionWidth% h%ResolutionHeight%, ScreenShader
+    Gui, ScreenBl: Show, NoActivate x%mCoordLeft% y%mCoordTop% w%ResolutionWidth% h%ResolutionHeight%, ScreenShader
     WinSet, Transparent, % (darkner=1) ? 125 : 30, ScreenShader
     If (darkner=1)
        Gui, ScreenBl: +E0x20
@@ -2278,6 +2294,7 @@ INIsettings(a) {
   INIaction(a, "SemantronHoliday", "SavedSettings")
   INIaction(a, "ObserveHolidays", "SavedSettings")
   INIaction(a, "UserReligion", "SavedSettings")
+  INIaction(a, "LargeUIfontValue", "SavedSettings")
 
 ; OSD settings
   INIaction(a, "DisplayTimeUser", "OSDprefs")
@@ -2356,6 +2373,7 @@ CheckSettings() {
     MinMaxVar(silentHoursA, 0, 23, 12)
     MinMaxVar(silentHoursB, 0, 23, 14)
     MinMaxVar(LastNoon, 1, 4, 2)
+    MinMaxVar(LargeUIfontValue, 10, 18, 13)
     MinMaxVar(UserReligion, 1, 2, 1)
     MinMaxVar(strikeInterval, 900, 5500, 2000)
     MinMaxVar(BibleQuotesInterval, 2, 12, 5)
