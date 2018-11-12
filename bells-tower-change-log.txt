@@ -5,6 +5,9 @@
 
 Work began on this project in August 2018.
 
+v1.9.6 - 2018 / 11 / 12
+- improved how it handles multi-threads for sound play; this leads to lower memory consumption
+
 v1.9.5 - 2018 / 11 / 11
 - [MAJOR bug fix] fixed a memory leak that lead to an ever increasing memory usage
 - more bug fixes regarding the multi-monitor support

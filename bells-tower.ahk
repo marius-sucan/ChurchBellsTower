@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.5
+;@Ahk2Exe-SetVersion 1.9.6
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -87,8 +87,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.5"
- , ReleaseDate            := "2018 / 11 / 11"
+ , Version                := "1.9.6"
+ , ReleaseDate            := "2018 / 11 / 12"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -130,8 +130,7 @@ Global CSthin      := "░"   ; light gray
  , msgboxID := 1
  , ShowPreview := 0
  , ShowPreviewDate := 0
- , OSDprefix := ""
- , OSDsuffix := ""
+ , OSDprefix, OSDsuffix
  , stopStrikesNow := 0
  , stopAdditionalStrikes := 0
  , strikingBellsNow := 0
@@ -142,13 +141,14 @@ Global CSthin      := "░"   ; light gray
  , CurrentPrefWindow := 0
  , celebYear := A_Year
  , isHolidayToday := 0
+ , semtr2play := 0
  , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
  , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
  , hBibleTxt, hBibleOSD, hSetWinGui, ColorPickerHandles
  , hMain := A_ScriptHwnd
  , CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
  , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
- , ahkdll1, ahkdll2, ahkdll3, ahkdll4
+ , sndChanQ, sndChanH, sndChanA, sndChanJ, sndChanN, sndChanS
 
 ; Initializations of the core components and functionality
 
@@ -202,10 +202,10 @@ VerifyFiles() {
   FileInstall, bell-image.png, bell-image.png
   FileInstall, paypal.png, paypal.png
   FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
-  FileInstall, sounds\auxilliary-bell.wav, sounds\auxilliary-bell.wav
-  FileInstall, sounds\japanese-bell.wav, sounds\japanese-bell.wav
-  FileInstall, sounds\quarters.wav, sounds\quarters.wav
-  FileInstall, sounds\hours.wav, sounds\hours.wav
+  FileInstall, sounds\auxilliary-bell.mp3, sounds\auxilliary-bell.mp3
+  FileInstall, sounds\japanese-bell.mp3, sounds\japanese-bell.mp3
+  FileInstall, sounds\quarters.mp3, sounds\quarters.mp3
+  FileInstall, sounds\hours.mp3, sounds\hours.mp3
   FileInstall, sounds\evening.mp3, sounds\evening.mp3
   FileInstall, sounds\noon1.mp3, sounds\noon1.mp3
   FileInstall, sounds\noon2.mp3, sounds\noon2.mp3
@@ -215,8 +215,8 @@ VerifyFiles() {
   FileInstall, sounds\orthodox-chimes2.mp3, sounds\orthodox-chimes2.mp3
   FileInstall, sounds\semantron1.mp3, sounds\semantron1.mp3
   FileInstall, sounds\semantron2.mp3, sounds\semantron2.mp3
-  FileInstall, sounds\morning.wav, sounds\morning.wav
-  FileInstall, sounds\midnight.wav, sounds\midnight.wav
+  FileInstall, sounds\morning.mp3, sounds\morning.mp3
+  FileInstall, sounds\midnight.mp3, sounds\midnight.mp3
   Sleep, 300
 }
 
@@ -290,8 +290,13 @@ InvokeBibleQuoteNow() {
      SetMyVolume(1)
      INIaction(1, "QuotesAlreadySeen", "SavedSettings")
      If (stopAdditionalStrikes!=1)
-        ahkdll4 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\japanese-bell.wav, 1")
-  } Else SoundPlay, sounds\japanese-bell.wav
+     {
+        If !sndChanJ
+           sndChanJ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\japanese-bell.mp3, 1")
+        Else
+           sndChanJ.ahkReload[]
+     }
+  } Else SoundPlay, sounds\japanese-bell.mp3
   quoteDisplayTime := 1500 + StrLen(bibleQuote) * 123
   If (quoteDisplayTime>120100)
      quoteDisplayTime := 120100
@@ -420,7 +425,7 @@ strikeQuarters() {
   If (stopStrikesNow=1)
      Return
   sleepDelay := RandomNumberCalc()
-  ahkdll1 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\quarters.wav, 1") 
+  sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\quarters.mp3, 1") 
   If (PrefOpen!=1)
      Sleep, % strikeInterval + sleepDelay
   Else
@@ -431,24 +436,34 @@ strikeHours() {
   If (stopStrikesNow=1)
      Return
   sleepDelay := RandomNumberCalc()
-  ahkdll2 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\hours.wav, 1") 
+  sndChanH := AhkThread("#NoTrayIcon`nSoundPlay, sounds\hours.mp3, 1") 
   If (PrefOpen!=1)
      Sleep, % strikeInterval + sleepDelay
 }
 
-playSemantron(which:=1) {
+playSemantronDummy() {
+  playSemantron()
+}
+
+playSemantron(snd:=1) {
   If (stopStrikesNow=1)
      Return
+
+  If (snd=1)
+     semtr2play := "semantron1"
+  Else If (snd=2)
+     semtr2play := "semantron2"
+  Else If (snd=3)
+     semtr2play := "orthodox-chimes2"
+  Else If (snd=4)
+     semtr2play := "orthodox-chimes1"
+
   sleepDelay := RandomNumberCalc() * 2
   Sleep, %sleepDelay%
-  If (which=1)
-     ahkdll3 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\semantron1.mp3, 1") 
-  Else If (which=2)
-     ahkdll3 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\semantron2.mp3, 1") 
-  Else If (which=3)
-     ahkdll3 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\orthodox-chimes2.mp3, 1")
-   Else If (which=4)
-     ahkdll3 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\orthodox-chimes1.mp3, 1")
+  If !sndChanS
+     sndChanS := AhkThread("#NoTrayIcon`nMEx:=AhkExported()`nsmd:=MEx.ahkgetvar.semtr2play`nSoundPlay, sounds\%smd%.mp3, 1")
+  Else
+     sndChanS.ahkReload[]
 }
 
 TollExtraNoon() {
@@ -458,7 +473,10 @@ TollExtraNoon() {
   If (stopStrikesNow=1 || PrefOpen=1)
   || ((A_TickCount - lastToll<100000) && (AnyWindowOpen=1))
      Return
-  ahkdll3 := AhkThread("#NoTrayIcon`nRandom, choice, 1, 4`nSoundPlay, sounds\noon%choice%.mp3, 1")
+  If !sndChanN
+     sndChanN := AhkThread("#NoTrayIcon`nRandom, choice, 1, 4`nSoundPlay, sounds\noon%choice%.mp3, 1")
+  Else
+     sndChanN.ahkReload[]
   lastToll := A_TickCount
 }
 
@@ -466,14 +484,17 @@ AdditionalStriker() {
   If (stopAdditionalStrikes=1 || A_IsSuspended || PrefOpen=1 || strikingBellsNow=1)
      Return
   SetMyVolume(1)
-  ahkdll4 := AhkThread("#NoTrayIcon`nSoundPlay, sounds\auxilliary-bell.wav, 1")
+  If !sndChanA
+     sndChanA := AhkThread("#NoTrayIcon`nSoundPlay, sounds\auxilliary-bell.mp3, 1")
+  Else
+     sndChanA.ahkReload[]
 }
 
 theChimer() {
   Critical, on
   Static lastChimed
   FormatTime, CurrentTime,, hh:mm
-  
+  SetTimer, FreeAhkResources, Off
   If (lastChimed=CurrentTime || A_IsSuspended || PrefOpen=1)
      mustEndNow := 1
   FormatTime, exactTime,, HH:mm
@@ -500,7 +521,7 @@ theChimer() {
      volumeAction := SetMyVolume()
      If (displayClock=1)
         CreateBibleGUI(generateDateTimeTxt(1,1))
-     SoundPlay, sounds\morning.wav, 1
+     SoundPlay, sounds\morning.mp3, 1
      If (stopStrikesNow=0)
         Sleep, %delayRandNoon%
   } Else If (InStr(exactTime, "18:00") && tollNoon=1)
@@ -512,13 +533,17 @@ theChimer() {
         SoundPlay, sounds\evening.mp3, 1
      If (stopStrikesNow=0)
         Sleep, %delayRandNoon%
+     If (StrLen(isHolidayToday)>3)
+        SetTimer, TollExtraNoon, -51000
   } Else If (InStr(exactTime, "00:00") && tollNoon=1)
   {
      testCelebrations()
      volumeAction := SetMyVolume()
+     If (A_WDay=2 || A_WDay=5)
+        FreeAhkResources(1,1)
      If (displayClock=1)
         CreateBibleGUI(generateDateTimeTxt(1,1))
-     SoundPlay, sounds\midnight.wav, 1
+     SoundPlay, sounds\midnight.mp3, 1
      If (stopStrikesNow=0)
         Sleep, %delayRandNoon%
   }
@@ -606,9 +631,9 @@ theChimer() {
            SoundPlay, sounds\noon%choice%.mp3, 1
         } Else If (stopStrikesNow=0 && BeepsVolume>1)
         {
-           Random, newDelay, 35000, 85000
+           Random, newDelay, 39000, 89000
            SoundPlay, sounds\noon%choice%.mp3
-           If (A_WDay=1)  ; on Sundays
+           If (A_WDay=1 || StrLen(isHolidayToday)>3)  ; on Sundays or holidays
               SetTimer, TollExtraNoon, % -newDelay
         }
      }
@@ -625,7 +650,7 @@ theChimer() {
 
      If (InStr(exactTime, "11:45") && (A_WDay=1 || A_WDay=7))
      {
-        SetTimer, playSemantron, -55000
+        SetTimer, playSemantronDummy, -60000
         playSemantron(4)
      }
   }
@@ -640,7 +665,7 @@ theChimer() {
   strikingBellsNow := 0
   lastChimed := CurrentTime
   SetTimer, theChimer, % calcNextQuarter()
-  SetTimer, FreeAhkResources, -270100, 950
+  SetTimer, FreeAhkResources, -350100, 950
 }
 
 calcNextQuarter() {
@@ -884,7 +909,7 @@ SuspendScript(partially:=0) {
       SoundBeep, 300, 900
       Return
    }
-   FreeAhkResources()
+   FreeAhkResources(1)
    If !A_IsSuspended
    {
       stopStrikesNow := 1
@@ -937,7 +962,7 @@ InitializeTray() {
        Menu, Tray, Check, L&arge UI fonts
 
     RunType := A_IsCompiled ? "" : " [script]"
-    If FileExist("sounds\ticktock.wav")
+    If FileExist(tickTockSound)
        Menu, Tray, Add, Tick/Tock sound, ToggleTickTock
     Menu, Tray, Add
     Menu, Tray, Add, &%appName% activated, SuspendScriptNow
@@ -1319,7 +1344,7 @@ checkBoxStrikeAdditional() {
   stopStrikesNow := 0
   VerifyOsdOptions()
   If (AdditionalStrikes=1)
-     SoundPlay, sounds\auxilliary-bell.wav
+     SoundPlay, sounds\auxilliary-bell.mp3
 }
 
 ShowOSDsettings() {
@@ -2412,7 +2437,8 @@ Cleanup() {
     DllCall("wtsapi32\WTSUnRegisterSessionNotification", "Ptr", hMain)
     DllCall("kernel32\FreeLibrary", "Ptr", hWinMM)
     Fnt_DeleteFont(hFont)
-    FreeAhkResources()
+    FreeAhkResources(1)
+    Sleep, 50
 }
 ; ------------------------------------------------------------- ; from Drugwash
 
@@ -2715,21 +2741,27 @@ dummy() {
     Return
 }
 
-FreeAhkResources() {
+FreeAhkResources(cleanAll:=0,bumpExec:=0) {
   Static lastExec := 1
+       , timesExec := 0
   If (A_TickCount - lastExec<1900)
      Return
   Loop, 2
   {
-    ahkthread_free(ahkdll1)
-    ahkdll1 := ""
-    ahkthread_free(ahkdll2)
-    ahkdll2 := ""
-    ahkthread_free(ahkdll3)
-    ahkdll3 := ""
-    ahkthread_free(ahkdll4)
-    ahkdll4 := ""
+    ahkthread_free(sndChanQ), sndChanQ := ""
+    ahkthread_free(sndChanH), sndChanH := ""
+    If (cleanAll=1)
+    {
+       ahkthread_free(sndChanS), sndChanS := ""
+       ahkthread_free(sndChanA), sndChanA := ""
+       ahkthread_free(sndChanJ), sndChanJ := ""
+       ahkthread_free(sndChanN), sndChanN := ""
+    }
     Sleep, 100
   }
   lastExec := A_TickCount
+  If (bumpExec=1)
+     timesExec++
+  If (timesExec>3)
+     ReloadScript()
 }
