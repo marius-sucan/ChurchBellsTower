@@ -5,6 +5,10 @@
 
 Work began on this project in August 2018.
 
+v1.9.6.1 - 2018 / 11 / 15
+- minor improvements
+- corrections for Bible quotes and added a few more
+
 v1.9.6 - 2018 / 11 / 12
 - improved how it handles multi-threads for sound play; this leads to lower memory consumption
 

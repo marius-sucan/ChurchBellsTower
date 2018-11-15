@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.6
+;@Ahk2Exe-SetVersion 1.9.6.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -87,8 +87,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.6"
- , ReleaseDate            := "2018 / 11 / 12"
+ , Version                := "1.9.6.1"
+ , ReleaseDate            := "2018 / 11 / 15"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -198,6 +198,7 @@ VerifyFiles() {
      FileRemoveDir, sounds, 1
   Sleep, 50
   FileCreateDir, sounds
+
   FileInstall, bible-quotes.txt, bible-quotes.txt
   FileInstall, bell-image.png, bell-image.png
   FileInstall, paypal.png, paypal.png
@@ -247,6 +248,16 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
   }
 }
 
+strikeJapanBell() {
+  If (stopAdditionalStrikes!=1)
+     Return
+
+  If !sndChanJ
+     sndChanJ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\japanese-bell.mp3, 1")
+  Else
+     sndChanJ.ahkReload[]
+}
+
 InvokeBibleQuoteNow() {
   Static bibleQuotesFile, countLines, menuAdded
   
@@ -289,13 +300,7 @@ InvokeBibleQuoteNow() {
      }
      SetMyVolume(1)
      INIaction(1, "QuotesAlreadySeen", "SavedSettings")
-     If (stopAdditionalStrikes!=1)
-     {
-        If !sndChanJ
-           sndChanJ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\japanese-bell.mp3, 1")
-        Else
-           sndChanJ.ahkReload[]
-     }
+     strikeJapanBell()
   } Else SoundPlay, sounds\japanese-bell.mp3
   quoteDisplayTime := 1500 + StrLen(bibleQuote) * 123
   If (quoteDisplayTime>120100)
@@ -314,7 +319,8 @@ DestroyBibleGui() {
 ShowLastBibleMsg() {
   If (StrLen(LastBibleMsg)>6 && PrefOpen!=1)
   {
-     CreateBibleGUI(LastBibleMsg, 1)
+     CreateBibleGUI(LastBibleMsg, 1, 1)
+     strikeJapanBell()
      quoteDisplayTime := 1500 + StrLen(LastBibleMsg) * 123
      SetTimer, DestroyBibleGui, % -quoteDisplayTime
   }
@@ -537,10 +543,12 @@ theChimer() {
         SetTimer, TollExtraNoon, -51000
   } Else If (InStr(exactTime, "00:00") && tollNoon=1)
   {
-     testCelebrations()
-     volumeAction := SetMyVolume()
-     If (A_WDay=2 || A_WDay=5)
+     If (A_WDay=2 || A_WDay=5) && (ScriptInitialized=1)
         FreeAhkResources(1,1)
+     Sleep, 100
+     If (ScriptInitialized=1)
+        testCelebrations()
+     volumeAction := SetMyVolume()
      If (displayClock=1)
         CreateBibleGUI(generateDateTimeTxt(1,1))
      SoundPlay, sounds\midnight.mp3, 1
@@ -771,25 +779,39 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
        If (makeScreenDark=1)
           ScreenBlocker(0,1)
        ActiveMon := MWAGetMonitorMouseIsIn()
-       SysGet, mCoord, MonitorWorkArea, %ActiveMon%
-       semiFinal_x := max(mCoordLeft, min(mCoordLeft+1, mCoordRight - 100))
-       semiFinal_y := max(mCoordTop, min(mCoordTop+1, mCoordBottom - 100))
-       Gui, BibleGui: Show, NoActivate Hide AutoSize x%semiFinal_x% y%semiFinal_y%
-       Sleep, 25
-       WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
-       dummyA := min(mCoordRight, mCoordLeft) + max(mCoordRight, mCoordLeft)
-       dummyB := min(mCoordTop, mCoordBottom) + max(mCoordTop, mCoordBottom)
-       bGuiX := Round(dummyA/2 - mainWid/2)
-       bGuiY := Round(dummyB/2 - mainHeig/2)
-       Final_x := max(mCoordLeft, min(bGuiX, mCoordRight - mainWid))
-       Final_y := max(mCoordTop, min(bGuiY, mCoordBottom - mainHeig))
+       If ActiveMon
+       {
+          SysGet, mCoord, MonitorWorkArea, %ActiveMon%
+          semiFinal_x := max(mCoordLeft, min(mCoordLeft+1, mCoordRight - 100))
+          semiFinal_y := max(mCoordTop, min(mCoordTop+1, mCoordBottom - 100))
+          Gui, BibleGui: Show, NoActivate Hide AutoSize x%semiFinal_x% y%semiFinal_y%
+          Sleep, 25
+          WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
+          dummyA := min(mCoordRight, mCoordLeft) + max(mCoordRight, mCoordLeft)
+          dummyB := min(mCoordTop, mCoordBottom) + max(mCoordTop, mCoordBottom)
+          bGuiX := Round(dummyA/2 - mainWid/2)
+          bGuiY := Round(dummyB/2 - mainHeig/2)
+          Final_x := max(mCoordLeft, min(bGuiX, mCoordRight - mainWid))
+          Final_y := max(mCoordTop, min(bGuiY, mCoordBottom - mainHeig))
+       } Else
+       {
+          Final_x := GuiX
+          Final_y := GuiY
+       }
        Gui, BibleGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, ChurchTowerBibleWin
     } Else
     {
        ActiveMon := MWAGetMonitorMouseIsIn(GuiX, GuiY)
+       If !ActiveMon
+          ActiveMon := MWAGetMonitorMouseIsIn()
        SysGet, mCoord, MonitorWorkArea, %ActiveMon%
        Final_x := max(mCoordLeft, min(GuiX, mCoordRight - mainWid))
        Final_y := max(mCoordTop, min(GuiY, mCoordBottom - mainHeig))
+       If !ActiveMon
+       {
+          Final_x := GuiX
+          Final_y := GuiY
+       }
        Gui, BibleGui: Show, NoActivate x%Final_x% y%Final_y%, ChurchTowerBibleWin
     }
     WinSet, Transparent, %OSDalpha%, ChurchTowerBibleWin
@@ -820,13 +842,13 @@ MouseMove(wP, lP, msg, hwnd) {
      } Else If (wP&0x1) && (bibleQuoteVisible=0) ; L mouse button is down, we're dragging
      {
         SetTimer, DestroyBibleGui, Off
-        While GetKeyState("LButton", "P")
-        {
-           PostMessage, 0xA1, 2,,, ahk_id %hBibleOSD%
-           DllCall("user32\SetCursor", "Ptr", hCursM)
-        }
-        SetTimer, trackMouseDragging, -1
-        Sleep, 0
+ ;      While GetKeyState("LButton", "P")
+ ;      {
+          PostMessage, 0xA1, 2,,, ahk_id %hBibleOSD%
+          DllCall("user32\SetCursor", "Ptr", hCursM)
+ ;      }
+        SetTimer, trackMouseDragging, -50
+        Sleep, 1
      } Else If ((wP&0x2) || (wP&0x10) || bibleQuoteVisible=1)
         DestroyBibleGui()
   } Else If ColorPickerHandles
@@ -980,7 +1002,9 @@ InitializeTray() {
 
 ToggleLargeFonts() {
     PrefsLargeFonts := !PrefsLargeFonts
+    LargeUIfontValue := 13
     INIaction(1, "PrefsLargeFonts", "SavedSettings")
+    INIaction(1, "LargeUIfontValue", "SavedSettings")
     Menu, Tray, % (PrefsLargeFonts=0 ? "Uncheck" : "Check"), L&arge UI fonts
     If (PrefOpen=1)
        SwitchPreferences(1)
@@ -1107,6 +1131,8 @@ verifySettingsWindowSize(noCheckLargeUI:=0) {
     Static lastAsked := 1
     SysGet, MonitorCount, 80
     ActiveMon := MWAGetMonitorMouseIsIn()
+    If !ActiveMon
+       Return
     SysGet, mCoord, MonitorWorkArea, %ActiveMon%
     ResolutionWidth := Abs(max(mCoordRight, mCoordLeft) - min(mCoordRight, mCoordLeft))
     ResolutionHeight := Abs(max(mCoordTop, mCoordBottom) - min(mCoordTop, mCoordBottom))
@@ -1126,12 +1152,12 @@ verifySettingsWindowSize(noCheckLargeUI:=0) {
        Gui, SettingsGUIA: Show, x%Final_x% y%Final_y%
     } Else
     {
-      WinGetPos,,, setWid, setHeig, ahk_id %hSetWinGui%
+       WinGetPos,,, setWid, setHeig, ahk_id %hSetWinGui%
     }
 
     If (setHeig>ResolutionHeight*0.95) || (setWid>ResolutionWidth*0.95)
     {
-       If (LargeUIfontValue>10)
+       If (LargeUIfontValue>11)
        {
           LargeUIfontValue := LargeUIfontValue - 1
           INIaction(1, "LargeUIfontValue", "SavedSettings")
@@ -1512,8 +1538,13 @@ trimArray(arr) {
 ; https://stackoverflow.com/questions/46432447/how-do-i-remove-duplicates-from-an-autohotkey-array
     hash := {}, newArr := []
     For e, v in arr
+    {
         If (!hash.Haskey(v))
-            hash[(v)] := 1, newArr.push(v)
+        {
+           hash[(v)] := 1
+           newArr.push(v)
+        }
+    }
     Return newArr
 }
 
@@ -1553,6 +1584,8 @@ ScreenBlocker(killNow:=0, darkner:=0) {
     }
 
     ActiveMon := MWAGetMonitorMouseIsIn()
+    If !ActiveMon
+       Return
     SysGet, mCoord, MonitorWorkArea, %ActiveMon%
     ResolutionWidth := Abs(max(mCoordRight, mCoordLeft) - min(mCoordRight, mCoordLeft))
     ResolutionHeight := Abs(max(mCoordTop, mCoordBottom) - min(mCoordTop, mCoordBottom))
@@ -1634,7 +1667,7 @@ calcEasterDate() {
      isHolidayToday := (UserReligion=1) ? "Catholic Easter" : "Orthodox Easter"
      isHolidayToday .= " - the resurrection of Jesus"
   }
-  Return result
+  Return Result
 }
 
 OrthodoxEaster(Year) {
@@ -1674,9 +1707,9 @@ CatholicEaster(year) {
   os := os - 1
 
   Result := year 0301
-  EnvAdd, result, %os%, days
+  EnvAdd, Result, %os%, days
 
-  Return result
+  Return Result
 }
 
 ashwednesday() {
@@ -2122,7 +2155,7 @@ compareYearDays(givenDay, CurrentDay) {
   If (Floor(Weeksz)>=4)
      Result := "hide"
 
-  Return result
+  Return Result
 }
 
 testEquiSols() {
@@ -2257,7 +2290,7 @@ AboutWindow() {
     Gui, Font, Normal
     Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindow, &Deus lux est
     Gui, Add, Button, x+5 hp w80 gShowOSDsettings, &Settings
-    Gui, Add, Text, x+8 hp +0x200, v%Version% released on %ReleaseDate%
+    Gui, Add, Text, x+8 hp +0x200, v%Version% (%ReleaseDate%)
     Gui, Show, AutoSize, About %appName% v%Version%
     verifySettingsWindowSize()
     ColorPickerHandles := hDonateBTN "," hBellIcon
@@ -2504,8 +2537,10 @@ Fnt_CreateFont(p_Name:="",p_Options:="") {
     ;-- If both parameters are null or unspecified, return the handle to the
     ;   default GUI font.
     If (p_Name="" and p_Options="")
-        Return DllCall("gdi32\GetStockObject","Int",DEFAULT_GUI_FONT)
-
+    {
+       Result := DllCall("gdi32\GetStockObject","Int",DEFAULT_GUI_FONT)
+       Return Result
+    }
     ;-- Initialize options
     o_Height   :=""             ;-- Undefined
     o_Italic   :=False
@@ -2610,10 +2645,11 @@ Fnt_CreateFont(p_Name:="",p_Options:="") {
 }
 
 Fnt_DeleteFont(hFont) {
-    If not hFont  ;-- Zero or null
-        Return True
+    If !hFont  ;-- Zero or null
+       Return 1
 
-    Return DllCall("gdi32\DeleteObject","Ptr",hFont) ? True:False
+    Result := DllCall("gdi32\DeleteObject","Ptr",hFont) ? 1 : 1
+    Return Result
 }
 
 Fnt_GetFontName(hFont:="") {
@@ -2718,7 +2754,7 @@ Fnt_EnumFontFamExProc(lpelfe,lpntme,FontType,p_Flags) {
 
     l_FaceName := StrGet(lpelfe+28,LF_FACESIZE)
     FontList.Push(l_FaceName)    ;-- Append the font name to the list
-    Return True  ;-- Continue enumeration
+    Return 1  ;-- Continue enumeration
 }
 ; ------------------------------------------------------------- ; Font Library
 
@@ -2734,7 +2770,8 @@ SoundLoop(File := "") {
    ; SND_FILENAME    0x00020000  /* name is file name */
    ; --------------- 0x0002200B
    Static AW := A_IsUnicode ? "W" : "A"
-   Return DllCall("Winmm.dll\PlaySound" . AW, "Ptr", File = "" ? 0 : &File, "Ptr", 0, "UInt", 0x0002200B)
+   Result := DllCall("Winmm.dll\PlaySound" . AW, "Ptr", File = "" ? 0 : &File, "Ptr", 0, "UInt", 0x0002200B)
+   Return Result 
 }
 
 dummy() {
