@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.6.1
+;@Ahk2Exe-SetVersion 1.9.7
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -62,7 +62,7 @@
  , AdditionalStrikes    := 0
  , strikeEveryMin       := 5
  , showBibleQuotes      := 0
- , makeScreenDark       := 0
+ , makeScreenDark       := 1
  , BibleQuotesInterval  := 5
  , UserReligion         := 1
  , SemantronHoliday     := 0
@@ -87,8 +87,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.6.1"
- , ReleaseDate            := "2018 / 11 / 15"
+ , Version                := "1.9.7"
+ , ReleaseDate            := "2018 / 11 / 16"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -142,6 +142,7 @@ Global CSthin      := "░"   ; light gray
  , celebYear := A_Year
  , isHolidayToday := 0
  , semtr2play := 0
+ , roundCornerSize := Round(FontSize/2) + Round(OSDmarginSides/5)
  , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
  , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
  , hBibleTxt, hBibleOSD, hSetWinGui, ColorPickerHandles
@@ -149,6 +150,9 @@ Global CSthin      := "░"   ; light gray
  , CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
  , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
  , sndChanQ, sndChanH, sndChanA, sndChanJ, sndChanN, sndChanS
+
+If (roundCornerSize<20)
+   roundCornerSize := 20
 
 ; Initializations of the core components and functionality
 
@@ -200,6 +204,7 @@ VerifyFiles() {
   FileCreateDir, sounds
 
   FileInstall, bible-quotes.txt, bible-quotes.txt
+  FileInstall, bells-tower-change-log.txt, bells-tower-change-log.txt
   FileInstall, bell-image.png, bell-image.png
   FileInstall, paypal.png, paypal.png
   FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
@@ -249,7 +254,7 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
 }
 
 strikeJapanBell() {
-  If (stopAdditionalStrikes!=1)
+  If (stopAdditionalStrikes=1)
      Return
 
   If !sndChanJ
@@ -313,6 +318,7 @@ InvokeBibleQuoteNow() {
 DestroyBibleGui() {
   Gui, BibleGui: Destroy
   Gui, ScreenBl: Destroy
+  Gui, ShareBtnGui: Destroy
   BibleGuiVisible := 0
 }
 
@@ -782,8 +788,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
        If ActiveMon
        {
           SysGet, mCoord, MonitorWorkArea, %ActiveMon%
-          semiFinal_x := max(mCoordLeft, min(mCoordLeft+1, mCoordRight - 100))
-          semiFinal_y := max(mCoordTop, min(mCoordTop+1, mCoordBottom - 100))
+          semiFinal_x := semiFinal_y := mCoordLeft + 20
           Gui, BibleGui: Show, NoActivate Hide AutoSize x%semiFinal_x% y%semiFinal_y%
           Sleep, 25
           WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
@@ -799,19 +804,25 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
           Final_y := GuiY
        }
        Gui, BibleGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, ChurchTowerBibleWin
+       If (isBibleQuote=1)
+          SetTimer, CreateShareButton, -350
     } Else
     {
        ActiveMon := MWAGetMonitorMouseIsIn(GuiX, GuiY)
        If !ActiveMon
           ActiveMon := MWAGetMonitorMouseIsIn()
        SysGet, mCoord, MonitorWorkArea, %ActiveMon%
-       Final_x := max(mCoordLeft, min(GuiX, mCoordRight - mainWid))
-       Final_y := max(mCoordTop, min(GuiY, mCoordBottom - mainHeig))
+       Final_x := max(mCoordLeft, min(GuiX, mCoordRight - mainWid)) + 1
+       Final_y := max(mCoordTop, min(GuiY, mCoordBottom - mainHeig)) + 1
        If !ActiveMon
        {
           Final_x := GuiX
           Final_y := GuiY
        }
+
+       If (!Final_x || !Final_y)
+          Final_x := Final_y := mCoordLeft ? mCoordLeft + 10 : 1
+
        Gui, BibleGui: Show, NoActivate x%Final_x% y%Final_y%, ChurchTowerBibleWin
     }
     WinSet, Transparent, %OSDalpha%, ChurchTowerBibleWin
@@ -819,6 +830,48 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     BibleGuiVisible := 1
     If (isBibleQuote=0 && PrefOpen!=1)
        SetTimer, DestroyBibleGui, % -DisplayTime
+    WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, ChurchTowerBibleWin
+}
+
+CreateShareButton() {
+    FontSizeMin := Round(FontSizeQuotes/2)
+    marginz := Round(OSDmarginSides/2)
+    If (marginz<FontSizeMin)
+       marginz := FontSizeMin
+    If (FontSizeMin<9)
+       FontSizeMin := 9
+    Gui, ShareBtnGui: Destroy
+    Sleep, 25
+    Gui, ShareBtnGui: -DPIScale -Caption +Owner +ToolWindow +hwndhShareBtn
+    Gui, ShareBtnGui: Margin, %marginz%, %marginz%
+    Gui, ShareBtnGui: Color, c%OSDtextColor%
+    Gui, ShareBtnGui: Font, %OSDbgrColor% s%FontSizeMin% Bold,
+    Gui, ShareBtnGui: Add, Text, gCopyLastQuote, Copy && share quote
+    ActiveMon := MWAGetMonitorMouseIsIn()
+    If ActiveMon
+    {
+       SysGet, mCoord, MonitorWorkArea, %ActiveMon%
+       Final_x := mCoordLeft + 25
+       Final_y := Final_x
+    } Else
+    {
+       Final_x := GuiX
+       Final_y := GuiY
+    }
+    Gui, ShareBtnGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, BibleShareBtn
+    WinSet, Transparent, %OSDalpha%, BibleShareBtn
+    WinSet, AlwaysOnTop, On, BibleShareBtn
+    WinGetPos,,, mainWid, mainHeig, ahk_id %hShareBtn%
+    WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, BibleShareBtn
+}
+
+CopyLastQuote() {
+  Clipboard := LastBibleMsg
+  ToolTip, Text sent to clipboard.
+  Sleep, 500
+  Gui, ShareBtnGui: Destroy
+  Sleep, 150
+  ToolTip
 }
 
 MouseMove(wP, lP, msg, hwnd) {
@@ -1138,8 +1191,7 @@ verifySettingsWindowSize(noCheckLargeUI:=0) {
     ResolutionHeight := Abs(max(mCoordTop, mCoordBottom) - min(mCoordTop, mCoordBottom))
     If (MonitorCount>1)
     {
-       semiFinal_x := max(mCoordLeft, min(mCoordLeft+1, mCoordRight - 100))
-       semiFinal_y := max(mCoordTop, min(mCoordTop+1, mCoordBottom - 100))
+       semiFinal_x := semiFinal_y := mCoordLeft + 20
        Gui, SettingsGUIA: Show, Hide AutoSize x%semiFinal_x% y%semiFinal_y%
        Sleep, 25
        WinGetPos,,, setWid, setHeig, ahk_id %hSetWinGui%
@@ -1442,7 +1494,7 @@ ShowOSDsettings() {
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF9 , %OSDmarginBottom%
     Gui, Add, UpDown, gVerifyOsdOptions vOSDmarginBottom Range1-900, %OSDmarginBottom%
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF13, %OSDmarginSides%
-    Gui, Add, UpDown, gVerifyOsdOptions vOSDmarginSides Range1-900, %OSDmarginSides%
+    Gui, Add, UpDown, gVerifyOsdOptions vOSDmarginSides Range10-900, %OSDmarginSides%
 
     Gui, Add, Text, xm+15 y+10 Section, Font name
     Gui, Add, Text, xs yp+30, OSD colors and opacity
@@ -1500,6 +1552,7 @@ VerifyOsdOptions(EnableApply:=1) {
     GuiControlGet, showBibleQuotes
     GuiControlGet, SemantronHoliday
     GuiControlGet, ObserveHolidays
+    GuiControlGet, OSDmarginSides
 
     GuiControl, % (EnableApply=0 ? "Disable" : "Enable"), ApplySettingsBTN
     GuiControl, % (AdditionalStrikes=0 ? "Disable" : "Enable"), editF38
@@ -1521,6 +1574,10 @@ VerifyOsdOptions(EnableApply:=1) {
     GuiControl, % (ShowPreview=0 ? "Disable" : "Enable"), ShowPreviewDate
     GuiControl, % ((ObserveHolidays=0 && SemantronHoliday=0) ? "Disable" : "Enable"), UserReligion
     GuiControl, % ((ObserveHolidays=0 && SemantronHoliday=0) ? "Disable" : "Enable"), btn3
+
+    roundCornerSize := Round(FontSize/2) + Round(OSDmarginSides/5)
+    If (roundCornerSize<20)
+       roundCornerSize := 20
 
     Static LastInvoked := 1
 
@@ -2290,11 +2347,15 @@ AboutWindow() {
     Gui, Font, Normal
     Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindow, &Deus lux est
     Gui, Add, Button, x+5 hp w80 gShowOSDsettings, &Settings
-    Gui, Add, Text, x+8 hp +0x200, v%Version% (%ReleaseDate%)
+    Gui, Add, Text, x+8 hp +0x200 gOpenChangeLog hwndhBtnLog, v%Version% (%ReleaseDate%)
     Gui, Show, AutoSize, About %appName% v%Version%
     verifySettingsWindowSize()
-    ColorPickerHandles := hDonateBTN "," hBellIcon
+    ColorPickerHandles := hDonateBTN "," hBellIcon "," hBtnLog
     Sleep, 25
+}
+
+OpenChangeLog() {
+  Try Run, bells-tower-change-log.txt
 }
 
 ;================================================================
@@ -2412,7 +2473,7 @@ CheckSettings() {
     BinaryVar(DynamicVolume, 1)
     BinaryVar(AdditionalStrikes, 0)
     BinaryVar(showBibleQuotes, 0)
-    BinaryVar(makeScreenDark, 0)
+    BinaryVar(makeScreenDark, 1)
     BinaryVar(SemantronHoliday, 0)
     BinaryVar(ObserveHolidays, 0)
 
@@ -2424,7 +2485,7 @@ CheckSettings() {
     MinMaxVar(GuiY, -9999, 9999, 250)
     MinMaxVar(OSDmarginTop, 1, 900, 20)
     MinMaxVar(OSDmarginBottom, 1, 900, 20)
-    MinMaxVar(OSDmarginSides, 1, 900, 25)
+    MinMaxVar(OSDmarginSides, 10, 900, 25)
     MinMaxVar(BeepsVolume, 0, 99, 45)
     MinMaxVar(strikeEveryMin, 1, 720, 5)
     MinMaxVar(silentHours, 1, 3, 1)
@@ -2445,6 +2506,7 @@ CheckSettings() {
    HexyVar(OSDbgrColor, "131209")
    HexyVar(OSDtextColor, "FFFEFA")
 
+; verify other values
    FontName := (StrLen(FontName)>2) ? FontName
              : (A_OSVersion="WIN_XP") ? "Lucida Sans Unicode" : "Arial"
 }
@@ -2781,22 +2843,33 @@ dummy() {
 FreeAhkResources(cleanAll:=0,bumpExec:=0) {
   Static lastExec := 1
        , timesExec := 0
+       , timesCleaned := 0
+
   If (A_TickCount - lastExec<1900)
      Return
+
   Loop, 2
   {
-    ahkthread_free(sndChanQ), sndChanQ := ""
-    ahkthread_free(sndChanH), sndChanH := ""
-    If (cleanAll=1)
+    If (tollQuarters=1)
+       ahkthread_free(sndChanQ), sndChanQ := ""
+    If (tollHours=1)
+       ahkthread_free(sndChanH), sndChanH := ""
+    If (cleanAll=1 || timesCleaned>15)
     {
-       ahkthread_free(sndChanS), sndChanS := ""
-       ahkthread_free(sndChanA), sndChanA := ""
-       ahkthread_free(sndChanJ), sndChanJ := ""
-       ahkthread_free(sndChanN), sndChanN := ""
+       If (tollNoon=1)
+          ahkthread_free(sndChanN), sndChanN := ""
+       If (SemantronHoliday=1)
+          ahkthread_free(sndChanS), sndChanS := ""
+       If (AdditionalStrikes=1)
+          ahkthread_free(sndChanA), sndChanA := ""
+       If (ShowBibleQuotes=1)
+          ahkthread_free(sndChanJ), sndChanJ := ""
     }
     Sleep, 100
+    timesCleaned++
   }
   lastExec := A_TickCount
+
   If (bumpExec=1)
      timesExec++
   If (timesExec>3)

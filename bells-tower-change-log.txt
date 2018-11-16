@@ -5,6 +5,10 @@
 
 Work began on this project in August 2018.
 
+v1.9.7 - 2018 / 11 / 16
+- [new] share Bible quote button when a quote is displayied
+- [new] rounded corners for the On-Screen Display
+
 v1.9.6.1 - 2018 / 11 / 15
 - minor improvements
 - corrections for Bible quotes and added a few more
