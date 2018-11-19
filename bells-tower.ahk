@@ -73,6 +73,7 @@
  , DisplayTimeUser        := 3     ; in seconds
  , GuiX                   := 40
  , GuiY                   := 250
+ , OSDroundCorners        := 1
  , FontName               := (A_OSVersion="WIN_XP") ? "Lucida Sans Unicode" : "Arial"
  , FontSize               := 26
  , FontSizeQuotes         := 20
@@ -88,7 +89,7 @@
 ; Release info
  , ThisFile               := A_ScriptName
  , Version                := "1.9.7"
- , ReleaseDate            := "2018 / 11 / 16"
+ , ReleaseDate            := "2018 / 11 / 19"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -118,13 +119,9 @@ Global CSthin      := "░"   ; light gray
  , DisplayTime := DisplayTimeUser*1000
  , BibleGuiVisible := 0
  , bibleQuoteVisible := 0
- , Tickcount_start2 := A_TickCount    ; timer to keep track of OSD redraws
- , Tickcount_start := 0               ; timer to count repeated key presses
- , MousePosition := ""
  , DoNotRepeatTimer := 0
  , PrefOpen := 0
  , FontList := []
- , actualVolume := 0
  , AdditionalStrikeFreq := strikeEveryMin * 60000  ; minutes
  , bibleQuoteFreq := BibleQuotesInterval * 3600000 ; hours
  , msgboxID := 1
@@ -202,7 +199,6 @@ VerifyFiles() {
      FileRemoveDir, sounds, 1
   Sleep, 50
   FileCreateDir, sounds
-
   FileInstall, bible-quotes.txt, bible-quotes.txt
   FileInstall, bells-tower-change-log.txt, bells-tower-change-log.txt
   FileInstall, bell-image.png, bell-image.png
@@ -289,6 +285,7 @@ InvokeBibleQuoteNow() {
           stopLoop := 1
      } Until (stopLoop=1 || A_Index>712)
   } Else Line2Read := "R"
+
   bibleQuote := ST_ReadLine(bibleQuotesFile, Line2Read)
   LastBibleMsg := bibleQuote
   QuotesAlreadySeen .= "a" Line2Read "a"
@@ -296,6 +293,7 @@ InvokeBibleQuoteNow() {
   StringRight, QuotesAlreadySeen, QuotesAlreadySeen, 155
   If (StrLen(bibleQuote)>6)
      CreateBibleGUI(bibleQuote, 1, 1)
+
   If (PrefOpen!=1)
   {
      If (menuAdded!=1)
@@ -307,11 +305,13 @@ InvokeBibleQuoteNow() {
      INIaction(1, "QuotesAlreadySeen", "SavedSettings")
      strikeJapanBell()
   } Else SoundPlay, sounds\japanese-bell.mp3
+
   quoteDisplayTime := 1500 + StrLen(bibleQuote) * 123
   If (quoteDisplayTime>120100)
      quoteDisplayTime := 120100
   Else If (PrefOpen=1)
      quoteDisplayTime := quoteDisplayTime/2 + DisplayTime
+
   SetTimer, DestroyBibleGui, % -quoteDisplayTime
 }
 
@@ -363,6 +363,7 @@ SetMyVolume(noRestore:=0) {
         SoundSet, 0, , mute
         mustRestoreVol := 1
      }
+
      SoundGet, master_vol
      If (Round(master_vol)<2)
      {
@@ -416,6 +417,7 @@ volSlider() {
     GuiControl, , volLevel, % (result<2) ? "Audio: [ MUTE ]" : "Audio volume: " result " % "
     If (tollQuarters=1)
        strikeQuarters()
+
     If (tollHours=1 || tollHoursAmount=1)
        strikeHours()
 }
@@ -436,8 +438,10 @@ RandomNumberCalc(minVariation:=150,maxVariation:=350) {
 strikeQuarters() {
   If (stopStrikesNow=1)
      Return
+
   sleepDelay := RandomNumberCalc()
   sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\quarters.mp3, 1") 
+
   If (PrefOpen!=1)
      Sleep, % strikeInterval + sleepDelay
   Else
@@ -447,6 +451,7 @@ strikeQuarters() {
 strikeHours() {
   If (stopStrikesNow=1)
      Return
+
   sleepDelay := RandomNumberCalc()
   sndChanH := AhkThread("#NoTrayIcon`nSoundPlay, sounds\hours.mp3, 1") 
   If (PrefOpen!=1)
@@ -472,6 +477,7 @@ playSemantron(snd:=1) {
 
   sleepDelay := RandomNumberCalc() * 2
   Sleep, %sleepDelay%
+
   If !sndChanS
      sndChanS := AhkThread("#NoTrayIcon`nMEx:=AhkExported()`nsmd:=MEx.ahkgetvar.semtr2play`nSoundPlay, sounds\%smd%.mp3, 1")
   Else
@@ -482,13 +488,16 @@ TollExtraNoon() {
   Static lastToll := 1
   If (AnyWindowOpen=1)
      stopStrikesNow := 0
+
   If (stopStrikesNow=1 || PrefOpen=1)
   || ((A_TickCount - lastToll<100000) && (AnyWindowOpen=1))
      Return
+
   If !sndChanN
      sndChanN := AhkThread("#NoTrayIcon`nRandom, choice, 1, 4`nSoundPlay, sounds\noon%choice%.mp3, 1")
   Else
      sndChanN.ahkReload[]
+
   lastToll := A_TickCount
 }
 
@@ -514,6 +523,7 @@ theChimer() {
 
   If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=2)
      soundBells := 1
+
   If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=3)
   || (soundBells!=1 && silentHours=2) || (mustEndNow=1)
   {
@@ -757,19 +767,23 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     FontSizeMin := (isBibleQuote=1) ? FontSizeQuotes : FontSize
     Gui, BibleGui: Destroy
     Sleep, 25
+
     If (isBibleQuote=1)
     {
        msg2Display := ST_wordWrap(msg2Display, maxBibleLength)
        LastBibleQuoteDisplay := A_TickCount
     } Else msg2Display := OSDprefix msg2Display OSDsuffix
+
     HorizontalMargins := (isBibleQuote=1) ? OSDmarginSides : 1
     Gui, BibleGui: -DPIScale -Caption +Owner +ToolWindow +HwndhBibleOSD
     Gui, BibleGui: Margin, %OSDmarginSides%, %HorizontalMargins%
     Gui, BibleGui: Color, %OSDbgrColor%
+
     If (FontChangedTimes>190)
        Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Bold,
     Else
        Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Bold, %FontName%
+
     Gui, BibleGui: Font, s1
     If (isBibleQuote=0)
        Gui, BibleGui: Add, Text, w2 h%OSDmarginTop% BackgroundTrans, .
@@ -778,6 +792,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     Gui, BibleGui: Font, s1
     If (isBibleQuote=0)
        Gui, BibleGui: Add, Text, w2 y+0 h%OSDmarginBottom% BackgroundTrans, .
+
     Gui, BibleGui: Show, NoActivate AutoSize Hide x%GuiX% y%GuiY%, ChurchTowerBibleWin
     WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
     If (centerMsg=1)
@@ -828,9 +843,12 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     WinSet, Transparent, %OSDalpha%, ChurchTowerBibleWin
     WinSet, AlwaysOnTop, On, ChurchTowerBibleWin
     BibleGuiVisible := 1
+
     If (isBibleQuote=0 && PrefOpen!=1)
        SetTimer, DestroyBibleGui, % -DisplayTime
-    WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, ChurchTowerBibleWin
+
+    If (OSDroundCorners=1)
+       WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, ChurchTowerBibleWin
 }
 
 CreateShareButton() {
@@ -851,8 +869,8 @@ CreateShareButton() {
     If ActiveMon
     {
        SysGet, mCoord, MonitorWorkArea, %ActiveMon%
-       Final_x := mCoordLeft + 25
-       Final_y := Final_x
+       Final_x := mCoordLeft + Round(OSDmarginSides/2)
+       Final_y := mCoordTop + Round(OSDmarginSides/2)
     } Else
     {
        Final_x := GuiX
@@ -861,8 +879,11 @@ CreateShareButton() {
     Gui, ShareBtnGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, BibleShareBtn
     WinSet, Transparent, %OSDalpha%, BibleShareBtn
     WinSet, AlwaysOnTop, On, BibleShareBtn
-    WinGetPos,,, mainWid, mainHeig, ahk_id %hShareBtn%
-    WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, BibleShareBtn
+    If (OSDroundCorners=1)
+    {
+       WinGetPos,,, mainWid, mainHeig, ahk_id %hShareBtn%
+       WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, BibleShareBtn
+    }
 }
 
 CopyLastQuote() {
@@ -884,7 +905,6 @@ MouseMove(wP, lP, msg, hwnd) {
   HideDelay := (PrefOpen=1) ? 600 : 1950
   If (InStr(hBibleOSD, hwnd) && (A_TickCount - LastBibleQuoteDisplay>HideDelay))
   {
-     Tickcount_start2 := A_TickCount
      If (PrefOpen=0)
         DestroyBibleGui()
      DllCall("user32\SetCursor", "Ptr", hCursM)
@@ -1502,6 +1522,7 @@ ShowOSDsettings() {
     Gui, Add, Text, xs yp+30, Display time (in sec.)
     Gui, Add, Text, xs yp+30 vTxt4, Max. line length, for Bible quotes
     Gui, Add, Checkbox, xs yp+30 gVerifyOsdOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen for Bible quotes
+    Gui, Add, Checkbox, xs yp+35 gVerifyOsdOptions Checked%OSDroundCorners% vOSDroundCorners, Rounded corners
     Gui, Add, Checkbox, xs yp+35 h30 +0x1000 gVerifyOsdOptions Checked%ShowPreview% vShowPreview, Show preview window
     Gui, Add, Checkbox, y+5 hp gVerifyOsdOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date into preview
 
@@ -2267,16 +2288,16 @@ AboutWindow() {
     testCelebrations()
     MarchEquinox := compareYearDays(78, A_YDay) "March equinox."   ; 03 / 20
     If InStr(MarchEquinox, "now")
-       MarchEquinox := "The March equinox is here now."
+       MarchEquinox := "(" OSDsuffix " ) The March equinox is here now."
     JuneSolstice := compareYearDays(170, A_YDay) "June solstice."  ; 06 / 21
     If InStr(JuneSolstice, "now")
-       JuneSolstice := "The June solstice is here now."
+       JuneSolstice := "(" OSDsuffix " ) The June solstice is here now."
     SepEquinox := compareYearDays(263, A_YDay) "September equinox."  ; 09 / 22
     If InStr(SepEquinox, "now")
-       SepEquinox := "The September equinox is here now."
+       SepEquinox := "(" OSDsuffix " ) The September equinox is here now."
     DecSolstice := compareYearDays(354, A_YDay) "December solstice."  ; 12 / 21
     If InStr(DecSolstice, "now")
-       DecSolstice := "The December solstice is here now."
+       DecSolstice := "(" OSDsuffix " ) The December solstice is here now."
 
     percentileYear := Round(A_YDay/366*100) "%"
     FormatTime, CurrentYear,, yyyy
@@ -2408,7 +2429,6 @@ INIsettings(a) {
   INIaction(a, "strikeEveryMin", "SavedSettings")
   INIaction(a, "QuotesAlreadySeen", "SavedSettings")
   INIaction(a, "showBibleQuotes", "SavedSettings")
-  INIaction(a, "makeScreenDark", "SavedSettings")
   INIaction(a, "BibleQuotesInterval", "SavedSettings")
   INIaction(a, "SemantronHoliday", "SavedSettings")
   INIaction(a, "ObserveHolidays", "SavedSettings")
@@ -2428,6 +2448,8 @@ INIsettings(a) {
   INIaction(a, "OSDmarginTop", "OSDprefs")
   INIaction(a, "OSDmarginBottom", "OSDprefs")
   INIaction(a, "OSDmarginSides", "OSDprefs")
+  INIaction(a, "OSDroundCorners", "OSDprefs")
+  INIaction(a, "makeScreenDark", "SavedSettings")
   INIaction(a, "maxBibleLength", "OSDprefs")
 
   If (a=0) ; a=0 means to load from INI
@@ -2476,6 +2498,7 @@ CheckSettings() {
     BinaryVar(makeScreenDark, 1)
     BinaryVar(SemantronHoliday, 0)
     BinaryVar(ObserveHolidays, 0)
+    BinaryVar(OSDroundCorners, 1)
 
 ; verify numeric values: min, max and default values
     MinMaxVar(DisplayTimeUser, 1, 99, 3)
@@ -2872,6 +2895,6 @@ FreeAhkResources(cleanAll:=0,bumpExec:=0) {
 
   If (bumpExec=1)
      timesExec++
-  If (timesExec>3)
+  If (timesExec>4)
      ReloadScript()
 }
