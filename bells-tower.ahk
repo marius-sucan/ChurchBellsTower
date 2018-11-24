@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.7
+;@Ahk2Exe-SetVersion 1.9.8
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -88,8 +88,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.7"
- , ReleaseDate            := "2018 / 11 / 19"
+ , Version                := "1.9.8"
+ , ReleaseDate            := "2018 / 11 / 24"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -131,6 +131,8 @@ Global CSthin      := "░"   ; light gray
  , stopStrikesNow := 0
  , stopAdditionalStrikes := 0
  , strikingBellsNow := 0
+ , DoGuiFader := 1
+ , lastFaded := 1
  , FontChangedTimes := 0
  , AnyWindowOpen := 0
  , LastBibleQuoteDisplay := 1
@@ -225,26 +227,36 @@ VerifyFiles() {
 AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
   If (PrefOpen=1 || A_IsSuspended)
      Return
+
+  Static LastInvoked := 1
+
   If (lParam = 0x201) || (lParam = 0x204)
   {
      stopStrikesNow := 1
      strikingBellsNow := 0
+     DoGuiFader := 0
      If (lParam=0x204)
         CreateBibleGUI(generateDateTimeTxt(1,1))
      Else
         CreateBibleGUI(generateDateTimeTxt())
+     DoGuiFader := 1
   } Else If (lParam = 0x207) && (strikingBellsNow=0)
   {
      If (AnyWindowOpen=1)
         stopStrikesNow := 0
      SetMyVolume(1)
+     DoGuiFader := 0
      CreateBibleGUI(generateDateTimeTxt())
      If (tollQuarters=1)
         strikeQuarters()
      If (tollHours=1 || tollHoursAmount=1)
         strikeHours()
+     DoGuiFader := 1
   } Else If (BibleGuiVisible=0 && strikingBellsNow=0)
+    && (A_TickCount-lastInvoked>2000) && (A_TickCount-lastFaded>1500)
   {
+     LastInvoked := A_TickCount
+     DoGuiFader := 1
      CreateBibleGUI(generateDateTimeTxt(0))
   }
 }
@@ -270,7 +282,8 @@ InvokeBibleQuoteNow() {
      GuiControlGet, maxBibleLength
      VerifyOsdOptions()
   }
-
+  stopStrikesNow := 0
+  DoGuiFader := 1
   If !bibleQuotesFile
      Try FileRead, bibleQuotesFile, bible-quotes.txt
 
@@ -316,8 +329,11 @@ InvokeBibleQuoteNow() {
 }
 
 DestroyBibleGui() {
+  GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
   Gui, BibleGui: Destroy
+  GuiFader("ScreenShader","hide", 130)
   Gui, ScreenBl: Destroy
+  GuiFader("BibleShareBtn","hide", OSDalpha)
   Gui, ShareBtnGui: Destroy
   BibleGuiVisible := 0
 }
@@ -325,8 +341,10 @@ DestroyBibleGui() {
 ShowLastBibleMsg() {
   If (StrLen(LastBibleMsg)>6 && PrefOpen!=1)
   {
+     DoGuiFader := 1
      CreateBibleGUI(LastBibleMsg, 1, 1)
      strikeJapanBell()
+     LastBibleQuoteDisplay := A_TickCount
      quoteDisplayTime := 1500 + StrLen(LastBibleMsg) * 123
      SetTimer, DestroyBibleGui, % -quoteDisplayTime
   }
@@ -534,6 +552,7 @@ theChimer() {
   }
 
   SoundGet, master_vol
+  DoGuiFader := 1
   stopStrikesNow := stopAdditionalStrikes := 0
   strikingBellsNow := 1
   Random, delayRandNoon, 950, 5050
@@ -761,10 +780,64 @@ ST_wordWrap(string, column=56, indentChar="") {
     Return result
 }
 
+GuiFader(guiName,toggle,alphaLevel) {
+   Static lastEvent, lastGuiName
+
+   If !WinExist(guiName)
+      Return
+
+   If (A_TickCount-lastFaded<1000) && (lastEvent=toggle && lastGuiName=guiName) || (DoGuiFader=0)
+   {
+      If (toggle="show")
+         WinSet, Transparent, %alphaLevel%, %guiName%
+      Return
+   }
+
+   fadeInterval := (alphaLevel<125) ? 20 : 2
+   fadeStep := (alphaLevel<125) ? 4 : 10
+   If (toggle="show")
+   {
+      Loop
+      {
+         interimAlphaLevel := A_Index * fadeStep
+         If (interimAlphaLevel>alphaLevel)
+         {
+            interimAlphaLevel := alphaLevel
+            toBreak := 1
+         }
+         WinSet, Transparent, %interimAlphaLevel%, %guiName%
+         Sleep, %fadeInterval%
+         If (toBreak=1)
+            Break
+      }
+   } Else If (toggle="hide")
+   {
+      Loop
+      {
+         interimAlphaLevel := alphaLevel - A_Index * fadeStep
+         If (interimAlphaLevel<25)
+         {
+            interimAlphaLevel := 10
+            toBreak := 1
+         }
+         WinSet, Transparent, %interimAlphaLevel%, %guiName%
+         Sleep, %fadeInterval%
+         If (toBreak=1)
+            Break
+      }
+   }
+
+   lastFaded := A_TickCount
+   lastGuiName := guiName
+   lastEvent := toggle
+}
+
 CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     Critical, On
     bibleQuoteVisible := (isBibleQuote=1) ? 1 : 0
     FontSizeMin := (isBibleQuote=1) ? FontSizeQuotes : FontSize
+    GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
+    Sleep, 2
     Gui, BibleGui: Destroy
     Sleep, 25
 
@@ -794,6 +867,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
        Gui, BibleGui: Add, Text, w2 y+0 h%OSDmarginBottom% BackgroundTrans, .
 
     Gui, BibleGui: Show, NoActivate AutoSize Hide x%GuiX% y%GuiY%, ChurchTowerBibleWin
+    WinSet, Transparent, 1, ChurchTowerBibleWin
     WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
     If (centerMsg=1)
     {
@@ -840,7 +914,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
 
        Gui, BibleGui: Show, NoActivate x%Final_x% y%Final_y%, ChurchTowerBibleWin
     }
-    WinSet, Transparent, %OSDalpha%, ChurchTowerBibleWin
+    WinSet, Transparent, 1, ChurchTowerBibleWin
     WinSet, AlwaysOnTop, On, ChurchTowerBibleWin
     BibleGuiVisible := 1
 
@@ -849,6 +923,8 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
 
     If (OSDroundCorners=1)
        WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, ChurchTowerBibleWin
+
+    GuiFader("ChurchTowerBibleWin","show", OSDalpha)
 }
 
 CreateShareButton() {
@@ -877,20 +953,21 @@ CreateShareButton() {
        Final_y := GuiY
     }
     Gui, ShareBtnGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, BibleShareBtn
-    WinSet, Transparent, %OSDalpha%, BibleShareBtn
+    WinSet, Transparent, 1, BibleShareBtn
     WinSet, AlwaysOnTop, On, BibleShareBtn
     If (OSDroundCorners=1)
     {
        WinGetPos,,, mainWid, mainHeig, ahk_id %hShareBtn%
        WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, BibleShareBtn
     }
+    GuiFader("BibleShareBtn","show", OSDalpha)
 }
 
 CopyLastQuote() {
   Clipboard := LastBibleMsg
   ToolTip, Text sent to clipboard.
   Sleep, 500
-  Gui, ShareBtnGui: Destroy
+  GuiFader("BibleShareBtn","hide", OSDalpha)
   Sleep, 150
   ToolTip
 }
@@ -915,13 +992,10 @@ MouseMove(wP, lP, msg, hwnd) {
      } Else If (wP&0x1) && (bibleQuoteVisible=0) ; L mouse button is down, we're dragging
      {
         SetTimer, DestroyBibleGui, Off
- ;      While GetKeyState("LButton", "P")
- ;      {
-          PostMessage, 0xA1, 2,,, ahk_id %hBibleOSD%
-          DllCall("user32\SetCursor", "Ptr", hCursM)
- ;      }
+        PostMessage, 0xA1, 2,,, ahk_id %hBibleOSD%
+        DllCall("user32\SetCursor", "Ptr", hCursM)
         SetTimer, trackMouseDragging, -50
-        Sleep, 1
+        Sleep, 2
      } Else If ((wP&0x2) || (wP&0x10) || bibleQuoteVisible=1)
         DestroyBibleGui()
   } Else If ColorPickerHandles
@@ -1004,25 +1078,34 @@ SuspendScript(partially:=0) {
       SoundBeep, 300, 900
       Return
    }
+   GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
    FreeAhkResources(1)
    If !A_IsSuspended
    {
       stopStrikesNow := 1
+      DoGuiFader := 0
       SetTimer, theChimer, Off
       Menu, Tray, Uncheck, &%appName% activated
       SoundLoop("")
    } Else
    {
+      If (partially=1)
+         Gui, BibleGui: Destroy
       stopStrikesNow := 0
       Menu, Tray, Check, &%appName% activated
       If (tickTockNoise=1)
          SoundLoop(tickTockSound)
       theChimer()
+      DoGuiFader := 1
    }
-   SoundPlay, non-existent.lol
-   friendlyName := A_IsSuspended ? " activated" : " deactivated"
-   CreateBibleGUI(appName friendlyName)
 
+   If (partially=0)
+   {
+      DoGuiFader := 1
+      friendlyName := A_IsSuspended ? " activated" : " deactivated"
+      CreateBibleGUI(appName friendlyName)
+   }
+   sillySoundHack()
    Sleep, 20
    Suspend
 }
@@ -1381,11 +1464,12 @@ OSDpreview() {
     SetTimer, DestroyBibleGui, Off
     If (ShowPreview=0)
     {
+       DoGuiFader := 1
        DestroyBibleGui()
        Return
     }
-
     CreateBibleGUI(generateDateTimeTxt(1, !ShowPreviewDate))
+    DoGuiFader := 0
     Sleep, 25
     If (lastFnt!=FontName)
     {
@@ -1530,7 +1614,7 @@ ShowOSDsettings() {
     Gui, Add, ListView, xp+0 yp+30 w55 h25 %CCLVO% Background%OSDtextColor% vOSDtextColor hwndhLV1,
     Gui, Add, ListView, x+5 yp w55 h25 %CCLVO% Background%OSDbgrColor% vOSDbgrColor hwndhLV2,
     Gui, Add, Edit, x+5 yp+0 w55 hp geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF10, %OSDalpha%
-    Gui, Add, UpDown, vOSDalpha gVerifyOsdOptions Range25-250, %OSDalpha%
+    Gui, Add, UpDown, vOSDalpha gVerifyOsdOptions Range75-250, %OSDalpha%
     Gui, Add, Edit, xp-120 yp+30 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5, %FontSize%
     Gui, Add, UpDown, gVerifyOsdOptions vFontSize Range12-295, %FontSize%
     Gui, Add, Edit, x+5 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF73, %FontSizeQuotes%
@@ -1605,6 +1689,8 @@ VerifyOsdOptions(EnableApply:=1) {
     If (A_TickCount - LastInvoked>200) || (BibleGuiVisible=0 && ShowPreview=1)
     || (BibleGuiVisible=1 && ShowPreview=0)
     {
+       If (A_TickCount - LastInvoked>9500)
+          DoGuiFader := 1
        LastInvoked := A_TickCount
        OSDpreview()
     }
@@ -1662,21 +1748,32 @@ ScreenBlocker(killNow:=0, darkner:=0) {
     }
 
     ActiveMon := MWAGetMonitorMouseIsIn()
-    If !ActiveMon
-       Return
-    SysGet, mCoord, MonitorWorkArea, %ActiveMon%
-    ResolutionWidth := Abs(max(mCoordRight, mCoordLeft) - min(mCoordRight, mCoordLeft))
-    ResolutionHeight := Abs(max(mCoordTop, mCoordBottom) - min(mCoordTop, mCoordBottom))
+    If ActiveMon
+    {
+       SysGet, mCoord, MonitorWorkArea, %ActiveMon%
+       ResolutionWidth := Abs(max(mCoordRight, mCoordLeft) - min(mCoordRight, mCoordLeft))
+       ResolutionHeight := Abs(max(mCoordTop, mCoordBottom) - min(mCoordTop, mCoordBottom))
+    } Else
+    {
+       ResolutionWidth := A_ScreenWidth
+       ResolutionHeight := A_ScreenHeight
+       mCoordLeft := mCoordTop := 1
+    }
 
+    blockerAlpha := (darkner=1) ? 130 : 30
     Gui, ScreenBl: Destroy
     Gui, ScreenBl: +AlwaysOnTop -DPIScale -Caption +ToolWindow
     Gui, ScreenBl: Margin, 0, 0
     Gui, ScreenBl: Color, % (darkner=1) ? 221122 : 543210
-    Gui, ScreenBl: Show, NoActivate x%mCoordLeft% y%mCoordTop% w%ResolutionWidth% h%ResolutionHeight%, ScreenShader
-    WinSet, Transparent, % (darkner=1) ? 125 : 30, ScreenShader
-    If (darkner=1)
-       Gui, ScreenBl: +E0x20
+    Gui, ScreenBl: Show, NoActivate Hide x%mCoordLeft% y%mCoordTop% w%ResolutionWidth% h%ResolutionHeight%, ScreenShader
+    WinSet, Transparent, % (darkner=1) ? 1 : 30, ScreenShader
+    Gui, ScreenBl: Show, NoActivate, ScreenShader
     WinSet, AlwaysOnTop, On, ScreenShader
+    If (darkner=1)
+    {
+       Gui, ScreenBl: +E0x20
+       GuiFader("ScreenShader" MonDest,"show", blockerAlpha)
+    }
 }
 
 LocatePositionA() {
@@ -1686,9 +1783,9 @@ LocatePositionA() {
     MouseGetPos, mX, mY
     ToolTip
     ScreenBlocker(1)
-    GuiControl, , ShowPreview, 1
-    GuiControl, , GuiX, %mX%
-    GuiControl, , GuiY, %mY%
+    GuiControl, SettingsGUIA:, ShowPreview, 1
+    GuiControl, SettingsGUIA:, GuiX, %mX%
+    GuiControl, SettingsGUIA:, GuiY, %mY%
     OSDpreview()
     VerifyOsdOptions()
 }
@@ -2520,7 +2617,7 @@ CheckSettings() {
     MinMaxVar(strikeInterval, 900, 5500, 2000)
     MinMaxVar(BibleQuotesInterval, 2, 12, 5)
     MinMaxVar(maxBibleLength, 20, 130, 55)
-    MinMaxVar(OSDalpha, 24, 252, 230)
+    MinMaxVar(OSDalpha, 75, 252, 230)
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
 
@@ -2548,6 +2645,7 @@ CheckSettings() {
 ; ===============================================================
 
 Cleanup() {
+    sillySoundHack()
     OnMessage(0x4a, "")
     OnMessage(0x200, "")
     OnMessage(0x102, "")
@@ -2898,3 +2996,12 @@ FreeAhkResources(cleanAll:=0,bumpExec:=0) {
   If (timesExec>4)
      ReloadScript()
 }
+
+sillySoundHack() {   ; this helps mitigate issues caused by apps like Team Viewer
+     Sleep, 2
+     SoundPlay, non-existent.lol
+     SoundBeep, 0, 1
+     Result := DllCall("winmm\PlaySoundW", "Ptr", 0, "Ptr", 0, "Uint", 0x46) ; SND_PURGE|SND_MEMORY|SND_NODEFAULT
+     Return Result
+}
+

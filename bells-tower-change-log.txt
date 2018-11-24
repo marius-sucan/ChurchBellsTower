@@ -5,6 +5,10 @@
 
 Work began on this project in August 2018.
 
+v1.9.8 - 2018 / 11 / 24
+- [new] every OSD window fades in & out
+- minor fixes
+
 v1.9.7.1 - 2018 / 11 / 19
 - added option to toggle rounded corners
 - minor fixes
