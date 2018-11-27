@@ -5,6 +5,9 @@
 
 Work began on this project in August 2018.
 
+v1.9.9 - 2018 / 11 / 27
+- minor fixes and improvements
+
 v1.9.8 - 2018 / 11 / 24
 - [new] every OSD window fades in & out
 - minor fixes

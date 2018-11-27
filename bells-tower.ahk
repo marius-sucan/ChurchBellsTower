@@ -3,6 +3,10 @@
 ; Charset for this file must be UTF 8 with BOM.
 ; it may not function properly otherwise.
 ;
+; Sounds copied from various «random» online sources.
+; All audios were edited and processed to fit the needs
+; of this application.
+;
 ; Script written for AHK_H v1.1.28 Unicode.
 ; AHK_H available at:
 ; https://hotkeyit.github.io/v2/
@@ -19,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.8
+;@Ahk2Exe-SetVersion 1.9.9
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -88,8 +92,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.8"
- , ReleaseDate            := "2018 / 11 / 24"
+ , Version                := "1.9.9"
+ , ReleaseDate            := "2018 / 11 / 27"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -141,6 +145,7 @@ Global CSthin      := "░"   ; light gray
  , celebYear := A_Year
  , isHolidayToday := 0
  , semtr2play := 0
+ , attempts2Quit := 0
  , roundCornerSize := Round(FontSize/2) + Round(OSDmarginSides/5)
  , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
  , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
@@ -278,10 +283,8 @@ InvokeBibleQuoteNow() {
      Return
 
   If (PrefOpen=1)
-  {
-     GuiControlGet, maxBibleLength
-     VerifyOsdOptions()
-  }
+     VerifyOsdOptions(1,1)
+
   stopStrikesNow := 0
   DoGuiFader := 1
   If !bibleQuotesFile
@@ -940,7 +943,7 @@ CreateShareButton() {
     Gui, ShareBtnGui: Margin, %marginz%, %marginz%
     Gui, ShareBtnGui: Color, c%OSDtextColor%
     Gui, ShareBtnGui: Font, %OSDbgrColor% s%FontSizeMin% Bold,
-    Gui, ShareBtnGui: Add, Text, gCopyLastQuote, Copy && share quote
+    Gui, ShareBtnGui: Add, Text, c%OSDbgrColor% gCopyLastQuote, Copy && share quote
     ActiveMon := MWAGetMonitorMouseIsIn()
     If ActiveMon
     {
@@ -1181,36 +1184,42 @@ ToggleTickTock() {
        SoundLoop("")
 }
 
+ForceReloadNow() {
+    Sleep, 25
+    Try Reload
+    Sleep, 50
+    ExitApp
+}
+
 ReloadScript(silent:=1) {
     Thread, Priority, 50
     Critical, On
+    If (ScriptInitialized!=1 || attempts2Quit>0)
+    {
+       ForceReloadNow()
+       Return
+    }
 
+    attempts2Quit++
+    DoGuiFader := 1
     If (PrefOpen=1)
     {
        CloseSettings()
        Return
     }
-
+    DestroyBibleGui()
     If FileExist(ThisFile)
     {
-        Cleanup()
-        Try Reload
-        Sleep, 70
-        ExitApp
+       Sleep, 50
+       Cleanup()
+       Try Reload
+       Sleep, 50
+       ExitApp
     } Else
     {
-        CreateBibleGUI("FATAL ERROR: Main file missing. Execution terminated.")
-        SoundBeep
-        Sleep, 2000
-        Cleanup() ; if you don't do it HERE you're not doing it right, Run %i% will force the script to close before cleanup
-        MsgBox, 4,, Do you want to choose another file to execute?
-        IfMsgBox, Yes
-        {
-            FileSelectFile, i, 2, %A_ScriptDir%\%A_ScriptName%, Select a different script to load, AutoHotkey script (*.ahk; *.ah1u)
-            If !InStr(FileExist(i), "D")  ; we can't run a folder, we need to run a script
-               Run, %i%
-        } Else (Sleep, 500)
-        ExitApp
+       SoundBeep
+       MsgBox,, %appName%, FATAL ERROR: Main file missing. Execution terminated.
+       ExitApp
     }
 }
 
@@ -1233,10 +1242,17 @@ DeleteSettings() {
 KillScript(showMSG:=1) {
    Thread, Priority, 50
    Critical, On
-   If (ScriptInitialized!=1)
+   If (ScriptInitialized!=1 || attempts2Quit>0)
+   {
       ExitApp
+      Return
+   }
 
+   attempts2Quit++
+   DoGuiFader := 1
    PrefOpen := 0
+   DestroyBibleGui()
+   Sleep, 50
    If (FileExist(ThisFile) && showMSG)
    {
       INIsettings(1)
@@ -1247,6 +1263,8 @@ KillScript(showMSG:=1) {
       CreateBibleGUI("Adiiooosss :-(((")
       Sleep, 950
    }
+   DestroyBibleGui()
+   Sleep, 50
    Cleanup()
    ExitApp
 }
@@ -1483,9 +1501,13 @@ OSDpreview() {
 
 generateDateTimeTxt(LongD:=1, noDate:=0) {
     If (displayTimeFormat=1)
+    {
        FormatTime, CurrentTime,, H:mm
-    Else
-       FormatTime, CurrentTime,, h:mm tt
+    } Else
+    {
+       timeSuffix := (A_Hour<12) ? " AM" : " PM"
+       FormatTime, CurrentTime,, h:mm
+    }
 
     If (LongD=1)
        FormatTime, CurrentDate,, LongDate
@@ -1493,9 +1515,9 @@ generateDateTimeTxt(LongD:=1, noDate:=0) {
        FormatTime, CurrentDate,, ShortDate
 
     If (noDate=1)
-       txtReturn := CurrentTime
+       txtReturn := CurrentTime timeSuffix
     Else
-       txtReturn := CurrentTime " | " CurrentDate
+       txtReturn := CurrentTime timeSuffix " | " CurrentDate
     Return txtReturn
 }
 
@@ -1560,8 +1582,6 @@ ShowOSDsettings() {
     Gui, Add, Checkbox, x+10 gVerifyOsdOptions Checked%tollQuartersException% vtollQuartersException, ... except on the hour
     Gui, Add, Checkbox, xs y+10 gcheckBoxStrikeHours Checked%tollHours% vtollHours, Strike on the hour
     Gui, Add, Checkbox, x+10 gVerifyOsdOptions Checked%tollHoursAmount% vtollHoursAmount, ... the number of hours
-    Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%displayClock% vdisplayClock, Display time on screen when bells toll
-    Gui, Add, Checkbox, x+10 gVerifyOsdOptions Checked%displayTimeFormat% vdisplayTimeFormat, 24 hours format
     Gui, Add, Checkbox, xs y+10 gcheckBoxStrikeAdditional Checked%AdditionalStrikes% vAdditionalStrikes, Additional strike every (in minutes)
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38, %strikeEveryMin%
     Gui, Add, UpDown, gVerifyOsdOptions vstrikeEveryMin Range1-720, %strikeEveryMin%
@@ -1606,9 +1626,11 @@ ShowOSDsettings() {
     Gui, Add, Text, xs yp+30, Display time (in sec.)
     Gui, Add, Text, xs yp+30 vTxt4, Max. line length, for Bible quotes
     Gui, Add, Checkbox, xs yp+30 gVerifyOsdOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen for Bible quotes
-    Gui, Add, Checkbox, xs yp+35 gVerifyOsdOptions Checked%OSDroundCorners% vOSDroundCorners, Rounded corners
+    Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%displayClock% vdisplayClock, Display time on screen when bells toll
+    Gui, Add, Checkbox, x+10 gVerifyOsdOptions Checked%displayTimeFormat% vdisplayTimeFormat, 24 hours format
+    Gui, Add, Checkbox, xs y+10 gVerifyOsdOptions Checked%OSDroundCorners% vOSDroundCorners, Rounded corners
     Gui, Add, Checkbox, xs yp+35 h30 +0x1000 gVerifyOsdOptions Checked%ShowPreview% vShowPreview, Show preview window
-    Gui, Add, Checkbox, y+5 hp gVerifyOsdOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date into preview
+    Gui, Add, Checkbox, x+5 hp gVerifyOsdOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date
 
     Gui, Add, DropDownList, xs+%columnBpos2% ys+0 section w205 gVerifyOsdOptions Sort Choose1 vFontName, %FontName%
     Gui, Add, ListView, xp+0 yp+30 w55 h25 %CCLVO% Background%OSDtextColor% vOSDtextColor hwndhLV1,
@@ -1648,7 +1670,7 @@ ShowOSDsettings() {
     ColorPickerHandles := hLV1 "," hLV2 "," hLV3 "," hLV5 "," hTXT
 }
 
-VerifyOsdOptions(EnableApply:=1) {
+VerifyOsdOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControlGet, ShowPreview
     GuiControlGet, silentHours
     GuiControlGet, tollHours
@@ -1658,6 +1680,7 @@ VerifyOsdOptions(EnableApply:=1) {
     GuiControlGet, SemantronHoliday
     GuiControlGet, ObserveHolidays
     GuiControlGet, OSDmarginSides
+    GuiControlGet, maxBibleLength
 
     GuiControl, % (EnableApply=0 ? "Disable" : "Enable"), ApplySettingsBTN
     GuiControl, % (AdditionalStrikes=0 ? "Disable" : "Enable"), editF38
@@ -1685,15 +1708,17 @@ VerifyOsdOptions(EnableApply:=1) {
        roundCornerSize := 20
 
     Static LastInvoked := 1
+    If (forceNoPreview=1)
+       Return
 
-    If (A_TickCount - LastInvoked>200) || (BibleGuiVisible=0 && ShowPreview=1)
+    If (A_TickCount - LastInvoked>250) || (BibleGuiVisible=0 && ShowPreview=1)
     || (BibleGuiVisible=1 && ShowPreview=0)
     {
        If (A_TickCount - LastInvoked>9500)
           DoGuiFader := 1
        LastInvoked := A_TickCount
        OSDpreview()
-    }
+    } Else SetTimer, OSDpreview, -350
 }
 
 trimArray(arr) {
@@ -1786,7 +1811,7 @@ LocatePositionA() {
     GuiControl, SettingsGUIA:, ShowPreview, 1
     GuiControl, SettingsGUIA:, GuiX, %mX%
     GuiControl, SettingsGUIA:, GuiY, %mY%
-    OSDpreview()
+    DoGuiFader := 0
     VerifyOsdOptions()
 }
 
@@ -2453,7 +2478,7 @@ AboutWindow() {
     Gui, Add, Text, xp+15 y+5, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
     Gui, Add, Text, xs y+10, % "0h {" CalcTextHorizPrev(minsPassed, 1440, 0, 22) "} 24h "
     Gui, Add, Text, xp+15 y+5, %minsPassed% minutes (%percentileDay%) of today have elapsed.
-    Gui, Add, Text, xs y+15 w%txtWid%, This application contains code from various entities. You can find more details in the source code.
+    Gui, Add, Text, xs y+15 w%txtWid%, This application contains code and sounds from various entities. You can find more details in the source code.
     If (storeSettingsREG=1)
        Gui, Add, Link, xs y+15 w%txtWid%, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
     Else      
