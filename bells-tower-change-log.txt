@@ -5,6 +5,11 @@
 
 Work began on this project in August 2018.
 
+v2.0 - 2018 / 12 / 10
+- [new] About window is themed according to the current time: day or night
+- [new] context menu at About and Settings
+- [new] added Christmas bells on Christmas Day :-)
+
 v1.9.9 - 2018 / 11 / 27
 - minor fixes and improvements
 

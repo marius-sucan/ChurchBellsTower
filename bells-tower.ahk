@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 1.9.9
+;@Ahk2Exe-SetVersion 2.0.0
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -36,6 +36,8 @@
  #SingleInstance Force
  #NoEnv
  #MaxMem 128
+ #Include Class_ImageButton.ahk
+
  DetectHiddenWindows, On
  ComObjError(false)
  SetTitleMatchMode, 2
@@ -92,8 +94,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "1.9.9"
- , ReleaseDate            := "2018 / 11 / 27"
+ , Version                := "2.0"
+ , ReleaseDate            := "2018 / 12 / 10"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -145,6 +147,7 @@ Global CSthin      := "░"   ; light gray
  , celebYear := A_Year
  , isHolidayToday := 0
  , semtr2play := 0
+ , aboutTheme, GUIAbgrColor, AboutTitleColor, hoverBtnColor, BtnTxtColor, GUIAtxtColor
  , attempts2Quit := 0
  , roundCornerSize := Round(FontSize/2) + Round(OSDmarginSides/5)
  , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
@@ -206,26 +209,27 @@ VerifyFiles() {
      FileRemoveDir, sounds, 1
   Sleep, 50
   FileCreateDir, sounds
-  FileInstall, bible-quotes.txt, bible-quotes.txt
-  FileInstall, bells-tower-change-log.txt, bells-tower-change-log.txt
   FileInstall, bell-image.png, bell-image.png
+  FileInstall, bells-tower-change-log.txt, bells-tower-change-log.txt
+  FileInstall, bible-quotes.txt, bible-quotes.txt
   FileInstall, paypal.png, paypal.png
-  FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
   FileInstall, sounds\auxilliary-bell.mp3, sounds\auxilliary-bell.mp3
-  FileInstall, sounds\japanese-bell.mp3, sounds\japanese-bell.mp3
-  FileInstall, sounds\quarters.mp3, sounds\quarters.mp3
-  FileInstall, sounds\hours.mp3, sounds\hours.mp3
+  FileInstall, sounds\christmas.mp3, sounds\christmas.mp3
   FileInstall, sounds\evening.mp3, sounds\evening.mp3
+  FileInstall, sounds\hours.mp3, sounds\hours.mp3
+  FileInstall, sounds\japanese-bell.mp3, sounds\japanese-bell.mp3
+  FileInstall, sounds\midnight.mp3, sounds\midnight.mp3
+  FileInstall, sounds\morning.mp3, sounds\morning.mp3
   FileInstall, sounds\noon1.mp3, sounds\noon1.mp3
   FileInstall, sounds\noon2.mp3, sounds\noon2.mp3
   FileInstall, sounds\noon3.mp3, sounds\noon3.mp3
   FileInstall, sounds\noon4.mp3, sounds\noon4.mp3
   FileInstall, sounds\orthodox-chimes1.mp3, sounds\orthodox-chimes1.mp3
   FileInstall, sounds\orthodox-chimes2.mp3, sounds\orthodox-chimes2.mp3
+  FileInstall, sounds\quarters.mp3, sounds\quarters.mp3
   FileInstall, sounds\semantron1.mp3, sounds\semantron1.mp3
   FileInstall, sounds\semantron2.mp3, sounds\semantron2.mp3
-  FileInstall, sounds\morning.mp3, sounds\morning.mp3
-  FileInstall, sounds\midnight.mp3, sounds\midnight.mp3
+  FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
   Sleep, 300
 }
 
@@ -234,7 +238,6 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
      Return
 
   Static LastInvoked := 1
-
   If (lParam = 0x201) || (lParam = 0x204)
   {
      stopStrikesNow := 1
@@ -461,7 +464,7 @@ strikeQuarters() {
      Return
 
   sleepDelay := RandomNumberCalc()
-  sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\quarters.mp3, 1") 
+  sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\quarters.mp3, 1")
 
   If (PrefOpen!=1)
      Sleep, % strikeInterval + sleepDelay
@@ -1274,15 +1277,36 @@ KillScript(showMSG:=1) {
 ;   various functions used in the UI.
 ;================================================================
 
-SettingsGUI(whiteBgr:=0) {
+SettingsGUI(themed:=0) {
    Global
+   If (themed=1)
+      determineUIcolors()
    Gui, SettingsGUIA: Destroy
    Sleep, 15
    Gui, SettingsGUIA: Default
    Gui, SettingsGUIA: -MaximizeBox -MinimizeBox hwndhSetWinGui
    Gui, SettingsGUIA: Margin, 15, 15
-   If (whiteBgr=1)
-      Gui, SettingsGUIA: Color, FAfaFA
+   If (themed=1)
+      Gui, SettingsGUIA: Color, %GUIAbgrColor%
+}
+
+determineUIcolors() {
+   aboutTheme := (A_Hour<9) || (A_Hour>22) ? "night" : "day"
+   If (aboutTheme="day")
+   {
+      GUIAbgrColor := "faf7f2"
+      GUIAtxtColor := "111100"
+      AboutTitleColor := "1166AA"
+      hoverBtnColor := "448855"
+      BtnTxtColor := "ffffff"
+   } Else
+   {
+      GUIAbgrColor := "222010"
+      GUIAtxtColor := "ffeedd"
+      AboutTitleColor := "eebb22"
+      hoverBtnColor := "ffeedd"
+      BtnTxtColor := "000000"
+   }
 }
 
 initSettingsWindow() {
@@ -1403,6 +1427,34 @@ CloseSettings() {
    Sleep, 100
    ReloadScript()
 }
+
+SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
+    Static lastInvoked := 1
+    If (CtrlHwnd && IsRightClick=1)
+    || ((A_TickCount-lastInvoked>250) && IsRightClick=0)
+    {
+       lastInvoked := A_TickCount
+       Return
+    }
+    Menu, ContextMenu, UseErrorLevel
+    Menu, ContextMenu, Delete
+    Sleep, 25
+    Menu, ContextMenu, Add, L&arge UI fonts, ToggleLargeFonts
+    Menu, ContextMenu, Add, 
+    If (PrefsLargeFonts=1)
+       Menu, ContextMenu, Check, L&arge UI fonts
+
+    If (PrefOpen=0)
+       Menu, ContextMenu, Add, &Settings, ShowOSDsettings
+    Menu, ContextMenu, Add
+    Menu, ContextMenu, Add, &Restart %appName%, ReloadScriptNow
+    Menu, ContextMenu, Add
+    Menu, ContextMenu, Add, Close menu, dummy
+    Menu, ContextMenu, Show
+    lastInvoked := A_TickCount
+    Return
+}
+
 
 SettingsGUIAGuiEscape:
    If (PrefOpen=1)
@@ -1570,7 +1622,7 @@ ShowOSDsettings() {
     }
     columnBpos1b := columnBpos1 + 20
 
-    Gui, Add, Tab3, , General|OSD options
+    Gui, Add, Tab3, -Background +hwndhTabs, General|OSD options
 
     Gui, Tab, 1 ; general
     Gui, Add, Text, x+15 y+15 Section +0x200 vvolLevel, % "Audio volume: " BeepsVolume " % "
@@ -2053,7 +2105,7 @@ lifeGivingSpring() {
 
   FormatTime, lola, %result%, yday
   If (lola=A_YDay && UserReligion=2)
-     isHolidayToday := "The Life-Giving Spring - when Blessed Mary healed a blind man by drinking water from a spring"
+     isHolidayToday := "The Life-Giving Spring - when Blessed Mary healed a blind man by having him drink water from a spring"
 
   return result
 }
@@ -2127,7 +2179,11 @@ testCelebrations() {
   {
      OSDprefix := "✝ "
      If (AnyWindowOpen!=1)
+     {
         CreateBibleGUI(generateDateTimeTxt() " || " isHolidayToday, 1, 1)
+        If InStr(isHolidayToday, "Christmas")
+           sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\christmas.mp3, 1")
+     }
   }
 }
 
@@ -2392,18 +2448,18 @@ AboutWindow() {
     btnWid := 100
     txtWid := 360
     Global btn1
-    Gui, Font, c1166AA s19 Bold, Arial, -wrap
+    Gui, Font, c%AboutTitleColor% s19 Bold, Arial, -wrap
     Gui, Add, Picture, x14 y10 h65 w-1 gTollExtraNoon hwndhBellIcon, bell-image.png
     Gui, Add, Text, x+14 yp+5 Section, %appName%
-
     Gui, Font
+    Gui, Font, c%GUIAtxtColor%
     If (PrefsLargeFonts=1)
     {
        btnWid := btnWid + 50
        txtWid := txtWid + 105
        Gui, Font, s%LargeUIfontValue%
     }
-    Gui, Add, Link, y+4, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a> on AHK_H.
+    Gui, Add, Link, y+4 hwndhLink0, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a> on AHK_H.
     If (tickTockNoise!=1)
        SoundLoop(tickTockSound)
 
@@ -2474,27 +2530,49 @@ AboutWindow() {
        Gui, Add, Text, y+7, The days are getting shorter until the winter solstice, in December.
     Else If (A_YDay>356 && A_YDay<168)
        Gui, Add, Text, y+7, The days are getting longer until the summer solstice, in June..
-    Gui, Add, Text, y+15 Section, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
+    Gui, Add, Text, xp+30 y+15 Section, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
     Gui, Add, Text, xp+15 y+5, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
     Gui, Add, Text, xs y+10, % "0h {" CalcTextHorizPrev(minsPassed, 1440, 0, 22) "} 24h "
     Gui, Add, Text, xp+15 y+5, %minsPassed% minutes (%percentileDay%) of today have elapsed.
-    Gui, Add, Text, xs y+15 w%txtWid%, This application contains code and sounds from various entities. You can find more details in the source code.
+    newLine := (PrefsLargeFonts=1) ? " " : "`n"
+    Gui, Add, Text, xs-30 y+15 Section w%txtWid%, This application contains code and sounds from various entities.%newLine%You can find more details in the source code.
     If (storeSettingsREG=1)
-       Gui, Add, Link, xs y+15 w%txtWid%, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
+       Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
     Else      
-       Gui, Add, Link, xs y+15 w%txtWid%, The development page is <a href="https://github.com/marius-sucan/ChurchBellsTower">on GitHub</a>.
+       Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, The development page is <a href="https://github.com/marius-sucan/ChurchBellsTower">on GitHub</a>.
     Gui, Font, Bold
-    Gui, Add, Link, xp+30 y+10, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
+    Gui, Add, Link, xp+30 y+10 hwndhLink1, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
     Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, paypal.png
 
     Gui, Font, Normal
-    Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindow, &Deus lux est
-    Gui, Add, Button, x+5 hp w80 gShowOSDsettings, &Settings
+    Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindow hwndhBtn1, Deus lux est
+    Gui, Add, Button, x+5 hp w80 gShowOSDsettings hwndhBtn2, Settings
     Gui, Add, Text, x+8 hp +0x200 gOpenChangeLog hwndhBtnLog, v%Version% (%ReleaseDate%)
     Gui, Show, AutoSize, About %appName% v%Version%
-    verifySettingsWindowSize()
     ColorPickerHandles := hDonateBTN "," hBellIcon "," hBtnLog
     Sleep, 25
+
+    Opt1 := [0, "0xff" AboutTitleColor, , "0xff" BtnTxtColor, 15, "0x" GUIAbgrColor, , 0]
+    Opt2 := [ , "0xef" hoverBtnColor]
+    Opt3 := [ , "0xff" BtnTxtColor, , "0xff" hoverBtnColor]
+    ImageButton.Create(hBtn1, Opt1, Opt2, Opt3)
+    ImageButton.Create(hBtn2, Opt1, Opt2, Opt3)
+    LinkUseDefaultColor(hLink0)
+    LinkUseDefaultColor(hLink1)
+    LinkUseDefaultColor(hLink2)
+    verifySettingsWindowSize()
+    If InStr(isHolidayToday, "Christmas") && (stopAdditionalStrikes=0)
+       sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\christmas.mp3, 1")
+}
+
+LinkUseDefaultColor(hLink, Use := True) {
+   VarSetCapacity(LITEM, 4278, 0)            ; 16 + (MAX_LINKID_TEXT * 2) + (L_MAX_URL_LENGTH * 2)
+   NumPut(0x03, LITEM, "UInt")               ; LIF_ITEMINDEX (0x01) | LIF_STATE (0x02)
+   NumPut(Use ? 0x10 : 0, LITEM, 8, "UInt")  ; ? LIS_DEFAULTCOLORS : 0
+   NumPut(0x10, LITEM, 12, "UInt")           ; LIS_DEFAULTCOLORS
+   While DllCall("SendMessage", "Ptr", hLink, "UInt", 0x0702, "Ptr", 0, "Ptr", &LITEM, "UInt") ; LM_SETITEM
+      NumPut(A_Index, LITEM, 4, "Int")
+   GuiControl, SettingsGUIA: +Redraw, %hLink%
 }
 
 OpenChangeLog() {
@@ -3029,4 +3107,3 @@ sillySoundHack() {   ; this helps mitigate issues caused by apps like Team Viewe
      Result := DllCall("winmm\PlaySoundW", "Ptr", 0, "Ptr", 0, "Uint", 0x46) ; SND_PURGE|SND_MEMORY|SND_NODEFAULT
      Return Result
 }
-
