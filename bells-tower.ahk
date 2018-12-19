@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.5.0
+;@Ahk2Exe-SetVersion 2.5.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -97,8 +97,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.5"
- , ReleaseDate            := "2018 / 12 / 14"
+ , Version                := "2.5.1"
+ , ReleaseDate            := "2018 / 12 / 19"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -144,6 +144,7 @@ Global CSthin      := "░"   ; light gray
  , FontChangedTimes := 0
  , AnyWindowOpen := 0
  , LastBibleQuoteDisplay := 1
+ , LastBibleQuoteDisplay2 := 1
  , LastBibleMsg := ""
  , CurrentPrefWindow := 0
  , celebYear := A_Year
@@ -314,7 +315,10 @@ InvokeBibleQuoteNow() {
   StringReplace, QuotesAlreadySeen, QuotesAlreadySeen, aa, a
   StringRight, QuotesAlreadySeen, QuotesAlreadySeen, 155
   If (StrLen(bibleQuote)>6)
+  {
+     LastBibleQuoteDisplay := LastBibleQuoteDisplay2 := A_TickCount
      CreateBibleGUI(bibleQuote, 1, 1)
+  }
 
   If (PrefOpen!=1)
   {
@@ -538,6 +542,12 @@ AdditionalStriker() {
      sndChanA.ahkReload[]
 }
 
+readjustBibleTimer() {
+  SetTimer, InvokeBibleQuoteNow, Off
+  Sleep, 25
+  SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
+}
+
 theChimer() {
   Critical, on
   Static lastChimed, todayTest
@@ -559,6 +569,9 @@ theChimer() {
      SetTimer, theChimer, % calcNextQuarter()
      Return
   }
+
+  If (A_TickCount - LastBibleQuoteDisplay2<95000) && (showBibleQuotes=1)
+     SetTimer, readjustBibleTimer, -265100, 900
 
   If (todayTest!=A_MDay) && (ScriptInitialized=1)
   {
@@ -849,7 +862,7 @@ GuiFader(guiName,toggle,alphaLevel) {
    lastEvent := toggle
 }
 
-CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
+CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
     Critical, On
     bibleQuoteVisible := (isBibleQuote=1) ? 1 : 0
     FontSizeMin := (isBibleQuote=1) ? FontSizeQuotes : FontSize
@@ -859,10 +872,9 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0) {
     Sleep, 25
 
     If (isBibleQuote=1)
-    {
        msg2Display := ST_wordWrap(msg2Display, maxBibleLength)
-       LastBibleQuoteDisplay := A_TickCount
-    } Else msg2Display := OSDprefix msg2Display OSDsuffix
+    Else If (noAdds=0)
+       msg2Display := OSDprefix msg2Display OSDsuffix
 
     HorizontalMargins := (isBibleQuote=1) ? OSDmarginSides : 1
     Gui, BibleGui: -DPIScale -Caption +Owner +ToolWindow +HwndhBibleOSD
@@ -1073,12 +1085,12 @@ SetStartUp() {
         MsgBox, This option works only in the compiled edition of this script.
      RegWrite, REG_SZ, %StartRegPath%, %appName%, %regEntry%
      Menu, Tray, Check, Sta&rt at boot
-     CreateBibleGUI("Enabled Start at Boot")
+     CreateBibleGUI("Enabled Start at Boot",,,1)
   } Else
   {
      RegDelete, %StartRegPath%, %appName%
      Menu, Tray, Uncheck, Sta&rt at boot
-     CreateBibleGUI("Disabled Start at Boot")
+     CreateBibleGUI("Disabled Start at Boot",,,1)
   }
 }
 
@@ -1121,7 +1133,7 @@ SuspendScript(partially:=0) {
    {
       DoGuiFader := 1
       friendlyName := A_IsSuspended ? " activated" : " deactivated"
-      CreateBibleGUI(appName friendlyName)
+      CreateBibleGUI(appName friendlyName,,,1)
    }
    sillySoundHack()
    Sleep, 20
@@ -1271,11 +1283,11 @@ KillScript(showMSG:=1) {
    If (FileExist(ThisFile) && showMSG)
    {
       INIsettings(1)
-      CreateBibleGUI("Bye byeee :-)")
+      CreateBibleGUI("Bye byeee :-)",,,1)
       Sleep, 350
    } Else If showMSG
    {
-      CreateBibleGUI("Adiiooosss :-(((")
+      CreateBibleGUI("Adiiooosss :-(((",,,1)
       Sleep, 950
    }
    DestroyBibleGui()
@@ -2857,15 +2869,15 @@ AboutWindow() {
     MarchEquinox := compareYearDays(78, A_YDay) "March equinox."   ; 03 / 20
     If InStr(MarchEquinox, "now")
        MarchEquinox := "(" OSDsuffix " ) The March equinox is here now."
-    JuneSolstice := compareYearDays(170, A_YDay) "June solstice."  ; 06 / 21
+    JuneSolstice := compareYearDays(170, A_YDay) "June solstice. The day and night are tightly balanced for a few days."  ; 06 / 21
     If InStr(JuneSolstice, "now")
-       JuneSolstice := "(" OSDsuffix " ) The June solstice is here now."
+       JuneSolstice := "(" OSDsuffix " ) The June solstice is here now. Today is one of the longest days of the year."
     SepEquinox := compareYearDays(263, A_YDay) "September equinox."  ; 09 / 22
     If InStr(SepEquinox, "now")
-       SepEquinox := "(" OSDsuffix " ) The September equinox is here now."
+       SepEquinox := "(" OSDsuffix " ) The September equinox is here now. The day and night are tightly balanced for a few days."
     DecSolstice := compareYearDays(354, A_YDay) "December solstice."  ; 12 / 21
     If InStr(DecSolstice, "now")
-       DecSolstice := "(" OSDsuffix " ) The December solstice is here now."
+       DecSolstice := "(" OSDsuffix " ) The December solstice is here now. Today is one of the shortest days of the year."
 
     percentileYear := Round(A_YDay/366*100) "%"
     FormatTime, CurrentYear,, yyyy
@@ -2902,20 +2914,17 @@ AboutWindow() {
     weeksPlural := (weeksPassed>1) ? "weeks" : "week"
     weeksPlural2 := (weeksPassed>1) ? "have" : "has"
 
-    If (A_YDay>=353)
-    {
-       Gui, Font, Bold
-       Gui, Add, Text, y+7 w%txtWid%, Season's greetings! Enjoy the holidays! 😊
-       Gui, Font, Normal
-    }
-
     Gui, Font, Bold
+
+    If (A_YDay>354)
+       Gui, Add, Text, y+7 w%txtWid%, Season's greetings! Enjoy the holidays! 😊
+
     If (StrLen(isHolidayToday)>2 && ObserveHolidays=1)
     {
        relName := (UserReligion=1) ? "Catholic" : "Orthodox"
        holidayMsg := relName " Christians celebrate today: " isHolidayToday "."
        If (TypeHolidayOccured>1)
-          holidayMsg := "Today's main event: " isHolidayToday "."
+          holidayMsg := "Today's event: " isHolidayToday "."
        Gui, Add, Text, y+7 w%txtWid%, %holidayMsg%
     }
     testFeast := A_Mon "." A_MDay
@@ -2929,13 +2938,13 @@ AboutWindow() {
        Gui, Add, Text, y+7 w%txtWid%, Today is 29th of February - a leap year day.
 
     Gui, Font, Normal
-    If (A_YDay>172 && A_YDay<353)
+    If (A_YDay>172 && A_YDay<352)
        Gui, Add, Text, y+7, The days are getting shorter until the winter solstice, in December.
-    Else If (A_YDay>356 && A_YDay<168)
+    Else If (A_YDay>356 && A_YDay<167)
        Gui, Add, Text, y+7, The days are getting longer until the summer solstice, in June.
     If (A_OSVersion="WIN_XP")
     {
-       Gui, Font,, Arial ; only as backup, doesn't have all characters in XP
+       Gui, Font,, Arial ; only as backup, doesn't have all characters on XP
        Gui, Font,, Symbola
        Gui, Font,, Segoe UI Symbol
        Gui, Font,, DejaVu Sans

@@ -5,11 +5,15 @@
 
 Work began on this project in August 2018.
 
+v2.5.1 - 2018 / 12 / 19
+- minor fixes
+
 v2.5 - 2018 / 12 / 14
 - [new] added a new type of holidays: secular holidays - mostly Unesco international days
 - [new] option to activate/deactivate religious or secular holidays
 - [new] option to add your own holidays/events; personal entries override secular or religious holidays
 - [new] it now detects and announces leap years and the leap day
+- [new] you can also individually deactivate religious or secular holidays
 - bug fixes
 
 v2.0 - 2018 / 12 / 10
