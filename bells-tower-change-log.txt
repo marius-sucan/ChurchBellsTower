@@ -5,6 +5,10 @@
 
 Work began on this project in August 2018.
 
+v2.5.2 - 2019 / 01 / 01
+- not so minor fixes :-)
+- fixed errors in dates calculations
+
 v2.5.1 - 2018 / 12 / 19
 - minor fixes
 

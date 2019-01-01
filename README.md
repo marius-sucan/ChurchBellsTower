@@ -22,6 +22,7 @@
 <li>display a random Bible quote at a specified interval</li>
 <li>informs you about equinoxes and solstices, and how much of the current day or year has elapsed</li>
 <li>option to display / indicate / observe Christian feast days; for Orthodox and Catholic worshippers; automatically calculates the dates for Easter and related celebrations</li>
+<li>personal list of celebrations</li>
 <li>option to regularly play semantron drumming sounds on days of feast in Christianity</li>
 <li>option to start at boot [if compiled]</li>
 </ul> 

@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.5.1
+;@Ahk2Exe-SetVersion 2.5.2
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -97,8 +97,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.5.1"
- , ReleaseDate            := "2018 / 12 / 19"
+ , Version                := "2.5.2"
+ , ReleaseDate            := "2019 / 01 / 01"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -699,7 +699,7 @@ theChimer() {
            SoundPlay, sounds\noon%choice%.mp3, 1
         } Else If (stopStrikesNow=0 && BeepsVolume>1)
         {
-           Random, newDelay, 39000, 89000
+           Random, newDelay, 49000, 99000
            SoundPlay, sounds\noon%choice%.mp3
            If (A_WDay=1 || StrLen(isHolidayToday)>3)  ; on Sundays or holidays
               SetTimer, TollExtraNoon, % -newDelay
@@ -2881,13 +2881,14 @@ AboutWindow() {
 
     percentileYear := Round(A_YDay/366*100) "%"
     FormatTime, CurrentYear,, yyyy
+    NextYear := CurrentYear + 1
 
     FormatTime, CurrentDateTime,, yyyyMMddHHmm
     FormatTime, CurrentDay,, yyyyMMdd
     FirstMinOfDay := CurrentDay "0001"
     EnvSub, CurrentDateTime, %FirstMinOfDay%, Minutes
-    minsPassed := CurrentDateTime
-    percentileDay := Round(minsPassed/1440*100) "%"
+    minsPassed := CurrentDateTime + 1
+    percentileDay := Round(minsPassed/1450*100) "%"
 
     Gui, Add, Text, x15 y+20 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
     If (MarchEquinox ~= "until|here")
@@ -2910,12 +2911,23 @@ AboutWindow() {
     If !InStr(DecSolstice, "hide")
        Gui, Add, Text, y+7 w%txtWid%, %DecSolstice%
     Gui, Font, Normal
-    StringRight, weeksPassed, A_YWeek, 2
+    weeksPassed := Floor(A_YDay/7)
     weeksPlural := (weeksPassed>1) ? "weeks" : "week"
     weeksPlural2 := (weeksPassed>1) ? "have" : "has"
+    If (weeksPassed<1)
+    {
+       weeksPassed := A_YDay - 1
+       weeksPlural := (weeksPassed>1) ? "days" : "day"
+       weeksPlural2 := (weeksPassed>1) ? "have" : "has"
+       If (weeksPassed=0)
+       {
+          weeksPassed := "No"
+          weeksPlural := "day"
+          weeksPlural2 := "has"
+       }
+    }
 
     Gui, Font, Bold
-
     If (A_YDay>354)
        Gui, Add, Text, y+7 w%txtWid%, Season's greetings! Enjoy the holidays! 😊
 
@@ -2940,7 +2952,7 @@ AboutWindow() {
     Gui, Font, Normal
     If (A_YDay>172 && A_YDay<352)
        Gui, Add, Text, y+7, The days are getting shorter until the winter solstice, in December.
-    Else If (A_YDay>356 && A_YDay<167)
+    Else If (A_YDay>356 || A_YDay<167)
        Gui, Add, Text, y+7, The days are getting longer until the summer solstice, in June.
     If (A_OSVersion="WIN_XP")
     {
