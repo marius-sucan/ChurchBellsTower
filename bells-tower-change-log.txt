@@ -5,6 +5,14 @@
 
 Work began on this project in August 2018.
 
+v2.7.0 - 2019 / 01 / 11
+- [new] analog clock display; easy to configure and customize; based on a script by derRaphael
+- [new] added about 28 thousands Bible verses [from the American King James Version]; source: biblehub.com
+- [new] added French and Spanish Bibles, such that users can change the language of the random Bible verse feature
+- [new] option to not strike bells when sounds are playing in the background [e.g., music]
+- [new] option to not strike bells when the mouse cursor is hidden [e.g., when watching videos]
+- [improvement] reorganized the Preferences panel; options are now split into multiple tabs
+
 v2.5.2 - 2019 / 01 / 01
 - not so minor fixes :-)
 - fixed errors in dates calculations

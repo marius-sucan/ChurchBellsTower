@@ -17,6 +17,7 @@
 <li>strike on the hour once... or the number of hours</li>
 <li>toll distinctively every six hours [early morning, at noon, in the evening and at midnight]</li>
 <li>tick/tock background sound</li>
+<li>options to automatically limit chimes if music is playing in the background or if videos play in full-screen</li>
 <li>easy to configure intervals to chime or to keep silent</li>
 <li>option to display time when it chimes/strikes/toll ;-)</li>
 <li>display a random Bible quote at a specified interval</li>
@@ -26,5 +27,7 @@
 <li>option to regularly play semantron drumming sounds on days of feast in Christianity</li>
 <li>option to start at boot [if compiled]</li>
 </ul> 
+
+<p>Developed by <a href="http://marius.sucan.ro/">Marius Șucan</a>.</p>
 
 <p>I coded the application as an <a href="https://autohotkey.com/">AHK script</a> for AutoHotkey_H v1.1.27. To execute/compile the source code one needs <a href="https://hotkeyit.github.io/v2/">AutoHotkey_H v1.1+</a>.</p>
