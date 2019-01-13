@@ -5,6 +5,10 @@
 
 Work began on this project in August 2018.
 
+v2.7.1 - 2019 / 01 / 13
+- changed the English Bible version to: «World English Bible» edition, and I included the deuterocanon books; this version is more readable and it includes the books specific to Catholics and Orthodox followers as well
+
+
 v2.7.0 - 2019 / 01 / 11
 - [new] analog clock display; easy to configure and customize; based on a script by derRaphael
 - [new] added about 28 thousands Bible verses [from the American King James Version]; source: biblehub.com

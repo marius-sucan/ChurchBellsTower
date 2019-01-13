@@ -24,7 +24,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.7.0
+;@Ahk2Exe-SetVersion 2.7.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -105,8 +105,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.7.0"
- , ReleaseDate            := "2019 / 01 / 11"
+ , Version                := "2.7.1"
+ , ReleaseDate            := "2019 / 01 / 13"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -191,7 +191,7 @@ InitializeTray()
 
 hCursM := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32646, "Ptr")  ; IDC_SIZEALL
 hCursH := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32649, "Ptr")  ; IDC_HAND
-OnMessage(0x200, "MouseMove")    ; WM_MOUSEMOVE
+OnMessage(0x200, "WM_MouseMove")    ; WM_MOUSEMOVE
 If (noTollingWhenMhidden=1)
    SetTimer, checkMcursorState, 1500
 
@@ -353,6 +353,7 @@ InvokeBibleQuoteNow() {
           stopLoop := 1
      } Until (stopLoop=1 || A_Index>912)
   } Else Line2Read := "R"
+  ; Line2Read := 670
 
   bibleQuote := ST_ReadLine(bibleQuotesFile, Line2Read)
   If InStr(bibleQuote, " || ")
@@ -360,6 +361,18 @@ InvokeBibleQuoteNow() {
      lineArr := StrSplit(bibleQuote, " || ")
      bibleQuote := lineArr[2]
   }
+
+  If st_count(bibleQuote, """")=1
+     StringReplace, bibleQuote, bibleQuote, "
+
+  If (BibleQuotesLang=1)
+  {
+     bibleQuote := RegExReplace(bibleQuote, "i)(\ssaying.?)$")
+     bibleQuote := RegExReplace(bibleQuote, "i)(\ssaid.?)$")
+     bibleQuote := RegExReplace(bibleQuote, "i)(\sand.?)$")
+     bibleQuote := RegExReplace(bibleQuote, "i)(\sbut)$")
+  }
+  bibleQuote := RegExReplace(bibleQuote, "i)(\;|\,|\:)$")
 
   LastBibleMsg := bibleQuote
   QuotesAlreadySeen .= "a" Line2Read "a"
@@ -995,7 +1008,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
        }
        Gui, BibleGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, ChurchTowerBibleWin
        If (isBibleQuote=1)
-          SetTimer, CreateShareButton, -350
+          CreateShareButton()
     } Else
     {
        ActiveMon := MWAGetMonitorMouseIsIn(GuiX, GuiY)
@@ -1074,7 +1087,7 @@ CopyLastQuote() {
   ToolTip
 }
 
-MouseMove(wP, lP, msg, hwnd) {
+WM_MouseMove(wP, lP, msg, hwnd) {
 ; Function by Drugwash
   Global
   Local A
@@ -1839,7 +1852,7 @@ ShowSettings() {
     Gui, Add, Checkbox, x+15 y+15 Section gVerifyTheOptions Checked%showBibleQuotes% vshowBibleQuotes, Show a Bible verse every (in hours)
     Gui, Add, Edit, x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF40, %BibleQuotesInterval%
     Gui, Add, UpDown, gVerifyTheOptions vBibleQuotesInterval Range1-12, %BibleQuotesInterval%
-    Gui, Add, DropDownList, xs+15 y+7 w280 gVerifyTheOptions AltSubmit Choose%BibleQuotesLang% vBibleQuotesLang, English: American King James version (1999)|Français: Louis Segond (1910)|Español: Reina Valera (1909)
+    Gui, Add, DropDownList, xs+15 y+7 w270 gVerifyTheOptions AltSubmit Choose%BibleQuotesLang% vBibleQuotesLang, World English Bible (2000)|Français: Louis Segond (1910)|Español: Reina Valera (1909)
     Gui, Add, Text, xs+15 y+10 vTxt10, Font size
     Gui, Add, Edit, x+10 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF73, %FontSizeQuotes%
     Gui, Add, UpDown, gVerifyTheOptions vFontSizeQuotes Range10-200, %FontSizeQuotes%
