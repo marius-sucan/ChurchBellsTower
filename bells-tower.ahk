@@ -24,7 +24,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.7.1
+;@Ahk2Exe-SetVersion 2.7.5
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -72,6 +72,7 @@
  , BibleQuotesLang      := 1
  , makeScreenDark       := 1
  , BibleQuotesInterval  := 5
+ , noBibleQuoteMhidden  := 1
  , UserReligion         := 1
  , SemantronHoliday     := 0
  , ObserveHolidays      := 0
@@ -105,8 +106,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.7.1"
- , ReleaseDate            := "2019 / 01 / 13"
+ , Version                := "2.7.5"
+ , ReleaseDate            := "2019 / 01 / 15"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -145,7 +146,6 @@ Global CSthin      := "░"   ; light gray
  , ShowPreviewDate := 0
  , OSDprefix, OSDsuffix
  , stopStrikesNow := 0
- , enforceWideNoTolls := 0
  , ClockVisibility := 0
  , stopAdditionalStrikes := 0
  , strikingBellsNow := 0
@@ -163,6 +163,7 @@ Global CSthin      := "░"   ; light gray
  , isHolidayToday := 0
  , TypeHolidayOccured := 0
  , hMain := A_ScriptHwnd
+ , lastOSDredraw := 1
  , semtr2play := 0
  , aboutTheme, GUIAbgrColor, AboutTitleColor, hoverBtnColor, BtnTxtColor, GUIAtxtColor
  , attempts2Quit := 0
@@ -191,10 +192,7 @@ InitializeTray()
 
 hCursM := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32646, "Ptr")  ; IDC_SIZEALL
 hCursH := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32649, "Ptr")  ; IDC_HAND
-OnMessage(0x200, "WM_MouseMove")    ; WM_MOUSEMOVE
-If (noTollingWhenMhidden=1)
-   SetTimer, checkMcursorState, 1500
-
+OnMessage(0x200, "WM_MouseMove")
 OnMessage(0x404, "AHK_NOTIFYICON")
 Sleep, 5
 theChimer()
@@ -229,33 +227,6 @@ VerifyFiles() {
         countFiles++
   Loop, Files, sounds\*.mp3
         countFiles++
-  If (countFiles<17)
-     FileRemoveDir, sounds, 1
-  Sleep, 50
-  FileCreateDir, sounds
-  FileInstall, bell-image.png, bell-image.png
-  FileInstall, bells-tower-change-log.txt, bells-tower-change-log.txt
-  FileInstall, bible-quotes-eng.txt, bible-quotes-eng.txt
-  FileInstall, bible-quotes-fra.txt, bible-quotes-fra.txt
-  FileInstall, bible-quotes-esp.txt, bible-quotes-esp.txt
-  FileInstall, paypal.png, paypal.png
-  FileInstall, sounds\auxilliary-bell.mp3, sounds\auxilliary-bell.mp3
-  FileInstall, sounds\christmas.mp3, sounds\christmas.mp3
-  FileInstall, sounds\evening.mp3, sounds\evening.mp3
-  FileInstall, sounds\hours.mp3, sounds\hours.mp3
-  FileInstall, sounds\japanese-bell.mp3, sounds\japanese-bell.mp3
-  FileInstall, sounds\midnight.mp3, sounds\midnight.mp3
-  FileInstall, sounds\morning.mp3, sounds\morning.mp3
-  FileInstall, sounds\noon1.mp3, sounds\noon1.mp3
-  FileInstall, sounds\noon2.mp3, sounds\noon2.mp3
-  FileInstall, sounds\noon3.mp3, sounds\noon3.mp3
-  FileInstall, sounds\noon4.mp3, sounds\noon4.mp3
-  FileInstall, sounds\orthodox-chimes1.mp3, sounds\orthodox-chimes1.mp3
-  FileInstall, sounds\orthodox-chimes2.mp3, sounds\orthodox-chimes2.mp3
-  FileInstall, sounds\quarters.mp3, sounds\quarters.mp3
-  FileInstall, sounds\semantron1.mp3, sounds\semantron1.mp3
-  FileInstall, sounds\semantron2.mp3, sounds\semantron2.mp3
-  FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
   Sleep, 300
 }
 
@@ -317,11 +288,20 @@ strikeJapanBell() {
 InvokeBibleQuoteNow() {
   Static bibleQuotesFile, countLines, menuAdded, lastLoaded := 1
   
-  If (PrefOpen=0 && A_IsSuspended) || (enforceWideNoTolls=1) || (stopAdditionalStrikes=1 && PrefOpen=0)
+  If (PrefOpen=0 && A_IsSuspended) || (stopAdditionalStrikes=1 && PrefOpen=0)
      Return
 
   If (PrefOpen=1)
      VerifyTheOptions(1,1)
+  If ((noTollingWhenMhidden=1 || noBibleQuoteMhidden=1) && PrefOpen=0) ; (noTollingWhenMhidden=1)
+  {
+     mouseHidden := checkMcursorState()
+     If (mouseHidden=1 && showBibleQuotes=1 && noBibleQuoteMhidden=1)
+     {
+        SetTimer, InvokeBibleQuoteNow, % bibleQuoteFreq//2
+        Return
+     }
+  }
 
   stopStrikesNow := 0
   DoGuiFader := 1
@@ -373,14 +353,15 @@ InvokeBibleQuoteNow() {
      bibleQuote := RegExReplace(bibleQuote, "i)(\sbut)$")
   }
   bibleQuote := RegExReplace(bibleQuote, "i)(\;|\,|\:)$")
-
   LastBibleMsg := bibleQuote
+
   QuotesAlreadySeen .= "a" Line2Read "a"
   StringReplace, QuotesAlreadySeen, QuotesAlreadySeen, aa, a
   StringRight, QuotesAlreadySeen, QuotesAlreadySeen, 91550
   If (StrLen(bibleQuote)>6)
   {
      LastBibleQuoteDisplay := LastBibleQuoteDisplay2 := A_TickCount
+     Sleep, 2
      CreateBibleGUI(bibleQuote, 1, 1)
   }
 
@@ -393,7 +374,8 @@ InvokeBibleQuoteNow() {
      }
      SetMyVolume(1)
      INIaction(1, "QuotesAlreadySeen", "SavedSettings")
-     strikeJapanBell()
+     If (mouseHidden!=1)
+        strikeJapanBell()
   } Else SoundPlay, sounds\japanese-bell.mp3
 
   quoteDisplayTime := 1500 + StrLen(bibleQuote) * 123
@@ -403,6 +385,7 @@ InvokeBibleQuoteNow() {
      quoteDisplayTime := quoteDisplayTime/2 + DisplayTime
 
   SetTimer, DestroyBibleGui, % -quoteDisplayTime
+  SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
 }
 
 DestroyBibleGui() {
@@ -420,9 +403,9 @@ ShowLastBibleMsg() {
   If (StrLen(LastBibleMsg)>6 && PrefOpen!=1)
   {
      DoGuiFader := 1
+     LastBibleQuoteDisplay := A_TickCount
      CreateBibleGUI(LastBibleMsg, 1, 1)
      strikeJapanBell()
-     LastBibleQuoteDisplay := A_TickCount
      quoteDisplayTime := 1500 + StrLen(LastBibleMsg) * 123
      SetTimer, DestroyBibleGui, % -quoteDisplayTime
   }
@@ -607,7 +590,10 @@ AdditionalStriker() {
   If (noTollingBgrSounds>=2)
      isSoundPlayingNow()
 
-  If (stopAdditionalStrikes=1 || A_IsSuspended || PrefOpen=1 || strikingBellsNow=1 || enforceWideNoTolls=1)
+  If (noTollingWhenMhidden=1)
+     mouseHidden := checkMcursorState()
+
+  If (stopAdditionalStrikes=1 || mouseHidden=1 || A_IsSuspended || PrefOpen=1 || strikingBellsNow=1)
      Return
   SetMyVolume(1)
   If !sndChanA
@@ -646,13 +632,16 @@ theChimer() {
      Sleep, 100
      testCelebrations()
   }
-  todayTest := A_MDay
 
+  If (noTollingWhenMhidden=1)
+     mouseHidden := checkMcursorState()
+
+  todayTest := A_MDay
   If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=2)
      soundBells := 1
 
   If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=3)
-  || (soundBells!=1 && silentHours=2) || (mustEndNow=1) || (enforceWideNoTolls=1)
+  || (soundBells!=1 && silentHours=2) || (mustEndNow=1) || (mouseHidden=1)
   {
      If (mustEndNow!=1)
         stopAdditionalStrikes := 1
@@ -949,6 +938,7 @@ GuiFader(guiName,toggle,alphaLevel) {
 
 CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
     Critical, On
+    lastOSDredraw := A_TickCount
     bibleQuoteVisible := (isBibleQuote=1) ? 1 : 0
     FontSizeMin := (isBibleQuote=1) ? FontSizeQuotes : FontSize
     GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
@@ -1008,7 +998,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
        }
        Gui, BibleGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, ChurchTowerBibleWin
        If (isBibleQuote=1)
-          CreateShareButton()
+          SetTimer, CreateShareButton, -20
     } Else
     {
        ActiveMon := MWAGetMonitorMouseIsIn(GuiX, GuiY)
@@ -1039,6 +1029,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
        WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, ChurchTowerBibleWin
 
     GuiFader("ChurchTowerBibleWin","show", OSDalpha)
+    lastOSDredraw := A_TickCount
 }
 
 CreateShareButton() {
@@ -1078,7 +1069,7 @@ CreateShareButton() {
 }
 
 CopyLastQuote() {
-  Clipboard := LastBibleMsg
+  Try Clipboard := LastBibleMsg
   ToolTip, Text sent to clipboard.
   Sleep, 500
   GuiFader("BibleShareBtn","hide", OSDalpha)
@@ -1094,8 +1085,11 @@ WM_MouseMove(wP, lP, msg, hwnd) {
   SetFormat, Integer, H
   hwnd+=0, A := WinExist("A"), hwnd .= "", A .= ""
   SetFormat, Integer, D
-  HideDelay := (PrefOpen=1) ? 600 : 1950
-  If (InStr(hBibleOSD, hwnd) && (A_TickCount - LastBibleQuoteDisplay>HideDelay))
+  HideDelay := (PrefOpen=1) ? 600 : 2550
+  If (A_TickCount - LastBibleQuoteDisplay<HideDelay+100) || (A_TickCount - lastOSDredraw<500)
+     Return
+
+  If InStr(hBibleOSD, hwnd)
   {
      If (PrefOpen=0)
         DestroyBibleGui()
@@ -1117,13 +1111,8 @@ WM_MouseMove(wP, lP, msg, hwnd) {
   {
      If hwnd in %ColorPickerHandles%
         DllCall("user32\SetCursor", "Ptr", hCursH)
-  }
-
-  If (InStr(hwnd, hBibleOSD) || InStr(hwnd, hBibleTxt)) && (PrefOpen=0)
-  {
-     If (A_TimeIdle<100) && (A_TickCount - LastBibleQuoteDisplay>HideDelay)
+  } Else If (InStr(hwnd, hBibleOSD) && (A_TickCount - LastBibleQuoteDisplay>HideDelay))
         DestroyBibleGui()
-  }
 }
 
 trackMouseDragging() {
@@ -1133,7 +1122,8 @@ trackMouseDragging() {
 
   GuiX := !NewX ? "2" : NewX
   GuiY := !NewY ? "2" : NewY
-
+  If (PrefOpen=1)
+     lastOSDredraw := 1
   If hAWin
   {
      If hAWin not in %hBibleOSD%
@@ -1860,7 +1850,8 @@ ShowSettings() {
     Gui, Add, Text, xs+15 y+10 vTxt4, Maximum line length (in characters)
     Gui, Add, Edit, x+10 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60, %maxBibleLength%
     Gui, Add, UpDown, vmaxBibleLength gVerifyTheOptions Range20-130, %maxBibleLength%
-    Gui, Add, Checkbox, xs+15 y+10 gVerifyTheOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen for Bible quotes
+    Gui, Add, Checkbox, xs+15 y+10 gVerifyTheOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen when displaying Bible verses
+    Gui, Add, Checkbox, y+10 gVerifyTheOptions Checked%noBibleQuoteMhidden% vnoBibleQuoteMhidden, Do not show Bible verses when the mouse cursor is hidden`n(e.g., when watching videos on full-screen)
 
     Gui, Add, Checkbox, xs y+20 gVerifyTheOptions Checked%ObserveHolidays% vObserveHolidays, Observe Christian and/or secular holidays
     Gui, Add, Checkbox, xs y+7 gVerifyTheOptions Checked%SemantronHoliday% vSemantronHoliday, Mark days of feast by regular semantron drumming
@@ -1869,7 +1860,7 @@ ShowSettings() {
     Gui, Tab, 3 ; restrictions
     Gui, Add, Text, x+15 y+15 Section, When other sounds are playing (e.g., music or movies)
     Gui, Add, DropDownList, xs+15 y+7 w270 gVerifyTheOptions AltSubmit Choose%noTollingBgrSounds% vnoTollingBgrSounds, Ignore|Strike the bells at half the volume|Do not strike the bells
-    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%noTollingWhenMhidden% vnoTollingWhenMhidden, Do not toll bells when mouse cursor is hidden`neven if no sounds are playing (e.g., when watching`na video or a image slideshow on full-screen)
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%noTollingWhenMhidden% vnoTollingWhenMhidden, Do not toll bells when mouse cursor is hidden`neven if no sounds are playing (e.g., when watching`na video or an image slideshow on full-screen)
     Gui, Add, DropDownList, xs y+25 w270 gVerifyTheOptions AltSubmit Choose%silentHours% vsilentHours, Limit chimes to specific periods...|Play chimes only...|Keep silence...
     Gui, Add, Text, xp+15 y+6 hp +0x200 vtxt1, from
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF35, %silentHoursA%
@@ -1961,6 +1952,7 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Txt4
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), makeScreenDark
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), BibleQuotesLang
+    GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), noBibleQuoteMhidden
     GuiControl, % (displayClock=0 ? "Disable" : "Enable"), analogDisplay
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursA
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursB
@@ -3282,6 +3274,7 @@ INIsettings(a) {
   INIaction(a, "QuotesAlreadySeen", "SavedSettings")
   INIaction(a, "showBibleQuotes", "SavedSettings")
   INIaction(a, "BibleQuotesLang", "SavedSettings")
+  INIaction(a, "noBibleQuoteMhidden", "SavedSettings")
   INIaction(a, "BibleQuotesInterval", "SavedSettings")
   INIaction(a, "SemantronHoliday", "SavedSettings")
   INIaction(a, "ObserveHolidays", "SavedSettings")
@@ -3359,6 +3352,7 @@ CheckSettings() {
     BinaryVar(showBibleQuotes, 0)
     BinaryVar(makeScreenDark, 1)
     BinaryVar(noTollingWhenMhidden, 0)
+    BinaryVar(noBibleQuoteMhidden, 1)
     BinaryVar(SemantronHoliday, 0)
     BinaryVar(ObserveHolidays, 0)
     BinaryVar(ObserveReligiousDays, 1)
@@ -3367,12 +3361,12 @@ CheckSettings() {
     BinaryVar(OSDroundCorners, 1)
 
 ; verify numeric values: min, max and default values
-    If (analogDisplayScale<0.2)
-       analogDisplayScale := 0.2
+    If (InStr(analogDisplayScale, "err") || !analogDisplayScale)
+       analogDisplayScale := 1
+    Else If (analogDisplayScale<0.3)
+       analogDisplayScale := 0.25
     Else If (analogDisplayScale>3)
        analogDisplayScale := 3
-    Else If (InStr(analogDisplayScale, "err") || !analogDisplayScale)
-       analogDisplayScale := 1
 
     MinMaxVar(DisplayTimeUser, 1, 99, 3)
     MinMaxVar(FontSize, 12, 300, 26)
@@ -3866,25 +3860,25 @@ checkMcursorState() {
 ; modified a lot by Marius Șucan
 
     Static lastCalc := 1
-    If (A_TickCount-lastCalc<1000) || (PrefOpen=1) || A_IsSuspended || (noTollingWhenMhidden=0)
+    If (A_TickCount-lastCalc<1000) || (PrefOpen=1) || A_IsSuspended || (noTollingWhenMhidden=0 && noBibleQuoteMhidden=0)
        Return
 
-    enforceWideNoTolls := 0
+    mouseVisState := 0
     VarSetCapacity(CI, sz:=16+A_PtrSize, 0)
     z := NumPut(sz, CI, 0, "UInt")
     r := DllCall("user32\GetCursorInfo", "Ptr", &CI) ; get cursor info
-    enforceWideNoTolls := NumGet(CI, 4, "UInt")
+    mouseVisState := NumGet(CI, 4, "UInt")
     hpCursor := NumGet(CI, 8, "Ptr")
     If (StrLen(hpCursor)>8 || hpCursor<100 || !InStr(hpCursor, "655"))
-       enforceWideNoTolls := 0
+       mouseVisState := 0
 
-    enforceWideNoTolls := !enforceWideNoTolls
-    If (strikingBellsNow=1 && enforceWideNoTolls=1)
+    mouseVisState := !mouseVisState
+    If (strikingBellsNow=1 && mouseVisState=1)
        stopStrikesNow := 1
 
- ;   ToolTip, %enforceWideNoTolls% - %hpCursor% - %r% - %z%
+    ; ToolTip, %mouseVisState% - %hpCursor% - %r% - %z%
     lastCalc := A_TickCount
-    Return
+    Return mouseVisState
 }
 
 isSoundPlayingNow(looped:=0) {

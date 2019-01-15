@@ -41,6 +41,7 @@ Global faceBgrColor  := "eeEEee"
      , analogDisplayScale := 1
      , constantAnalogClock := 0
      , DisplayTime := 0
+     , lastShowTime := 1
      , moduleInit := 0
      , PrefOpen := 0
      , tickTockNoise := 0
@@ -286,6 +287,7 @@ showClock() {
   constantAnalogClock := MainExe.ahkgetvar.constantAnalogClock
   If (ClockVisibility!=0)
      Return
+  lastShowTime := A_TickCount
   Gui, ClockGui: Show, NoActivate
   UpdateEverySecond()
   SetTimer, UpdateEverySecond, 1000
@@ -295,6 +297,7 @@ showClock() {
   MainExe.ahkassign("ClockVisibility", ClockVisibility)
   If (analogDisplay=1 && constantAnalogClock=0 && PrefOpen=0)
      SetTimer, hideClock, % -DisplayTime
+  lastShowTime := A_TickCount
   Return
 }
 
@@ -320,12 +323,11 @@ WM_MOUSEMOVE(wP, lP, msg, hwnd) {
   SetFormat, Integer, H
   hwnd+=0, A := WinExist("A"), hwnd .= "", A .= ""
   SetFormat, Integer, D
-
   If (constantAnalogClock=1 && A=hFaceClock && (wP&0x1) && PrefOpen=0)
   {
      PostMessage, 0xA1, 2,,, ahk_id %hFaceClock%
      SetTimer, trackMouseDragging, -25
-  } Else If (constantAnalogClock=0 || PrefOpen=1)
+  } Else If (constantAnalogClock=0 || PrefOpen=1) && (A_TickCount - lastShowTime>950)
      hideClock()
 }
 
