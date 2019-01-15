@@ -227,6 +227,31 @@ VerifyFiles() {
         countFiles++
   Loop, Files, sounds\*.mp3
         countFiles++
+  Sleep, 50
+  FileCreateDir, sounds
+  FileInstall, bell-image.png, bell-image.png
+  FileInstall, bells-tower-change-log.txt, bells-tower-change-log.txt
+  FileInstall, bible-quotes-eng.txt, bible-quotes-eng.txt
+  FileInstall, bible-quotes-fra.txt, bible-quotes-fra.txt
+  FileInstall, bible-quotes-esp.txt, bible-quotes-esp.txt
+  FileInstall, paypal.png, paypal.png
+  FileInstall, sounds\auxilliary-bell.mp3, sounds\auxilliary-bell.mp3
+  FileInstall, sounds\christmas.mp3, sounds\christmas.mp3
+  FileInstall, sounds\evening.mp3, sounds\evening.mp3
+  FileInstall, sounds\hours.mp3, sounds\hours.mp3
+  FileInstall, sounds\japanese-bell.mp3, sounds\japanese-bell.mp3
+  FileInstall, sounds\midnight.mp3, sounds\midnight.mp3
+  FileInstall, sounds\morning.mp3, sounds\morning.mp3
+  FileInstall, sounds\noon1.mp3, sounds\noon1.mp3
+  FileInstall, sounds\noon2.mp3, sounds\noon2.mp3
+  FileInstall, sounds\noon3.mp3, sounds\noon3.mp3
+  FileInstall, sounds\noon4.mp3, sounds\noon4.mp3
+  FileInstall, sounds\orthodox-chimes1.mp3, sounds\orthodox-chimes1.mp3
+  FileInstall, sounds\orthodox-chimes2.mp3, sounds\orthodox-chimes2.mp3
+  FileInstall, sounds\quarters.mp3, sounds\quarters.mp3
+  FileInstall, sounds\semantron1.mp3, sounds\semantron1.mp3
+  FileInstall, sounds\semantron2.mp3, sounds\semantron2.mp3
+  FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
   Sleep, 300
 }
 
