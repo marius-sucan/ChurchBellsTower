@@ -5,6 +5,11 @@
 
 Work began on this project in August 2018.
 
+v2.7.9 - 2019 / 04 / 23
+- [new] welcome screen, on first-time start of Church Bells Tower, to facilitate the usage for new users
+- drop shadow for the OSD when rounded corners is activated
+- other small improvements
+
 v2.7.5 - 2019 / 01 / 15
 - [new] option to not display Bible quotes when mouse cursor is hidden
 - other small improvements

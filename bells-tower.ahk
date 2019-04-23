@@ -24,7 +24,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.7.5
+;@Ahk2Exe-SetVersion 2.7.9
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -81,6 +81,7 @@
  , PreferSecularDays    := 0
  , noTollingWhenMhidden := 0
  , noTollingBgrSounds   := 0
+ , NoWelcomePopupInfo   := 0
 
 ; OSD settings
  , displayTimeFormat      := 1
@@ -106,8 +107,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.7.5"
- , ReleaseDate            := "2019 / 01 / 15"
+ , Version                := "2.7.9"
+ , ReleaseDate            := "2019 / 04 / 23"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -144,6 +145,7 @@ Global CSthin      := "░"   ; light gray
  , bibleQuoteFreq := BibleQuotesInterval * 3600000 ; hours
  , ShowPreview := 0
  , ShowPreviewDate := 0
+ , LastNoonSound := 1
  , OSDprefix, OSDsuffix
  , stopStrikesNow := 0
  , ClockVisibility := 0
@@ -211,7 +213,61 @@ If (showBibleQuotes=1)
    SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
 
 SetTimer, analogClockStarter, % -DisplayTime + 2000
+
+If (NoWelcomePopupInfo!=1)
+   ShowWelcomeWindow()
+
 Return    ; the end of auto-exec section
+
+
+ShowWelcomeWindow() {
+    If (PrefOpen=1) || (AnyWindowOpen=1)
+       Return
+
+    Global BtnSilly0, BtnSilly1, BtnSilly2
+    SettingsGUI()
+    AnyWindowOpen := 2
+    Gui, Font, s20 Bold, Arial, -wrap
+    Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section hwndhIcon, bell-image.png
+    Gui, Add, Text, x+7 y10, %appName%
+    Gui, Font, s12 Bold, Arial, -wrap
+    Gui, Add, Text, y+5, Quick start window - read me
+    Gui, Font
+    btnWid := 150
+    txtWid := 310
+    If (PrefsLargeFonts=1)
+    {
+       btnWid := btnWid + 100
+       txtWid := txtWid + 170
+       Gui, Font, s%LargeUIfontValue%
+    }
+
+    Gui, Add, Text, xs y+10 w%txtWid%, %appName% is currently running in background. To configure it or exit, please locate its icon in the system tray area, next to the system clock in the taskbar. To access the settings double click or right click on the bell icon.
+
+    Gui, Add, Button, xs y+10 w%btnWid% gShowSettings, &Settings panel
+    Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleLargeFonts Checked%PrefsLargeFonts% vPrefsLargeFonts, Large UI font sizes
+
+    Gui, Add, Button, xs y+10 w%btnWid% gAboutWindow, &About today
+    Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleAnalogClock Checked%constantAnalogClock% vconstantAnalogClock, &Analog clock display
+    Gui, Add, Checkbox, xs y+10 gToggleWelcomeInfos Checked%NoWelcomePopupInfo% vNoWelcomePopupInfo, &Never show this window
+
+    Gui, Show, AutoSize, Welcome to %appName% v%Version%
+}
+
+ToggleWelcomeInfos() {
+  GuiControlGet, NoWelcomePopupInfo
+;  NoWelcomePopupInfo := !NoWelcomePopupInfo
+  INIaction(1, "NoWelcomePopupInfo", "SavedSettings")
+  CloseWindow()
+  Sleep, 50
+  If (NoWelcomePopupInfo=1)
+  {
+     MsgBox, 52, %appName%, Do you want to keep the welcome window open for now?
+     IfMsgBox, Yes
+       ShowWelcomeWindow()
+  } Else ShowWelcomeWindow()
+}
+
 
 analogClockStarter() {
   If (constantAnalogClock=1 && isAnalogClockFile)
@@ -457,6 +513,9 @@ SetMyVolume(noRestore:=0) {
      Return
   }
 
+  If (A_TickCount - LastNoonSound<150000) && (PrefOpen=0 && noTollingBgrSounds=2)
+     Return
+
   If (ScriptInitialized=1 && AutoUnmute=1 && BeepsVolume>3
   && (A_TickCount - LastInvoked > 290100) && noRestore=0)
   {
@@ -528,7 +587,7 @@ volSlider() {
        strikeHours()
 }
 
-RandomNumberCalc(minVariation:=150,maxVariation:=350) {
+RandomNumberCalc(minVariation:=100,maxVariation:=250) {
   Static newNumber := 1
        , lastNumber := 1
   Loop
@@ -588,6 +647,8 @@ playSemantron(snd:=1) {
      sndChanS := AhkThread("#NoTrayIcon`nMEx:=AhkExported()`nsmd:=MEx.ahkgetvar.semtr2play`nSoundPlay, sounds\%smd%.mp3, 1")
   Else
      sndChanS.ahkReload[]
+
+  Global LastNoonSound := A_TickCount
 }
 
 TollExtraNoon() {
@@ -601,6 +662,8 @@ TollExtraNoon() {
   If (stopStrikesNow=1 || PrefOpen=1)
   || ((A_TickCount - lastToll<100000) && (AnyWindowOpen=1))
      Return
+  Global LastNoonSound := A_TickCount
+  Sleep, 50
   If (noTollingBgrSounds=2)
      SetMyVolume(1)
   If !sndChanN
@@ -784,11 +847,15 @@ theChimer() {
 
         If (stopStrikesNow=0 && ScriptInitialized=1 && volumeAction>0 && BeepsVolume>1)
         {
+           Global LastNoonSound := A_TickCount
            SoundPlay, sounds\noon%choice%.mp3, 1
+           Global LastNoonSound := A_TickCount
         } Else If (stopStrikesNow=0 && BeepsVolume>1)
         {
            Random, newDelay, 49000, 99000
+           Global LastNoonSound := A_TickCount
            SoundPlay, sounds\noon%choice%.mp3
+           Global LastNoonSound := A_TickCount
            If (A_WDay=1 || StrLen(isHolidayToday)>3)  ; on Sundays or holidays
               SetTimer, TollExtraNoon, % -newDelay
         }
@@ -922,8 +989,8 @@ GuiFader(guiName,toggle,alphaLevel) {
       Return
    }
 
-   fadeInterval := (alphaLevel<125) ? 20 : 2
-   fadeStep := (alphaLevel<125) ? 4 : 10
+   fadeInterval := (alphaLevel<125) ? 30 : 6
+   fadeStep := (alphaLevel<125) ? 8 : 18
    If (toggle="show")
    {
       Loop
@@ -982,14 +1049,14 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
     Gui, BibleGui: Color, %OSDbgrColor%
 
     If (FontChangedTimes>190)
-       Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Bold,
+       Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Q4 Bold,
     Else
-       Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Bold, %FontName%
+       Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Q4 Bold, %FontName%
 
     Gui, BibleGui: Font, s1
     If (isBibleQuote=0)
        Gui, BibleGui: Add, Text, w2 h%OSDmarginTop% BackgroundTrans, .
-    Gui, BibleGui: Font, s%FontSizeMin%
+    Gui, BibleGui: Font, s%FontSizeMin% Q4
     Gui, BibleGui: Add, Text, y+%HorizontalMargins% hwndhBibleTxt, %msg2Display%
     Gui, BibleGui: Font, s1
     If (isBibleQuote=0)
@@ -1023,7 +1090,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
        }
        Gui, BibleGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, ChurchTowerBibleWin
        If (isBibleQuote=1)
-          SetTimer, CreateShareButton, -20
+          CreateShareButton()
     } Else
     {
        ActiveMon := MWAGetMonitorMouseIsIn(GuiX, GuiY)
@@ -1051,11 +1118,50 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
        SetTimer, DestroyBibleGui, % -DisplayTime
 
     If (OSDroundCorners=1)
+    {
        WinSet, Region, 0-0 R%roundCornerSize%-%roundCornerSize% w%mainWid% h%mainHeig%, ChurchTowerBibleWin
+       Try FrameShadow(hBibleOSD)     
+    }
 
     GuiFader("ChurchTowerBibleWin","show", OSDalpha)
     lastOSDredraw := A_TickCount
 }
+
+FrameShadow(HGui) {
+; function from https://www.autohotkey.com/boards/viewtopic.php?f=6&t=29117
+; by Just Me
+   If (SafeModeExec!=1 && OSDroundCorners=1)
+   {
+      CS_DROPSHADOW := 0x00020000
+      ClassStyle := GetGuiClassStyle()
+      SetGuiClassStyle(HGUI, ClassStyle | CS_DROPSHADOW)
+   } Else If (PrefOpen=1 && ShowPreview=1 && OSDroundCorners=0)
+   {
+      ClassStyle := GetGuiClassStyle()
+      SetGuiClassStyle(HGUI, ClassStyle)
+   }
+}
+
+GetGuiClassStyle() {
+   Static ClassStyle
+   If ClassStyle
+      Return ClassStyle
+
+   Gui, GetGuiClassStyleGUI: Add, Text
+   Module := DllCall("GetModuleHandle", "Ptr", 0, "UPtr")
+   VarSetCapacity(WNDCLASS, A_PtrSize * 10, 0)
+   ClassStyle := DllCall("GetClassInfo", "Ptr", Module, "Str", "AutoHotkeyGUI", "Ptr", &WNDCLASS, "UInt")
+                 ? NumGet(WNDCLASS, "Int")
+                 : ""
+   Gui, GetGuiClassStyleGUI: Destroy
+   Return ClassStyle
+}
+
+SetGuiClassStyle(HGUI, Style) {
+   result := DllCall("SetClassLong" . (A_PtrSize = 8 ? "Ptr" : ""), "Ptr", HGUI, "Int", -26, "Ptr", Style, "UInt")
+   Return result
+}
+
 
 CreateShareButton() {
     FontSizeMin := Round(FontSizeQuotes/2)
@@ -1111,7 +1217,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
   hwnd+=0, A := WinExist("A"), hwnd .= "", A .= ""
   SetFormat, Integer, D
   HideDelay := (PrefOpen=1) ? 600 : 2550
-  If (A_TickCount - LastBibleQuoteDisplay<HideDelay+100) || (A_TickCount - lastOSDredraw<500)
+  If (A_TickCount - LastBibleQuoteDisplay<HideDelay+100) || (A_TickCount - lastOSDredraw<1000)
      Return
 
   If InStr(hBibleOSD, hwnd)
@@ -1309,11 +1415,16 @@ ToggleLargeFonts() {
     INIaction(1, "LargeUIfontValue", "SavedSettings")
     Menu, Tray, % (PrefsLargeFonts=0 ? "Uncheck" : "Check"), L&arge UI fonts
     If (PrefOpen=1)
+    {
        SwitchPreferences(1)
-    Else If (AnyWindowOpen=1)
+    } Else If (AnyWindowOpen=1)
     {
        CloseWindow()
        AboutWindow()
+    } Else If (AnyWindowOpen=2)
+    {
+       CloseWindow()
+       ShowWelcomeWindow()
     }
 }
 
@@ -3062,9 +3173,11 @@ AboutWindow() {
     btnWid := 100
     txtWid := 360
     Global btn1
-    Gui, Font, c%AboutTitleColor% s19 Bold, Arial, -wrap
-    Gui, Add, Picture, x14 y10 h65 w-1 gTollExtraNoon hwndhBellIcon, bell-image.png
-    Gui, Add, Text, x+14 yp+5 Section, %appName%
+    Gui, Font, c%AboutTitleColor% s20 Bold, Arial, -wrap
+    Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, bell-image.png
+    Gui, Add, Text, x+7 y10, %appName%
+    Gui, Font, c%GUIAtxtColor% s12 Bold, Arial, -wrap
+    Gui, Add, Link, y+4 hwndhLink0, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a>.
     Gui, Font
     Gui, Font, c%GUIAtxtColor%
     If (PrefsLargeFonts=1)
@@ -3073,7 +3186,7 @@ AboutWindow() {
        txtWid := txtWid + 105
        Gui, Font, s%LargeUIfontValue%
     }
-    Gui, Add, Link, y+4 hwndhLink0, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a> on AHK_H.
+
     If (tickTockNoise!=1)
        SoundLoop(tickTockSound)
 
@@ -3102,7 +3215,7 @@ AboutWindow() {
     minsPassed := CurrentDateTime + 1
     percentileDay := Round(minsPassed/1450*100) "%"
 
-    Gui, Add, Text, x15 y+20 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
+    Gui, Add, Text, x15 y+10 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
     If (MarchEquinox ~= "until|here")
        Gui, Font, Bold
     If !InStr(MarchEquinox, "hide")
@@ -3309,6 +3422,7 @@ INIsettings(a) {
   INIaction(a, "UserReligion", "SavedSettings")
   INIaction(a, "noTollingWhenMhidden", "SavedSettings")
   INIaction(a, "noTollingBgrSounds", "SavedSettings")
+  INIaction(a, "NoWelcomePopupInfo", "SavedSettings")
 
 ; OSD settings
   INIaction(a, "DisplayTimeUser", "OSDprefs")
@@ -3362,6 +3476,7 @@ CheckSettings() {
 
 ; verify check boxes
     BinaryVar(analogDisplay, 0)
+    BinaryVar(NoWelcomePopupInfo, 0)
     BinaryVar(constantAnalogClock, 0)
     BinaryVar(PrefsLargeFonts, 0)
     BinaryVar(tollQuartersException, 0)
