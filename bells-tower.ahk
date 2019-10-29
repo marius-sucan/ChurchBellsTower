@@ -24,7 +24,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.7.9
+;@Ahk2Exe-SetVersion 2.8.0
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -36,7 +36,7 @@
 
  #SingleInstance Force
  #NoEnv
- #MaxMem 128
+ #MaxMem 256
  #Include, Class_ImageButton.ahk
  #Include, va.ahk                   ; vista audio APIs wrapper by Lexikos
 
@@ -82,6 +82,8 @@
  , noTollingWhenMhidden := 0
  , noTollingBgrSounds   := 0
  , NoWelcomePopupInfo   := 0
+ , showTimeWhenIdle     := 0
+ , showTimeIdleAfter    := 5 ; [in minutes]
 
 ; OSD settings
  , displayTimeFormat      := 1
@@ -107,8 +109,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.7.9"
- , ReleaseDate            := "2019 / 04 / 23"
+ , Version                := "2.8.0"
+ , ReleaseDate            := "2019 / 10 / 29"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -141,6 +143,7 @@ Global CSthin      := "░"   ; light gray
  , DoNotRepeatTimer := 0
  , PrefOpen := 0
  , FontList := []
+ , userIdleAfter := showTimeIdleAfter * 60000
  , AdditionalStrikeFreq := strikeEveryMin * 60000  ; minutes
  , bibleQuoteFreq := BibleQuotesInterval * 3600000 ; hours
  , ShowPreview := 0
@@ -217,11 +220,33 @@ SetTimer, analogClockStarter, % -DisplayTime + 2000
 If (NoWelcomePopupInfo!=1)
    ShowWelcomeWindow()
 
+If (showTimeWhenIdle=1)
+   SetTimer, TimerShowOSDidle, 1500
+
 Return    ; the end of auto-exec section
 
+TimerShowOSDidle() {
+     If (constantAnalogClock=1) || (analogDisplay=1 && ClockVisibility=1) || (PrefOpen=1) || (!A_IsSuspended)
+        Return
+
+     If !A_IsSuspended
+        mouseHidden := checkMcursorState()
+
+     If (showTimeWhenIdle=1 && (A_TimeIdle > userIdleAfter)  && mouseHidden!=1)
+     {
+        DoGuiFader := 0
+        If (BibleGuiVisible!=1)
+           CreateBibleGUI(generateDateTimeTxt(0, 1))
+        Else
+           GuiControl, BibleGui:, BibleGuiTXT, % generateDateTimeTxt(0, 1)
+        SetTimer, DestroyBibleGui, Delete
+        DoGuiFader := 1
+     } Else If (showTimeWhenIdle=1 && BibleGuiVisible=1)
+        SetTimer, DestroyBibleGui, -500
+}
 
 ShowWelcomeWindow() {
-    If (PrefOpen=1) || (AnyWindowOpen=1)
+    If (PrefOpen=1 || AnyWindowOpen=1)
        Return
 
     Global BtnSilly0, BtnSilly1, BtnSilly2
@@ -243,14 +268,11 @@ ShowWelcomeWindow() {
     }
 
     Gui, Add, Text, xs y+10 w%txtWid%, %appName% is currently running in background. To configure it or exit, please locate its icon in the system tray area, next to the system clock in the taskbar. To access the settings double click or right click on the bell icon.
-
     Gui, Add, Button, xs y+10 w%btnWid% gShowSettings, &Settings panel
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleLargeFonts Checked%PrefsLargeFonts% vPrefsLargeFonts, Large UI font sizes
-
     Gui, Add, Button, xs y+10 w%btnWid% gAboutWindow, &About today
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleAnalogClock Checked%constantAnalogClock% vconstantAnalogClock, &Analog clock display
     Gui, Add, Checkbox, xs y+10 gToggleWelcomeInfos Checked%NoWelcomePopupInfo% vNoWelcomePopupInfo, &Never show this window
-
     Gui, Show, AutoSize, Welcome to %appName% v%Version%
 }
 
@@ -267,7 +289,6 @@ ToggleWelcomeInfos() {
        ShowWelcomeWindow()
   } Else ShowWelcomeWindow()
 }
-
 
 analogClockStarter() {
   If (constantAnalogClock=1 && isAnalogClockFile)
@@ -373,7 +394,8 @@ InvokeBibleQuoteNow() {
      Return
 
   If (PrefOpen=1)
-     VerifyTheOptions(1,1)
+     VerifyTheOptions(1, 1)
+
   If ((noTollingWhenMhidden=1 || noBibleQuoteMhidden=1) && PrefOpen=0) ; (noTollingWhenMhidden=1)
   {
      mouseHidden := checkMcursorState()
@@ -662,6 +684,7 @@ TollExtraNoon() {
   If (stopStrikesNow=1 || PrefOpen=1)
   || ((A_TickCount - lastToll<100000) && (AnyWindowOpen=1))
      Return
+
   Global LastNoonSound := A_TickCount
   Sleep, 50
   If (noTollingBgrSounds=2)
@@ -1037,7 +1060,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
     Sleep, 2
     Gui, BibleGui: Destroy
     Sleep, 25
-
+    Global BibleGuiTXT
     If (isBibleQuote=1)
        msg2Display := ST_wordWrap(msg2Display, maxBibleLength)
     Else If (noAdds=0)
@@ -1055,9 +1078,12 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
 
     Gui, BibleGui: Font, s1
     If (isBibleQuote=0)
+    {
        Gui, BibleGui: Add, Text, w2 h%OSDmarginTop% BackgroundTrans, .
+       dontWrap := " -wrap"
+    }
     Gui, BibleGui: Font, s%FontSizeMin% Q4
-    Gui, BibleGui: Add, Text, y+%HorizontalMargins% hwndhBibleTxt, %msg2Display%
+    Gui, BibleGui: Add, Text, y+%HorizontalMargins% hwndhBibleTxt vBibleGuiTXT %dontWrap%, %msg2Display%
     Gui, BibleGui: Font, s1
     If (isBibleQuote=0)
        Gui, BibleGui: Add, Text, w2 y+0 h%OSDmarginBottom% BackgroundTrans, .
@@ -1249,12 +1275,16 @@ WM_MouseMove(wP, lP, msg, hwnd) {
 trackMouseDragging() {
 ; Function by Drugwash
   Global
-  WinGetPos, NewX, NewY,,, ahk_id %hBibleOSD%
 
+  If (PrefOpen!=1)
+     Return
+
+  WinGetPos, NewX, NewY,,, ahk_id %hBibleOSD%
   GuiX := !NewX ? "2" : NewX
   GuiY := !NewY ? "2" : NewY
   If (PrefOpen=1)
      lastOSDredraw := 1
+
   If hAWin
   {
      If hAWin not in %hBibleOSD%
@@ -1390,9 +1420,9 @@ InitializeTray() {
 
     RunType := A_IsCompiled ? "" : " [script]"
     If FileExist(tickTockSound)
-       Menu, Tray, Add, Tick/Tock sound, ToggleTickTock
+       Menu, Tray, Add, Tick/Toc&k sound, ToggleTickTock
     If isAnalogClockFile
-       Menu, Tray, Add, Analog clock display, toggleAnalogClock
+       Menu, Tray, Add, Analo&g clock display (constantly), toggleAnalogClock
     Menu, Tray, Add
     Menu, Tray, Add, &%appName% activated, SuspendScriptNow
     Menu, Tray, Check, &%appName% activated
@@ -1403,9 +1433,9 @@ InitializeTray() {
     Menu, Tray, Add, E&xit, KillScript, P50
     Menu, Tray, Tip, %appName% v%Version%%RunType%
     Menu, Tray, Default, &About
-    Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analog clock display
+    Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display (constantly)
     If (tickTockNoise=1)
-       Menu, Tray, Check, Tick/Tock sound
+       Menu, Tray, Check, Tick/Toc&k sound
 }
 
 ToggleLargeFonts() {
@@ -1437,7 +1467,7 @@ ToggleTickTock() {
 
     tickTockNoise := !tickTockNoise
     INIaction(1, "tickTockNoise", "SavedSettings")
-    Menu, Tray, % (tickTockNoise=0 ? "Uncheck" : "Check"), Tick/Tock sound
+    Menu, Tray, % (tickTockNoise=0 ? "Uncheck" : "Check"), Tick/Toc&k sound
 
     If (tickTockNoise=1)
        SoundLoop(tickTockSound)
@@ -1476,7 +1506,7 @@ toggleAnalogClock() {
 
    constantAnalogClock := !constantAnalogClock
    INIaction(1, "constantAnalogClock", "OSDprefs")
-   Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analog clock display
+   Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display (constantly)
    If (constantAnalogClock=1)
       analogClockThread.ahkPostFunction["showClock"]
    Else
@@ -1939,7 +1969,7 @@ ShowSettings() {
 
     Global CurrentPrefWindow := 5
     Global DoNotRepeatTimer := A_TickCount
-    Global editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel, editF40, editF60, editF73, Btn2, txt4, Btn3
+    Global editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel, editF40, editF60, editF73, Btn2, txt4, Btn3, editF99, txt100
          , editF7, editF8, editF9, editF10, editF11, editF13, editF35, editF36, editF37, editF38, txt1, txt2, txt3, txt10, Btn4
     columnBpos1 := columnBpos2 := 160
     editFieldWid := 220
@@ -2025,6 +2055,7 @@ ShowSettings() {
     Gui, Add, Text, xm+15 y+10 Section, Font name
     Gui, Add, Text, xs yp+30, OSD colors and opacity
     Gui, Add, Text, xs yp+30, Font size
+    Gui, Add, Checkbox, xs yp+30 hp gVerifyTheOptions Checked%showTimeWhenIdle% vshowTimeWhenIdle, Display time when idle
     Gui, Add, Text, xs yp+30, Display time (in sec.)
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%displayClock% vdisplayClock, Display time on screen when bells toll
     Gui, Add, Checkbox, xs+16 y+10 gVerifyTheOptions Checked%analogDisplay% vanalogDisplay, Analog clock display
@@ -2039,7 +2070,10 @@ ShowSettings() {
     Gui, Add, UpDown, vOSDalpha gVerifyTheOptions Range75-250, %OSDalpha%
     Gui, Add, Edit, xp-120 yp+30 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5, %FontSize%
     Gui, Add, UpDown, gVerifyTheOptions vFontSize Range12-295, %FontSize%
-    Gui, Add, Edit, xp yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6, %DisplayTimeUser%
+    Gui, Add, Edit, xp yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99, %showTimeIdleAfter%
+    Gui, Add, UpDown, vshowTimeIdleAfter gVerifyTheOptions Range1-950, %showTimeIdleAfter%
+    Gui, Add, Text, x+5 vtxt100, idle after (in min.)
+    Gui, Add, Edit,  xs yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6, %DisplayTimeUser%
     Gui, Add, UpDown, vDisplayTimeUser gVerifyTheOptions Range1-99, %DisplayTimeUser%
     Gui, Add, Checkbox, x+10 hp gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners
     If !FontList._NewEnum()[k, v]
@@ -2078,6 +2112,9 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControlGet, maxBibleLength
     GuiControlGet, BibleQuotesLang
     GuiControlGet, displayClock
+    GuiControlGet, analogDisplay
+    GuiControlGet, showTimeIdleAfter
+    GuiControlGet, showTimeWhenIdle
 
     GuiControl, % (EnableApply=0 ? "Disable" : "Enable"), ApplySettingsBTN
     GuiControl, % (AdditionalStrikes=0 ? "Disable" : "Enable"), editF38
@@ -2109,6 +2146,7 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     Static LastInvoked := 1
     If (forceNoPreview=1)
        Return
+
     If !isAnalogClockFile
     {
        analogDisplay := 0
@@ -2494,47 +2532,47 @@ testCelebrations() {
      Else If (testFeast="01.30" && UserReligion=2)
         q := "The Three Holy Hierarchs - Basil the Great, John Chrysostom and Gregory the Theologian"
      Else If (testFeast="02.02")
-        q := "The Presentation of Lord Jesus - at the Temple in Jerusalem to induct Him into Judaism"
+        q := "The Presentation of Lord Jesus - at the Temple in Jerusalem to induct Him into Judaism, episode described in the 2nd chapter of the Gospel of Luke"
      Else If (testFeast="03.25" && !isHolidayToday)
-        q := "The Annunciation of the Lord [Virgin Mary] - when Virgin Mary was told she would conceive and become the mother of Jesus"
+        q := "The Annunciation of the Lord - when the Blessed Virgin Mary was told she would conceive and become the mother of Jesus of Nazareth"
      Else If (testFeast="04.23" && !isHolidayToday)
-        q := "Saint George - a Roman soldier of Greek origin under the Roman emperor Diocletian - he was sentenced to death for refusing to recant his Christian faith"
+        q := "Saint George - a Roman soldier of Greek origin under the Roman emperor Diocletian, sentenced to death for refusing to recant his Christian faith, venerated as a military saint since the Crusades."
      Else If (testFeast="06.24")
-        q := "Birth of John the Baptist - a Jewish itinerant preacher, and a prophet"
+        q := "Birth of John the Baptist - a Jewish itinerant preacher, and a prophet known for having anticipated a messianic figure greater than himself"
      Else If (testFeast="08.06")
         isHolidayToday := "The Feast of the Transfiguration of Jesus - when He becomes radiant in glory upon a mountain"
      Else If (testFeast="08.15")
-        q := (UserReligion=1) ? "Assumption of Virgin Mary - her body and soul assumed into heavenly glory" : "Falling Asleep of the Blessed Virgin Mary"
+        q := (UserReligion=1) ? "Assumption of Virgin Mary - her body and soul assumed into heavenly glory after her death" : "Falling Asleep of the Blessed Virgin Mary"
      Else If (testFeast="08.29")
-        q := "The Beheading of Saint John the Baptist - he was killed on the orders of Herod Antipas through the vengeful request of his step-daughter Salomé and her mother Herodias"
+        q := "The Beheading of Saint John the Baptist - killed on the orders of Herod Antipas through the vengeful request of his step-daughter Salomé and her mother Herodias"
      Else If (testFeast="09.08")
-        q := "The Birth of the Virgin Mary - by her mother, Saint Anne of King David's house and line"
+        q := "The Birth of the Virgin Mary - according to an apocryphal writing, her parents are known as Saint Anne and Saint Joachim"
      Else If (testFeast="09.14")
-        q := "The Exaltation of the Holy Cross - the recovery of the cross on which Jesus Christ was crucified"
+        q := "The Exaltation of the Holy Cross - the recovery of the cross on which Jesus Christ was crucified by the Roman government on the order of Pontius Pilate"
      Else If (testFeast="10.04" && UserReligion=1)
-        q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of different orders within Catholic church"
+        q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of different orders within the Catholic church who lived between 1182 and 1226"
      Else If (testFeast="10.14" && UserReligion=2)
         q := "Saint Paraskeva of the Balkans - an ascetic female saint of the 10th century of half Serbian and half Greek origins"
      Else If (testFeast="10.31" && UserReligion=1)
         q := "All Hallows' Eve - the eve of the Solemnity of All Saints"
      Else If (testFeast="11.01" && UserReligion=1)
-        q := "All saints' day"
+        q := "All saints' day- a commemoration day for all Christian saints"
      Else If (testFeast="11.02" && UserReligion=1)
-        q := "All souls' day - commemoration of all the faithful departed"
+        q := "All souls' day - a commemoration day of all the faithful departed"
      Else If (testFeast="11.21")
         q := "The Presentation of the Blessed Virgin Mary - when she was brought, as a child, to the Temple in Jerusalem to be consecrated to God"
      Else If (testFeast="12.06")
-        q := "Saint Nicholas' Day - the bringer of gifts for the poor"
+        q := "Saint Nicholas' Day - an early Christian bishop of Greek origins from 270 - 342 AD, known as the bringer of gifts for the poor"
      Else If (testFeast="12.08" && UserReligion=1)
         q := "The Solemnity of Immaculate Conception of the Virgin Mary"
      Else If (testFeast="12.24")
         q := "Christmas Eve"
      Else If (testFeast="12.25")
-        q := "Christmas day - the birth of Jesus Christ"
+        q := "Christmas day - the birth of Jesus Christ in Nazareth"
      Else If (testFeast="12.26")
-        q := "Christmas 2nd day - the birth of Jesus Christ"
+        q := "Christmas 2nd day - the birth of Jesus Christ also known as Jesus of Nazareth"
      Else If (testFeast="12.28" && UserReligion=1)
-        q := "Feast of the Holy Innocents - in remembrance of the young children killed in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus"
+        q := "Feast of the Holy Innocents - in remembrance of the young children killed in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus of Nazareth"
      isHolidayToday := q ? q : isHolidayToday
      If (StrLen(isHolidayToday)>2)
         TypeHolidayOccured := 1
@@ -3309,7 +3347,7 @@ AboutWindow() {
     Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, paypal.png
 
     Gui, Font, Normal
-    Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindow hwndhBtn1, Deus lux est
+    Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindowAbout hwndhBtn1, Deus lux est
     Gui, Add, Button, x+5 hp w80 gShowSettings hwndhBtn2, Settings
     Gui, Add, Text, x+8 hp +0x200 gOpenChangeLog hwndhBtnLog, v%Version% (%ReleaseDate%)
     Gui, Show, AutoSize, About %appName% v%Version%
@@ -3327,6 +3365,16 @@ AboutWindow() {
     verifySettingsWindowSize()
     If InStr(isHolidayToday, "Christmas") && (stopAdditionalStrikes=0)
        sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\christmas.mp3, 1")
+}
+
+CloseWindowAbout() {
+    ToolTip, :-)
+    SetTimer, CloseWindow, -250
+    SetTimer, removeTooltip, -600
+}
+
+removeTooltip() {
+  ToolTip
 }
 
 LinkUseDefaultColor(hLink, Use := True) {
@@ -3400,6 +3448,8 @@ INIsettings(a) {
   INIaction(a, "silentHours", "SavedSettings")
   INIaction(a, "silentHoursA", "SavedSettings")
   INIaction(a, "silentHoursB", "SavedSettings")
+  INIaction(a, "showTimeIdleAfter", "SavedSettings")
+  INIaction(a, "showTimeWhenIdle", "SavedSettings")
   INIaction(a, "displayTimeFormat", "SavedSettings")
   INIaction(a, "BeepsVolume", "SavedSettings")
   INIaction(a, "DynamicVolume", "SavedSettings")
@@ -3498,6 +3548,7 @@ CheckSettings() {
     BinaryVar(ObserveReligiousDays, 1)
     BinaryVar(ObserveSecularDays, 1)
     BinaryVar(PreferSecularDays, 0)
+    BinaryVar(showTimeWhenIdle, 0)
     BinaryVar(OSDroundCorners, 1)
 
 ; verify numeric values: min, max and default values
@@ -3522,6 +3573,7 @@ CheckSettings() {
     MinMaxVar(silentHoursA, 0, 23, 12)
     MinMaxVar(silentHoursB, 0, 23, 14)
     MinMaxVar(LastNoon, 1, 4, 2)
+    MinMaxVar(showTimeIdleAfter, 1, 950, 5)
     MinMaxVar(LargeUIfontValue, 10, 18, 13)
     MinMaxVar(UserReligion, 1, 2, 1)
     MinMaxVar(strikeInterval, 900, 5500, 2000)
@@ -3541,7 +3593,6 @@ CheckSettings() {
    FontName := (StrLen(FontName)>2) ? FontName
              : (A_OSVersion="WIN_XP") ? "Lucida Sans Unicode" : "Arial"
 }
-
 
 ;================================================================
 ; Functions not written by Marius Sucan.
