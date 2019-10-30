@@ -5,6 +5,9 @@
 
 Work began on this project in August 2018.
 
+v2.8.1 - 2019 / 10 / 30
+  - bug fixes related to the newly introduced feature: display time when idle
+
 v2.8.0 - 2019 / 10 / 29
   - [new] option to display time after user idles
   - bug fixes and error corrections related to holidays and feasts descriptions

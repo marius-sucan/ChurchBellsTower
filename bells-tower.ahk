@@ -24,7 +24,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.8.0
+;@Ahk2Exe-SetVersion 2.8.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -109,8 +109,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.8.0"
- , ReleaseDate            := "2019 / 10 / 29"
+ , Version                := "2.8.1"
+ , ReleaseDate            := "2019 / 10 / 30"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -226,7 +226,7 @@ If (showTimeWhenIdle=1)
 Return    ; the end of auto-exec section
 
 TimerShowOSDidle() {
-     If (constantAnalogClock=1) || (analogDisplay=1 && ClockVisibility=1) || (PrefOpen=1) || (!A_IsSuspended)
+     If (constantAnalogClock=1) || (analogDisplay=1 && ClockVisibility=1) || (PrefOpen=1) || (A_IsSuspended)
         Return
 
      If !A_IsSuspended
@@ -4051,7 +4051,7 @@ checkMcursorState() {
 ; modified a lot by Marius Șucan
 
     Static lastCalc := 1
-    If (A_TickCount-lastCalc<1000) || (PrefOpen=1) || A_IsSuspended || (noTollingWhenMhidden=0 && noBibleQuoteMhidden=0)
+    If (A_TickCount-lastCalc<1000) || (PrefOpen=1) || A_IsSuspended || (noTollingWhenMhidden=0 && noBibleQuoteMhidden=0 && showTimeWhenIdle=0)
        Return
 
     mouseVisState := 0
