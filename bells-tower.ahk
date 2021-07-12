@@ -153,7 +153,7 @@ Global CSthin      := "░"   ; light gray
  , LastNoonSound := 1
  , OSDprefix, OSDsuffix
  , stopStrikesNow := 0
- , ClockVisibility := 0
+ , ClockVisibility := 0, quoteDisplayTime := 100
  , stopAdditionalStrikes := 0
  , strikingBellsNow := 0
  , DoGuiFader := 1
@@ -238,9 +238,9 @@ TimerShowOSDidle() {
      {
         DoGuiFader := 0
         If (BibleGuiVisible!=1)
-           CreateBibleGUI(generateDateTimeTxt(0, 1))
-        Else
-           GuiControl, BibleGui:, BibleGuiTXT, % generateDateTimeTxt(0, 1)
+           CreateBibleGUI(generateDateTimeTxt(0, 1) "-")
+
+        GuiControl, BibleGui:, BibleGuiTXT, % generateDateTimeTxt(0, 1)
         SetTimer, DestroyBibleGui, Delete
         DoGuiFader := 1
      } Else If (showTimeWhenIdle=1 && BibleGuiVisible=1)
@@ -296,7 +296,7 @@ analogClockStarter() {
   If (constantAnalogClock=1 && isAnalogClockFile)
   {
      ClockVisibility := 1
-     DestroyBibleGui()
+     DestroyBibleGui(A_ThisFunc)
      analogClockThread.ahkFunction["showClock"]
   }
 }
@@ -483,18 +483,29 @@ InvokeBibleQuoteNow() {
         strikeJapanBell()
   } Else SoundPlay, sounds\japanese-bell.mp3
 
-  quoteDisplayTime := 1500 + StrLen(bibleQuote) * 123
+  quoteDisplayTime := 1200 + StrLen(bibleQuote) * 123
   If (quoteDisplayTime>120100)
      quoteDisplayTime := 120100
   Else If (PrefOpen=1)
      quoteDisplayTime := quoteDisplayTime/2 + DisplayTime
 
+  LastBibleQuoteDisplay := A_TickCount
   SetTimer, DestroyBibleGui, % -quoteDisplayTime
   SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
 }
 
-DestroyBibleGui() {
+DestroyBibleGui(funcu:=0, forced:=0) {
   Critical, On
+  If (forced=1 || PrefOpen=1)
+     LastBibleQuoteDisplay := 1
+
+  If (A_TickCount - LastBibleQuoteDisplay<quoteDisplayTime) && (PrefOpen=0)
+  {
+     SetTimer, DestroyBibleGui, -50
+     Return
+  }
+
+  ; ToolTip, % funcu , , , 2
   GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
   Gui, BibleGui: Destroy
   GuiFader("ScreenShader","hide", 130)
@@ -928,7 +939,7 @@ showTimeNow() {
   If (analogDisplay=1 && isAnalogClockFile)
   {
      analogClockThread.ahkPostFunction["showClock"]
-     DestroyBibleGui()
+     DestroyBibleGui(A_ThisFunc)
   } Else CreateBibleGUI(generateDateTimeTxt(1,1))
 }
 
@@ -1244,14 +1255,14 @@ WM_MouseMove(wP, lP, msg, hwnd) {
   SetFormat, Integer, H
   hwnd+=0, A := WinExist("A"), hwnd .= "", A .= ""
   SetFormat, Integer, D
-  HideDelay := (PrefOpen=1) ? 600 : 2550
+  HideDelay := (PrefOpen=1) ? 600 : 2050
   If (A_TickCount - LastBibleQuoteDisplay<HideDelay+100) || (A_TickCount - lastOSDredraw<1000)
      Return
 
   If InStr(hBibleOSD, hwnd)
   {
      If (PrefOpen=0)
-        DestroyBibleGui()
+        DestroyBibleGui(A_ThisFunc, 1)
      DllCall("user32\SetCursor", "Ptr", hCursM)
      If !(wP&0x13)    ; no LMR mouse button is down, we hover
      {
@@ -1265,13 +1276,13 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         SetTimer, trackMouseDragging, -50
         Sleep, 2
      } Else If ((wP&0x2) || (wP&0x10) || bibleQuoteVisible=1)
-        DestroyBibleGui()
+        DestroyBibleGui(A_ThisFunc)
   } Else If ColorPickerHandles
   {
      If hwnd in %ColorPickerHandles%
         DllCall("user32\SetCursor", "Ptr", hCursH)
   } Else If (InStr(hwnd, hBibleOSD) && (A_TickCount - LastBibleQuoteDisplay>HideDelay))
-        DestroyBibleGui()
+        DestroyBibleGui(A_ThisFunc, 1)
 }
 
 trackMouseDragging() {
@@ -1552,7 +1563,7 @@ ReloadScript(silent:=1) {
        CloseSettings()
        Return
     }
-    DestroyBibleGui()
+    DestroyBibleGui(A_ThisFunc)
     If FileExist(ThisFile)
     {
        Sleep, 50
@@ -1596,7 +1607,7 @@ KillScript(showMSG:=1) {
    attempts2Quit++
    DoGuiFader := 1
    PrefOpen := 0
-   DestroyBibleGui()
+   DestroyBibleGui(A_ThisFunc)
    Sleep, 50
    If (FileExist(ThisFile) && showMSG)
    {
@@ -1608,7 +1619,7 @@ KillScript(showMSG:=1) {
       CreateBibleGUI("Adiiooosss :-(((",,,1)
       Sleep, 950
    }
-   DestroyBibleGui()
+   DestroyBibleGui(A_ThisFunc)
    Sleep, 50
    Cleanup()
    ExitApp
@@ -1887,7 +1898,7 @@ OSDpreview() {
        DoGuiFader := 1
        If (ClockVisibility=1)
           analogClockThread.ahkPostFunction["hideClock"]
-       DestroyBibleGui()
+       DestroyBibleGui(A_ThisFunc)
        Return
     }
 
@@ -1921,7 +1932,7 @@ reInitializeAnalogClock() {
    analogClockThread.ahkFunction["OnHEXit"]
    Sleep, 2
    analogClockThread.ahkFunction["InitClockFace"]
-   DestroyBibleGui()
+   DestroyBibleGui(A_ThisFunc)
    Sleep, 2
    analogClockThread.ahkFunction["showClock"]
 }
@@ -1941,10 +1952,9 @@ generateDateTimeTxt(LongD:=1, noDate:=0) {
     Else
        FormatTime, CurrentDate,, ShortDate
 
-    If (noDate=1)
-       txtReturn := CurrentTime timeSuffix
-    Else
-       txtReturn := CurrentTime timeSuffix " | " CurrentDate
+    txtReturn := CurrentTime timeSuffix
+    If (noDate!=1)
+       txtReturn .= " | " CurrentDate
     Return txtReturn
 }
 

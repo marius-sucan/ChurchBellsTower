@@ -4,9 +4,9 @@
 
 <p>An application that can toll quarters, on the hour, show random Bible verses, remind the user of Christian feasts and... reproduce semantron drumming sounds. Dedicated to bell lovers and Christians.</p>
 
-<p width="600" height="540"><img width="600" height="540" alt="Church Bells Tower - screenshot" src="http://marius.sucan.ro/media/files/blog/ahk-scripts/bells-tower-screenshot.jpg"></p>
+<p width="600" height="540"><img width="600" height="540" alt="Church Bells Tower - screenshot" src="https://marius.sucan.ro/media/files/blog/ahk-scripts/images/bells-tower-screenshot.jpg"></p>
 
-<h2><a href="http://marius.sucan.ro/media/files/blog/ahk-scripts/bells-tower.zip">Downloaded latest version</a> (compiled for x64/x32, Windows binary)</h2>
+<h2><a href="https://marius.sucan.ro/media/files/blog/ahk-scripts/bells-tower.zip">Downloaded latest version</a> (compiled for x64/x32, Windows binary)</h2>
 
 <h2>Application also <a href="https://www.microsoft.com/en-us/p/church-bells-tower/9pfqbhn18h4k">available on Windows Store</a>.</h2>
 
@@ -20,15 +20,15 @@
 <li>options to automatically limit chimes if music is playing in the background or if videos play in full-screen</li>
 <li>easy to configure intervals to chime or to keep silent</li>
 <li>option to display time when it chimes/strikes/toll ;-)</li>
-<li>... with an analog clock display, if you want</li>
+<li>... with an analog clock display (optional)</li>
 <li>display a random Bible verse in English, French or Spanish, at a specified interval (e.g., every three hours)</li>
 <li>informs you about equinoxes and solstices, and how much of the current day or year has elapsed</li>
-<li>option to display / indicate / observe Christian feast days; for Orthodox and Catholic worshippers; automatically calculates the dates for Easter and related celebrations</li>
-<li>personal list of celebrations</li>
+<li>option to display / observe Christian feast days - for Orthodox and Catholic worshippers; automatically calculates the dates for Easter and related celebrations</li>
+<li>secular list of celebrations and option to add personal events to the list</li>
 <li>option to regularly play semantron drumming sounds on days of feast in Christianity</li>
 <li>option to start at boot [if compiled]</li>
 </ul> 
 
-<p>Developed by <a href="http://marius.sucan.ro/">Marius Șucan</a>.</p>
+<p>Developed by <a href="https://marius.sucan.ro/">Marius Șucan</a>.</p>
 
 <p>I coded the application as an <a href="https://autohotkey.com/">AHK script</a> for AutoHotkey_H v1.1.27. To execute/compile the source code one needs <a href="https://hotkeyit.github.io/v2/">AutoHotkey_H v1.1+</a>.</p>
