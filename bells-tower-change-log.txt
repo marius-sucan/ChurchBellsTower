@@ -3,7 +3,11 @@
 ; by Marius Șucan - http://marius.sucan.ro/
 ; ====================================
 
-Work began on this project in August 2018.
+Work began on this project in late August 2018.
+
+v2.8.5 - 2021 / 07 / 13
+  - [new] Celebrations option at About; this lists celebrations for the next 30 days, based on user configured celebrations options at Settings
+  - bug fixes and minor improvements
 
 v2.8.1 - 2019 / 10 / 30
   - bug fixes related to the newly introduced feature: display time when idle

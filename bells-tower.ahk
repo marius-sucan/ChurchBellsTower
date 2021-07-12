@@ -24,7 +24,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.8.1
+;@Ahk2Exe-SetVersion 2.8.5
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -94,6 +94,8 @@
  , constantAnalogClock    := 0
  , GuiX                   := 40
  , GuiY                   := 250
+ , ClockGuiX              := 40
+ , ClockGuiY              := 250
  , OSDroundCorners        := 1
  , FontName               := (A_OSVersion="WIN_XP") ? "Lucida Sans Unicode" : "Arial"
  , FontSize               := 26
@@ -109,8 +111,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.8.1"
- , ReleaseDate            := "2019 / 10 / 30"
+ , Version                := "2.8.5"
+ , ReleaseDate            := "2021 / 07 / 13"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -1310,6 +1312,16 @@ saveGuiPositions() {
   }
 }
 
+saveAnalogClockPosition(mX, mY) {
+; function called after dragging the OSD to a new position
+  defAnalogClockPosChanged := 1
+  ClockGuiY := mY
+  ClockGuiX := mX
+  INIaction(1, "ClockGuiX", "OSDprefs")
+  INIaction(1, "ClockGuiY", "OSDprefs")
+  Sleep, 10
+}
+
 SetStartUp() {
   If (A_IsSuspended || PrefOpen=1)
   {
@@ -1455,6 +1467,10 @@ ToggleLargeFonts() {
     {
        CloseWindow()
        ShowWelcomeWindow()
+    } Else If (AnyWindowOpen=3)
+    {
+       CloseWindow()
+       PanelIncomingCelebrations()
     }
 }
 
@@ -2021,7 +2037,7 @@ ShowSettings() {
 
     Gui, Add, Checkbox, xs y+20 gVerifyTheOptions Checked%ObserveHolidays% vObserveHolidays, Observe Christian and/or secular holidays
     Gui, Add, Checkbox, xs y+7 gVerifyTheOptions Checked%SemantronHoliday% vSemantronHoliday, Mark days of feast by regular semantron drumming
-    Gui, Add, Button, xs+15 y+7 h25 gListCelebrationsBtn vBtn3, Manage list of holidays
+    Gui, Add, Button, xs+15 y+7 h25 gOpenListCelebrationsBtn vBtn3, Manage list of holidays
 
     Gui, Tab, 3 ; restrictions
     Gui, Add, Text, x+15 y+15 Section, When other sounds are playing (e.g., music or movies)
@@ -2100,6 +2116,7 @@ ShowSettings() {
 }
 
 VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
+    Gui, SettingsGUIA: Default
     GuiControlGet, ShowPreview
     GuiControlGet, silentHours
     GuiControlGet, tollHours
@@ -2136,8 +2153,9 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt3
     GuiControl, % (tollHours=0 ? "Disable" : "Enable"), tollHoursAmount
     GuiControl, % (tollQuarters=0 ? "Disable" : "Enable"), tollQuartersException
-    GuiControl, % (ShowPreview=0 ? "Disable" : "Enable"), ShowPreviewDate
-    GuiControl, % ((ObserveHolidays=0 && SemantronHoliday=0) ? "Disable" : "Enable"), btn3
+    GuiControl, % (ShowPreview=0 || analogDisplay=1) ? "Disable" : "Enable", ShowPreviewDate
+    GuiControl, % ((ObserveHolidays=0) ? "Disable" : "Enable"), btn3
+    GuiControl, % ((ObserveHolidays=0) ? "Disable" : "Enable"), SemantronHoliday
 
     roundCornerSize := Round(FontSize/2) + Round(OSDmarginSides/5)
     If (roundCornerSize<20)
@@ -2297,17 +2315,17 @@ ST_Insert(insert,input,pos=1) {
   Return output
 }
 
-calcEasterDate() {
+calcEasterDate(ByRef aisHolidayToday, thisYDay) {
   If (UserReligion=1)
      result := CatholicEaster(celebYear)
   Else
      result := OrthodoxEaster(celebYear)
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay)
+  If (lola=thisYDay)
   {
-     isHolidayToday := (UserReligion=1) ? "Catholic Easter" : "Orthodox Easter"
-     isHolidayToday .= " - the resurrection of Jesus"
+     aisHolidayToday := (UserReligion=1) ? "Catholic Easter" : "Orthodox Easter"
+     aisHolidayToday .= " - the resurrection of Jesus"
   }
   Return Result
 }
@@ -2354,176 +2372,182 @@ CatholicEaster(year) {
   Return Result
 }
 
-ashwednesday() {
-  result := calcEasterDate()
+ashwednesday(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, -46, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay && UserReligion=1)
-     isHolidayToday := "Ash Wednesday - first day of Lent; a reminder we were made from dust and we will return to dust"
+  If (lola=thisYDay && UserReligion=1)
+     aisHolidayToday := "Ash Wednesday - first day of Lent; a reminder we were made from dust and we will return to dust"
 
   return result
 }
 
-palmSunday() {
-  result := calcEasterDate()
+palmSunday(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, -7, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay)
-     isHolidayToday := "Flowery/Palm Sunday - Jesus' triumphal entry into Jerusalem"
+  If (lola=thisYDay)
+     aisHolidayToday := "Flowery/Palm Sunday - Jesus' triumphal entry into Jerusalem"
 
   return result
 }
 
-goodFriday() {
-  result := calcEasterDate()
+goodFriday(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, -2, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay)
+  If (lola=thisYDay)
   {
-     isHolidayToday := (UserReligion=1) ? "Good Friday" : "The Great and Holy Friday"
-     isHolidayToday .= " - the crucifixion of Jesus and His death"
+     aisHolidayToday := (UserReligion=1) ? "Good Friday" : "The Great and Holy Friday"
+     aisHolidayToday .= " - the crucifixion of Jesus and His death"
   }
 
   return result
 }
 
-MaundyT() {
-  result := calcEasterDate()
+MaundyT(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, -3, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay)
-     isHolidayToday := "Maundy Thursday - the foot washing and Last Supper of Jesus Christ"
+  If (lola=thisYDay)
+     aisHolidayToday := "Maundy Thursday - the foot washing and Last Supper of Jesus Christ"
 
   return result
 }
 
-HolySaturday() {
-  result := calcEasterDate()
+HolySaturday(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, -1, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay)
-     isHolidayToday := "Holy Saturday - the day that Jesus' body lay in the tomb"
+  If (lola=thisYDay)
+     aisHolidayToday := "Holy Saturday - the day that Jesus' body lay in the tomb"
 
   return result
 }
 
-SecondDayEaster() {
-  result := calcEasterDate()
+SecondDayEaster(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, 1, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay)
-     isHolidayToday := (UserReligion=1) ? "Catholic Easter - 2nd day" : "Orthodox Easter - 2nd day"
+  If (lola=thisYDay)
+     aisHolidayToday := (UserReligion=1) ? "Catholic Easter - 2nd day" : "Orthodox Easter - 2nd day"
 
   return result
 }
 
-DivineMercy() {
-  result := calcEasterDate()
+DivineMercy(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, 7, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay && UserReligion=1)
-     isHolidayToday := "Divine Mercy Sunday - related to His Merciful Divinity and Faustina Kowalska, a Polish Catholic nun"
+  If (lola=thisYDay && UserReligion=1)
+     aisHolidayToday := "Divine Mercy Sunday - related to His Merciful Divinity and Faustina Kowalska, a Polish Catholic nun"
 
   return result
 }
 
-ascensionday() {
-  result := calcEasterDate()
+ascensionday(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, 39, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay)
-     isHolidayToday := "Ascension of Jesus"
+  If (lola=thisYDay)
+     aisHolidayToday := "Ascension of Jesus"
 
   return result
 }
 
-pentecost() {
-  result := calcEasterDate()
+pentecost(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, 49, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay)
-     isHolidayToday := "Pentecost - the descent of the Holy Spirit upon the Apostles"
+  If (lola=thisYDay)
+     aisHolidayToday := "Pentecost - the descent of the Holy Spirit upon the Apostles"
 
   return result
 }
 
-holyTrinityOrthdox() {
-  result := calcEasterDate()
+holyTrinityOrthdox(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, 50, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay && UserReligion=2)
-     isHolidayToday := "The Holy Trinity - celebrates the Christian doctrine of the Trinity, the three Persons of God: the Father, the Son, and the Holy Spirit"
+  If (lola=thisYDay && UserReligion=2)
+     aisHolidayToday := "The Holy Trinity - celebrates the Christian doctrine of the Trinity, the three Persons of God: the Father, the Son, and the Holy Spirit"
 
   return result
 }
 
-TrinitySunday() {
-  result := calcEasterDate()
+TrinitySunday(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, 56, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay)
-     isHolidayToday := (UserReligion=1) ? "Holy Trinity Sunday -  celebrates the Christian doctrine of the Trinity, the three Persons of God: the Father, the Son, and the Holy Spirit" : "All saints day"
+  If (lola=thisYDay)
+     aisHolidayToday := (UserReligion=1) ? "Holy Trinity Sunday -  celebrates the Christian doctrine of the Trinity, the three Persons of God: the Father, the Son, and the Holy Spirit" : "All saints day"
 
   return result
 }
 
-corpuschristi() {
-  result := calcEasterDate()
+corpuschristi(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, 60, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay && UserReligion=1)
-     isHolidayToday := "Corpus Cristi - the real presence of the body and blood of Jesus"
+  If (lola=thisYDay && UserReligion=1)
+     aisHolidayToday := "Corpus Cristi - the real presence of the body and blood of Jesus"
 
   return result
 }
 
-lifeGivingSpring() {
-  result := calcEasterDate()
+lifeGivingSpring(ByRef aisHolidayToday, thisYDay) {
+  result := calcEasterDate(isHoliday, thisYDay)
   EnvAdd, result, 5, days
 
   FormatTime, lola, %result%, yday
-  If (lola=A_YDay && UserReligion=2)
-     isHolidayToday := "The Life-Giving Spring - when Blessed Mary healed a blind man by having him drink water from a spring"
+  If (lola=thisYDay && UserReligion=2)
+     aisHolidayToday := "The Life-Giving Spring - when Blessed Mary healed a blind man by having him drink water from a spring"
 
   return result
 }
 
 testCelebrations() {
+   obju := coreTestCelebrations(A_Mon, A_MDay, A_YDay, 0)
+   TypeHolidayOccured := obju[1]
+   isHolidayToday := obju[2]
+}
+
+coretestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
   Critical, On
   testEquiSols()
   If (ObserveHolidays=0 && SemantronHoliday=0)
      Return
 
-  TypeHolidayOccured := isHolidayToday := 0
-  testFeast := A_Mon "." A_MDay
+  aTypeHolidayOccured := aisHolidayToday := 0
+  testFeast := thisMon "." thisMDay
   If (ObserveReligiousDays=1)
   {
-     calcEasterDate()
-     SecondDayEaster()
-     DivineMercy()
-     palmSunday()
-     MaundyT()
-     HolySaturday()
-     goodFriday()
-     ashwednesday()
-     ascensionday()
-     pentecost()
-     TrinitySunday()
-     corpuschristi()
-     lifeGivingSpring()
-     holyTrinityOrthdox()
+     calcEasterDate(aisHolidayToday, thisYDay)
+     SecondDayEaster(aisHolidayToday, thisYDay)
+     DivineMercy(aisHolidayToday, thisYDay)
+     palmSunday(aisHolidayToday, thisYDay)
+     MaundyT(aisHolidayToday, thisYDay)
+     HolySaturday(aisHolidayToday, thisYDay)
+     goodFriday(aisHolidayToday, thisYDay)
+     ashwednesday(aisHolidayToday, thisYDay)
+     ascensionday(aisHolidayToday, thisYDay)
+     pentecost(aisHolidayToday, thisYDay)
+     TrinitySunday(aisHolidayToday, thisYDay)
+     corpuschristi(aisHolidayToday, thisYDay)
+     lifeGivingSpring(aisHolidayToday, thisYDay)
+     holyTrinityOrthdox(aisHolidayToday, thisYDay)
 
      If (testFeast="01.06")
         q := (UserReligion=1) ? "Epiphany - the revelation of God incarnate as Jesus Christ" : "Theophany - the baptism of Jesus in the Jordan River"
@@ -2533,14 +2557,14 @@ testCelebrations() {
         q := "The Three Holy Hierarchs - Basil the Great, John Chrysostom and Gregory the Theologian"
      Else If (testFeast="02.02")
         q := "The Presentation of Lord Jesus - at the Temple in Jerusalem to induct Him into Judaism, episode described in the 2nd chapter of the Gospel of Luke"
-     Else If (testFeast="03.25" && !isHolidayToday)
+     Else If (testFeast="03.25" && !aisHolidayToday)
         q := "The Annunciation of the Lord - when the Blessed Virgin Mary was told she would conceive and become the mother of Jesus of Nazareth"
-     Else If (testFeast="04.23" && !isHolidayToday)
+     Else If (testFeast="04.23" && !aisHolidayToday)
         q := "Saint George - a Roman soldier of Greek origin under the Roman emperor Diocletian, sentenced to death for refusing to recant his Christian faith, venerated as a military saint since the Crusades."
      Else If (testFeast="06.24")
         q := "Birth of John the Baptist - a Jewish itinerant preacher, and a prophet known for having anticipated a messianic figure greater than himself"
      Else If (testFeast="08.06")
-        isHolidayToday := "The Feast of the Transfiguration of Jesus - when He becomes radiant in glory upon a mountain"
+        aisHolidayToday := "The Feast of the Transfiguration of Jesus - when He becomes radiant in glory upon a mountain"
      Else If (testFeast="08.15")
         q := (UserReligion=1) ? "Assumption of Virgin Mary - her body and soul assumed into heavenly glory after her death" : "Falling Asleep of the Blessed Virgin Mary"
      Else If (testFeast="08.29")
@@ -2573,14 +2597,15 @@ testCelebrations() {
         q := "Christmas 2nd day - the birth of Jesus Christ also known as Jesus of Nazareth"
      Else If (testFeast="12.28" && UserReligion=1)
         q := "Feast of the Holy Innocents - in remembrance of the young children killed in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus of Nazareth"
-     isHolidayToday := q ? q : isHolidayToday
+
+     aisHolidayToday := q ? q : aisHolidayToday
      If (StrLen(isHolidayToday)>2)
-        TypeHolidayOccured := 1
+        aTypeHolidayOccured := 1
   }
 
   If (ObserveSecularDays=1)
   {
-     theList := "New Year's Day - Happy New Year!|01.01`n"
+     Static theList := "New Year's Day - Happy New Year!|01.01`n"
         . "International Day of Commemoration of the Holocaust victims from World War II|01.27`n"
         . "Saint Valentine's Day - the celebration of love and affection|02.14`n"
         . "Leap Year Day - February is extended by one day every four years to keep the calendar year synchronized with the astronomical year|02.29`n"
@@ -2604,14 +2629,15 @@ testCelebrations() {
         . "International Day of Disabled Persons - the largest minority of the world|12.03`n"
         . "Human Rights Day|12.10`n"
         . "World Arabic Language Day|12.18"
+
      Loop, Parse, theList, `n
      {
         lineArr := StrSplit(A_LoopField, "|")
         miniDate := lineArr[2]
-        If (miniDate=testFeast && (PreferSecularDays=1 || !isHolidayToday))
+        If (miniDate=testFeast && (PreferSecularDays=1 || !aisHolidayToday))
         {
-           TypeHolidayOccured := 2
-           isHolidayToday := lineArr[1]
+           aTypeHolidayOccured := 2
+           aisHolidayToday := lineArr[1]
            Break
         }
      }
@@ -2620,19 +2646,22 @@ testCelebrations() {
   PersonalDay := INIactionNonGlobal(0, testFeast, 0, "Celebrations")
   If InStr(PersonalDay, "default disabled")
   {
-     isHolidayToday := PersonalDay := TypeHolidayOccured := 0
+     aisHolidayToday := PersonalDay := aTypeHolidayOccured := 0
   } Else If (StrLen(PersonalDay)>2)
   {
-     isHolidayToday := PersonalDay
-     TypeHolidayOccured := 3
+     aisHolidayToday := PersonalDay
+     aTypeHolidayOccured := 3
   }
 
-  OSDprefix := ""
-  If (StrLen(isHolidayToday)>2 && ObserveHolidays=1)
+  If (isListMode=0)
+     OSDprefix := ""
+
+  If (StrLen(isHolidayToday)>2 && ObserveHolidays=1 isListMode=0)
   {
      OSDprefix := (StrLen(PersonalDay)>2) ? "▦ " : "✝ "
      If (TypeHolidayOccured=2) ; secular
         OSDprefix := "▣ "
+
      If (AnyWindowOpen!=1)
      {
         Gui, ShareBtnGui: Destroy
@@ -2647,15 +2676,17 @@ testCelebrations() {
         SetTimer, DestroyBibleGui, % -quoteDisplayTime
      }
   }
+
+  Return [aTypeHolidayOccured, aisHolidayToday]
 }
 
-ListCelebrationsBtn() {
+OpenListCelebrationsBtn() {
   celebYear := A_Year
   VerifyTheOptions()
-  ListCelebrations()
+  PanelListCelebrations()
 }
 
-ListCelebrations(tabChoice:=1) {
+PanelListCelebrations(tabChoice:=1) {
 
   Global LViewEaster, LViewOthers, LViewSecular, LViewPersonal, CurrentTabLV, ResetYearBTN
   Gui, CelebrationsGuia: Destroy
@@ -2692,7 +2723,7 @@ ListCelebrations(tabChoice:=1) {
   Gui, Add, Checkbox, x+5 gupdateOptionsLVsGui Checked%PreferSecularDays% vPreferSecularDays, Prefer these holidays over religious ones
 
   btnWid := (PrefsLargeFonts=1) ? 145 : 90
-  Gui, Add, Button, xs y+15 w%btnWid% h25 gPrevYearList , &Previous year
+  Gui, Add, Button, xs y+15 w%btnWid% h30 gPrevYearList , &Previous year
   Gui, Add, Button, x+1 w55 hp gResetYearList vResetYearBTN, %celebYear%
   Gui, Add, Button, x+1 w%btnWid% hp gNextYearList , &Next year
   Gui, Add, Button, x+20 w%btnWid% hp gCloseCelebListWin, &Close list
@@ -2702,6 +2733,7 @@ ListCelebrations(tabChoice:=1) {
 }
 
 updateOptionsLVsGui() {
+  Gui, CelebrationsGuia:Default
   GuiControlGet, ObserveSecularDays
   GuiControlGet, ObserveReligiousDays
   GuiControlGet, PreferSecularDays
@@ -2713,7 +2745,32 @@ updateOptionsLVsGui() {
 }
 
 updateHolidaysLVs() {
+  Static Epiphany := "01.06"
+  , SynaxisSaintJohnBaptist := "01.07"
+  , ThreeHolyHierarchs := "01.30"
+  , PresentationLord := "02.02"
+  , AnnunciationLord := "03.25"
+  , SaintGeorge := "04.23"
+  , BirthJohnBaptist := "06.24"
+  , FeastTransfiguration := "08.06"
+  , AssumptionVirginMary := "08.15"
+  , BeheadingJohnBaptist := "08.29"
+  , BirthVirginMary := "09.08"
+  , ExaltationHolyCross := "09.14"
+  , SaintFrancisAssisi := "10.04"
+  , SaintParaskeva := "10.14"
+  , HalloweenDay := "10.31"
+  , Allsaintsday := "11.01"
+  , Allsoulsday := "11.02"
+  , PresentationVirginMary := "11.21"
+  , ImmaculateConception := "12.08"
+  , SaintNicola := "12.06"
+  , ChristmasEve := "12.24"
+  , Christmasday := "12.25"
+  , Christmas2nday := "12.26"
+  , FeastHolyInnocents := "12.28"
 
+  Gui, CelebrationsGuia:Default
   Gui, CelebrationsGuia:ListView, LViewEaster
   LV_Delete()
   Gui, CelebrationsGuia:ListView, LViewOthers
@@ -2722,45 +2779,20 @@ updateHolidaysLVs() {
   LV_Delete()
   Gui, CelebrationsGuia:ListView, LViewPersonal
   LV_Delete()
-  easterdate := calcEasterDate()
-  2ndeasterdate := SecondDayEaster()
-  divineMercyDate := DivineMercy()
-  palmdaydate := palmSunday()
-  maundydate := MaundyT()
-  HolySaturdaydate := HolySaturday()
-  goodFridaydate := goodFriday()
-  ashwednesdaydate := ashwednesday()
-  ascensiondaydate := ascensionday()
-  pentecostdate := pentecost()
-  TrinitySundaydate := TrinitySunday()
-  corpuschristidate := corpuschristi()
-  lifeSpringDate := lifeGivingSpring()
-  holyTrinityOrthdoxDate := holyTrinityOrthdox()
-
-  Epiphany := "01.06"
-  SynaxisSaintJohnBaptist := "01.07"
-  ThreeHolyHierarchs := "01.30"
-  PresentationLord := "02.02"
-  AnnunciationLord := "03.25"
-  SaintGeorge := "04.23"
-  BirthJohnBaptist := "06.24"
-  FeastTransfiguration := "08.06"
-  AssumptionVirginMary := "08.15"
-  BeheadingJohnBaptist := "08.29"
-  BirthVirginMary := "09.08"
-  ExaltationHolyCross := "09.14"
-  SaintFrancisAssisi := "10.04"
-  SaintParaskeva := "10.14"
-  HalloweenDay := "10.31"
-  Allsaintsday := "11.01"
-  Allsoulsday := "11.02"
-  PresentationVirginMary := "11.21"
-  ImmaculateConception := "12.08"
-  SaintNicola := "12.06"
-  ChristmasEve := "12.24"
-  Christmasday := "12.25"
-  Christmas2nday := "12.26"
-  FeastHolyInnocents := "12.28"
+  easterdate := calcEasterDate(isHoliday, A_YDay)
+  2ndeasterdate := SecondDayEaster(isHoliday, A_YDay)
+  divineMercyDate := DivineMercy(isHoliday, A_YDay)
+  palmdaydate := palmSunday(isHoliday, A_YDay)
+  maundydate := MaundyT(isHoliday, A_YDay)
+  HolySaturdaydate := HolySaturday(isHoliday, A_YDay)
+  goodFridaydate := goodFriday(isHoliday, A_YDay)
+  ashwednesdaydate := ashwednesday(isHoliday, A_YDay)
+  ascensiondaydate := ascensionday(isHoliday, A_YDay)
+  pentecostdate := pentecost(isHoliday, A_YDay)
+  TrinitySundaydate := TrinitySunday(isHoliday, A_YDay)
+  corpuschristidate := corpuschristi(isHoliday, A_YDay)
+  lifeSpringDate := lifeGivingSpring(isHoliday, A_YDay)
+  holyTrinityOrthdoxDate := holyTrinityOrthdox(isHoliday, A_YDay)
 
   If (UserReligion=1 && ObserveReligiousDays=1)
   {
@@ -2780,7 +2812,7 @@ updateHolidaysLVs() {
      Gui, ListView, LViewEaster
      processHolidaysList(theList)
 
-     theList2 := "Epiphany|" Epiphany "`n"
+     Static theList2 := "Epiphany|" Epiphany "`n"
         . "The Presentation of Lord Jesus|" PresentationLord "`n"
         . "The Annunciation of the Virgin Mary|" AnnunciationLord "`n"
         . "Saint George|" SaintGeorge "`n"
@@ -2806,7 +2838,7 @@ updateHolidaysLVs() {
      processHolidaysList(theList2)
   } Else If (UserReligion=2 && ObserveReligiousDays=1)
   {
-     theList := "Flowery Sunday|" palmdaydate "`n"
+     theList3 := "Flowery Sunday|" palmdaydate "`n"
         . "Maundy Thursday|" maundydate "`n"
         . "Holy Friday|" goodFridaydate "`n"
         . "Holy Saturday|" HolySaturdaydate "`n"
@@ -2819,9 +2851,9 @@ updateHolidaysLVs() {
         . "All saints day|" TrinitySundaydate
 
      Gui, ListView, LViewEaster
-     processHolidaysList(theList)
+     processHolidaysList(theList3)
 
-     theList2 := "Theophany|" Epiphany "`n"
+     Static theList4 := "Theophany|" Epiphany "`n"
         . "The Synaxis of Saint John the Baptist|" SynaxisSaintJohnBaptist "`n"
         . "The Three Holy Hierarchs|" ThreeHolyHierarchs "`n"
         . "The Presentation of Lord Jesus|" PresentationLord "`n"
@@ -2841,7 +2873,7 @@ updateHolidaysLVs() {
         . "Christmas - 2nd day|" Christmas2nday
 
      Gui, ListView, LViewOthers
-     processHolidaysList(theList2)
+     processHolidaysList(theList4)
   } Else
   {
      response := "-- { religious holidays are not observed } --"
@@ -2854,7 +2886,7 @@ updateHolidaysLVs() {
   Gui, ListView, LViewSecular
   If (ObserveSecularDays=1)
   {
-     theListS := "New Year's Day|01.01`n"
+     Static theListS := "New Year's Day|01.01`n"
        . "Commemoration of the Holocaust victims|01.27`n"
        . "Saint Valentine's Day|02.14`n"
        . "Leap Year Day|02.29`n"
@@ -2874,7 +2906,7 @@ updateHolidaysLVs() {
        . "Day for the Universal Access to Information|09.28`n"
        . "Armistice Day / Remembrance Day / Veterans Day|11.11`n"
        . "Tolerance Day|11.16`n"
-       . "Elimination of Violence against Women|11.25`n"
+       . "Elimination of Violence Against Women|11.25`n"
        . "International Day of Disabled Persons|12.03`n"
        . "Human Rights Day|12.10`n"
        . "World Arabic Language Day|12.18"
@@ -2986,7 +3018,7 @@ SaveNewEntryBtn() {
      Gui, CelebrationsGuia: Destroy
      PersonalDay := INIactionNonGlobal(1, newMonth "." newDay, newEvent, "Celebrations")
      Sleep, 200
-     ListCelebrations(4)
+     PanelListCelebrations(4)
   }
 }
 
@@ -3128,7 +3160,7 @@ CancelNewEntryBtn() {
    celebYear := A_Year
    WinActivate, ahk_id %hSetWinGui%
    Sleep, 50
-   ListCelebrations(4)
+   PanelListCelebrations(4)
 }
 
 compareYearDays(givenDay, CurrentDay) {
@@ -3193,6 +3225,82 @@ testEquiSols() {
      OSDsuffix := " ▒"
 }
 
+PanelIncomingCelebrations() {
+    If (PrefOpen=1)
+    {
+       SoundBeep, 300, 900
+       Return
+    }
+
+    If (AnyWindowOpen=1)
+    {
+       CloseWindow()
+       SetTimer, PanelIncomingCelebrations, -100
+       Return
+    }
+
+    SettingsGUI(1)
+    AnyWindowOpen := 3
+    btnWid := 100
+    txtWid := 360
+    Global btn1
+    Gui, Font, c%AboutTitleColor% s20 Bold, Arial, -wrap
+    Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, bell-image.png
+    Gui, Add, Text, x+7 y10, %appName%
+    Gui, Font, c%GUIAtxtColor% s12 Bold, Arial, -wrap
+    Gui, Add, Text, y+4, Celebrations in the next 30 days.
+    Gui, Font
+    Gui, Font, c%GUIAtxtColor%
+    If (PrefsLargeFonts=1)
+    {
+       btnWid := btnWid + 50
+       txtWid := txtWid + 105
+       Gui, Font, s%LargeUIfontValue%
+    }
+
+    If (tickTockNoise!=1)
+       SoundLoop(tickTockSound)
+
+    startDate := ""
+    listu := ""
+    startYday := A_YDay
+    PersonalDate := A_Year 0229010101
+    FormatTime, PersonalDate, %PersonalDate%, LongDate
+    totalYDays := StrLen(PersonalDate)>3 ? 366 : 365
+    Loop, 30
+    {
+        startDate += 1, Days
+        thisMon := SubStr(startDate, 5, 2)
+        thisMDay := SubStr(startDate, 7, 2)
+        thisYear := SubStr(startDate, 1, 4)
+        startYday++
+        thisYday := (startYday>totalYDays) ? startYday - totalYDays : startYday
+        obju := coretestCelebrations(thisMon, thisMDay, thisYday, 1)
+        ; ToolTip, % thisYear "/" thisMon "/" thisMDay " = " thisYday "[" totalYDays "]"  , , , 2
+        ; Sleep, 950
+        If obju[2]
+           listu .= thisYear "/" thisMon "/" thisMDay " = " obju[2] "`n`n"
+    }
+
+    btnW1 := (PrefsLargeFonts=1) ? 105 : 80
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    Gui, Add, Button, xs+1 y+15 w1 h1, L
+    Gui, Add, Edit, xp+1 yp+1 ReadOnly r15 w%txtWid%, % listu
+    Gui, Font, Normal
+    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gAboutWindow hwndhBtn1, Back
+    Gui, Add, Button, x+5 hp wp+15 gShowSettings hwndhBtn2, Settings
+    Gui, Add, Button, x+5 hp wp-15 gCloseWindow hwndhBtn3, Close
+
+    Gui, Show, AutoSize, Celebrations list
+
+    Opt1 := [0, "0xff" AboutTitleColor, , "0xff" BtnTxtColor, 15, "0x" GUIAbgrColor, , 0]
+    Opt2 := [ , "0xef" hoverBtnColor]
+    Opt3 := [ , "0xff" BtnTxtColor, , "0xff" hoverBtnColor]
+    ImageButton.Create(hBtn1, Opt1, Opt2, Opt3)
+    ImageButton.Create(hBtn2, Opt1, Opt2, Opt3)
+    ImageButton.Create(hBtn3, Opt1, Opt2, Opt3)
+}
+
 AboutWindow() {
     If (PrefOpen=1)
     {
@@ -3231,13 +3339,13 @@ AboutWindow() {
     testCelebrations()
     MarchEquinox := compareYearDays(78, A_YDay) "March equinox."   ; 03 / 20
     If InStr(MarchEquinox, "now")
-       MarchEquinox := "(" OSDsuffix " ) The March equinox is here now."
-    JuneSolstice := compareYearDays(170, A_YDay) "June solstice. The day and night are tightly balanced for a few days."  ; 06 / 21
+       MarchEquinox := "(" OSDsuffix " ) The March equinox is here now. Day and night times are balanced for a few days."
+    JuneSolstice := compareYearDays(170, A_YDay) "June solstice. "  ; 06 / 21
     If InStr(JuneSolstice, "now")
        JuneSolstice := "(" OSDsuffix " ) The June solstice is here now. Today is one of the longest days of the year."
     SepEquinox := compareYearDays(263, A_YDay) "September equinox."  ; 09 / 22
     If InStr(SepEquinox, "now")
-       SepEquinox := "(" OSDsuffix " ) The September equinox is here now. The day and night are tightly balanced for a few days."
+       SepEquinox := "(" OSDsuffix " ) The September equinox is here now. Day and night times are balanced for a few days."
     DecSolstice := compareYearDays(354, A_YDay) "December solstice."  ; 12 / 21
     If InStr(DecSolstice, "now")
        DecSolstice := "(" OSDsuffix " ) The December solstice is here now. Today is one of the shortest days of the year."
@@ -3305,10 +3413,10 @@ AboutWindow() {
     testFeast := A_Mon "." A_MDay
     If (testFeast="01.01") || (testFeast="02.01")
     {
-       PersonalDate := celebYear 0229010101
+       PersonalDate := A_Year 0229010101
        FormatTime, PersonalDate, %PersonalDate%, LongDate
        If (StrLen(PersonalDate)>3)
-          Gui, Add, Text, y+7 w%txtWid%, %celebYear% is a leap year.
+          Gui, Add, Text, y+7 w%txtWid%, %A_Year% is a leap year.
     } Else If (testFeast="02.29")
        Gui, Add, Text, y+7 w%txtWid%, Today is 29th of February - a leap year day.
 
@@ -3347,8 +3455,15 @@ AboutWindow() {
     Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, paypal.png
 
     Gui, Font, Normal
-    Gui, Add, Button, xs+0 y+20 h30 w105 Default gCloseWindowAbout hwndhBtn1, Deus lux est
-    Gui, Add, Button, x+5 hp w80 gShowSettings hwndhBtn2, Settings
+    btnW1 := (PrefsLargeFonts=1) ? 110 : 80
+    btnW2 := (PrefsLargeFonts=1) ? 80 : 55
+    btnW3 := (PrefsLargeFonts=1) ? 110 : 80
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gCloseWindowAbout hwndhBtn1, Deus lux est
+    Gui, Add, Button, x+5 hp w%btnW2% gShowSettings hwndhBtn2, Settings
+    If (ObserveHolidays=1)
+      Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations hwndhBtn3, Celebrations
+
     Gui, Add, Text, x+8 hp +0x200 gOpenChangeLog hwndhBtnLog, v%Version% (%ReleaseDate%)
     Gui, Show, AutoSize, About %appName% v%Version%
     ColorPickerHandles := hDonateBTN "," hBellIcon "," hBtnLog
@@ -3359,6 +3474,7 @@ AboutWindow() {
     Opt3 := [ , "0xff" BtnTxtColor, , "0xff" hoverBtnColor]
     ImageButton.Create(hBtn1, Opt1, Opt2, Opt3)
     ImageButton.Create(hBtn2, Opt1, Opt2, Opt3)
+    ImageButton.Create(hBtn3, Opt1, Opt2, Opt3)
     LinkUseDefaultColor(hLink0)
     LinkUseDefaultColor(hLink1)
     LinkUseDefaultColor(hLink2)
@@ -3484,6 +3600,8 @@ INIsettings(a) {
   INIaction(a, "FontSizeQuotes", "OSDprefs")
   INIaction(a, "GuiX", "OSDprefs")
   INIaction(a, "GuiY", "OSDprefs")
+  INIaction(a, "ClockGuiX", "OSDprefs")
+  INIaction(a, "ClockGuiY", "OSDprefs")
   INIaction(a, "OSDalpha", "OSDprefs")
   INIaction(a, "OSDbgrColor", "OSDprefs")
   INIaction(a, "OSDtextColor", "OSDprefs")
@@ -3556,14 +3674,16 @@ CheckSettings() {
        analogDisplayScale := 1
     Else If (analogDisplayScale<0.3)
        analogDisplayScale := 0.25
-    Else If (analogDisplayScale>3)
-       analogDisplayScale := 3
+    Else If (analogDisplayScale>4)
+       analogDisplayScale := 4
 
     MinMaxVar(DisplayTimeUser, 1, 99, 3)
     MinMaxVar(FontSize, 12, 300, 26)
     MinMaxVar(FontSizeQuotes, 10, 201, 20)
     MinMaxVar(GuiX, -9999, 9999, 40)
     MinMaxVar(GuiY, -9999, 9999, 250)
+    MinMaxVar(ClockGuiX, -9999, 9999, 40)
+    MinMaxVar(ClockGuiY, -9999, 9999, 250)
     MinMaxVar(OSDmarginTop, 1, 900, 20)
     MinMaxVar(OSDmarginBottom, 1, 900, 20)
     MinMaxVar(OSDmarginSides, 10, 900, 25)
@@ -3583,6 +3703,8 @@ CheckSettings() {
     MinMaxVar(OSDalpha, 75, 252, 230)
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
+    If (ObserveHolidays=0)
+       SemantronHoliday := 0
 
 ; verify HEX values
 

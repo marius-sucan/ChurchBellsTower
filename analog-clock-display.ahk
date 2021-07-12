@@ -52,11 +52,13 @@ InitClockFace()
 Return
 
 InitClockFace() {
+   Critical, on
    If (moduleInit!=1 || PrefOpen=1)
    {
-      ClockPosX := MainExe.ahkgetvar.GuiX
-      ClockPosY := MainExe.ahkgetvar.GuiY
+      ClockPosX := MainExe.ahkgetvar.ClockGuiX
+      ClockPosY := MainExe.ahkgetvar.ClockGuiY
    }
+
    tickTockNoise := MainExe.ahkgetvar.tickTockNoise
    analogDisplayScale := MainExe.ahkgetvar.analogDisplayScale
    analogDisplay := MainExe.ahkgetvar.analogDisplay
@@ -74,7 +76,7 @@ InitClockFace() {
    ClockDiameter := Round(FontSize * 4 * analogDisplayScale)
    ClockWinSize := ClockDiameter + Round((OSDmarginBottom//2 + OSDmarginTop//2 + OSDmarginSides//2) * analogDisplayScale)
    roundedCsize := MainExe.ahkgetvar.roundCornerSize
-   roundedCsize := Round(roundedCsize * analogDisplayScale)
+   roundedCsize := Round(roundedCsize * (analogDisplayScale/1.5))
    If (ClockDiameter<=80)
    {
       ClockDiameter := 80
@@ -143,6 +145,7 @@ InitClockFace() {
    R2 := Round(Diameter/2 - 1 - Diameter/2*0.2, 2) ; inner position
    pPen := Gdip_CreatePen("0xff" faceElements, (ClockDiameter/100)*2.3) ; 2.3 % of total diameter is our pen width
    DrawClockMarks(12, R1, R2)                  ; we have 12 hours
+   Gdip_DeletePen(pPen)
    
    Diameter := Round(ClockDiameter - ClockDiameter*0.17, 2)  ; inner circle is 17 % smaller than clock's diameter
    R1 := Diameter/2-1                        ; outer position
@@ -207,6 +210,7 @@ UpdateEverySecond() {
    pBrush := Gdip_BrushCreateSolid("0x66" faceElements)
    Gdip_FillEllipse(G, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
    Gdip_DeleteBrush(pBrush)
+
    Diameter := Round(ClockDiameter*0.04, 2)
    pBrush := Gdip_BrushCreateSolid("0x95" faceElements)
    Gdip_FillEllipse(G, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
@@ -323,18 +327,22 @@ WM_MOUSEMOVE(wP, lP, msg, hwnd) {
   SetFormat, Integer, H
   hwnd+=0, A := WinExist("A"), hwnd .= "", A .= ""
   SetFormat, Integer, D
-  If (constantAnalogClock=1 && A=hFaceClock && (wP&0x1) && PrefOpen=0)
+  If (constantAnalogClock=1 && A=hFaceClock && (wP&0x1))
   {
      PostMessage, 0xA1, 2,,, ahk_id %hFaceClock%
      SetTimer, trackMouseDragging, -25
-  } Else If (constantAnalogClock=0 || PrefOpen=1) && (A_TickCount - lastShowTime>950)
+  } Else If (constantAnalogClock=0 || PrefOpen=1 && (wP&0x1)) && (A_TickCount - lastShowTime>950)
+  {
      hideClock()
+     SetTimer, showClock, -900
+   }
 }
 
 trackMouseDragging() {
      defAnalogClockPosChanged := 1
-     MainExe.ahkassign("defAnalogClockPosChanged", defAnalogClockPosChanged)
+     ; MainExe.ahkassign("defAnalogClockPosChanged", defAnalogClockPosChanged)
      WinGetPos, ClockPosX, ClockPosY,,, ahk_id %hFaceClock%
+     MainExe.ahkPostFunction["saveAnalogClockPosition", ClockPosX, ClockPosY]
      GetKeyState, already_down_state, LButton
      If (already_down_state = "D")
         SetTimer, trackMouseDragging, -25
@@ -359,6 +367,7 @@ ClockGuiGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
        Menu, ClockSizesMenu, Add, 1.50x, ChangeClockSize
        Menu, ClockSizesMenu, Add, 2.00x, ChangeClockSize
        Menu, ClockSizesMenu, Add, 3.00x, ChangeClockSize
+       Menu, ClockSizesMenu, Add, 4.00x, ChangeClockSize
        menuGenerated := 1
     }
     Menu, ClockSizesMenu, Check, %analogDisplayScale%x
