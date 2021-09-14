@@ -24,7 +24,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.8.5
+;@Ahk2Exe-SetVersion 2.8.6
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -111,8 +111,8 @@
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.8.5"
- , ReleaseDate            := "2021 / 07 / 13"
+ , Version                := "2.8.6"
+ , ReleaseDate            := "2021 / 09 / 14"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -2666,19 +2666,20 @@ coretestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
   If (isListMode=0)
      OSDprefix := ""
 
-  If (StrLen(isHolidayToday)>2 && ObserveHolidays=1 isListMode=0)
+  If (StrLen(aisHolidayToday)>2 && ObserveHolidays=1 && isListMode=0)
   {
      OSDprefix := (StrLen(PersonalDay)>2) ? "▦ " : "✝ "
-     If (TypeHolidayOccured=2) ; secular
+     If (aTypeHolidayOccured=2) ; secular
         OSDprefix := "▣ "
 
+     ; ToolTip, % OSDprefix "== lol" , , , 2
      If (AnyWindowOpen!=1)
      {
         Gui, ShareBtnGui: Destroy
-        CreateBibleGUI(generateDateTimeTxt() " || " isHolidayToday, 1, 1)
+        CreateBibleGUI(generateDateTimeTxt() " || " aisHolidayToday, 1, 1)
         Gui, ShareBtnGui: Destroy
-        quoteDisplayTime := StrLen(isHolidayToday) * 140
-        If InStr(isHolidayToday, "Christmas")
+        quoteDisplayTime := StrLen(aisHolidayToday) * 140
+        If InStr(aisHolidayToday, "Christmas")
            sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\christmas.mp3, 1")
         Else
            strikeJapanBell()

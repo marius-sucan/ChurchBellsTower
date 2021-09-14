@@ -5,6 +5,9 @@
 
 Work began on this project in late August 2018.
 
+v2.8.6 - 2021 / 09 / 14
+  - bug fixes related to «observe feasts/celebrations» option
+
 v2.8.5 - 2021 / 07 / 13
   - [new] Celebrations option at About; this lists celebrations for the next 30 days, based on user configured celebrations options at Settings
   - bug fixes and minor improvements

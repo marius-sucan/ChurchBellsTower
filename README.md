@@ -4,7 +4,7 @@
 
 <p>An application that can toll quarters, on the hour, show random Bible verses, remind the user of Christian feasts and... reproduce semantron drumming sounds. Dedicated to bell lovers and Christians.</p>
 
-<p width="600" height="540"><img width="600" height="540" alt="Church Bells Tower - screenshot" src="https://marius.sucan.ro/media/files/blog/ahk-scripts/images/bells-tower-screenshot.jpg"></p>
+<p width="610" height="500"><img width="610" height="500" alt="Church Bells Tower - screenshot" src="https://marius.sucan.ro/media/files/blog/ahk-scripts/images/bells-tower-screenshot.jpg"></p>
 
 <h2><a href="https://marius.sucan.ro/media/files/blog/ahk-scripts/bells-tower.zip">Downloaded latest version</a> (compiled for x64/x32, Windows binary)</h2>
 
