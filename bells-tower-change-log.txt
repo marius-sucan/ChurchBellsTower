@@ -1,9 +1,19 @@
 ; Church Bells Tower - version history
 ; site: https://github.com/marius-sucan/ChurchBellsTower
 ; by Marius Șucan - http://marius.sucan.ro/
-; ====================================
+; ======================================================
 
 Work began on this project in late August 2018.
+
+v3.0.0 - 2021 / 09 / 20
+  - [new] set alarm and timer options, with personalized messages 
+  - [new] stopwatch panel; feature meant to help users track activities
+  - [new] moon phases information in the About window; these are also depicted in the «Analog click» display
+  - [new] ability to right-click on panel controls in order to display the text even larger on screen [for people with poor eyesight]
+  - [new] ability to show Bible quotes in an ordered fashion, not only random
+  - [new] added more menu items in the system tray menu to facilitate direct access to various features
+  - drastically reduced system resources required by this application and improved responsiveness
+  - many bug fixes
 
 v2.8.6 - 2021 / 09 / 14
   - bug fixes related to «observe feasts/celebrations» option

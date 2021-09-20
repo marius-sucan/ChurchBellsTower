@@ -19,12 +19,11 @@
 ; Compilation directives; include files in binary and set file properties
 ; ===========================================================
 ;
-;@Ahk2Exe-AddResource LIB analog-clock-display.ahk
 ;@Ahk2Exe-SetName Church Bells Tower
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 2.8.6
+;@Ahk2Exe-SetVersion 3.0.0
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -37,8 +36,11 @@
  #SingleInstance Force
  #NoEnv
  #MaxMem 256
- #Include, Class_ImageButton.ahk
- #Include, va.ahk                   ; vista audio APIs wrapper by Lexikos
+ #Include, Lib\Class_ImageButton.ahk
+ #Include, Lib\va.ahk                   ; vista audio APIs wrapper by Lexikos
+ #Include, Lib\mci.ahk
+ #Include, Lib\gdip_all.ahk
+ #Include, Lib\analog-clock-display.ahk
 
  DetectHiddenWindows, On
  ComObjError(false)
@@ -50,7 +52,6 @@
  Critical, On
 
 ; Default Settings
-
  Global IniFile         := "bells-tower.ini"
  , LargeUIfontValue     := 13
  , tollQuarters         := 1 
@@ -73,11 +74,14 @@
  , makeScreenDark       := 1
  , BibleQuotesInterval  := 5
  , noBibleQuoteMhidden  := 1
+ , userBibleStartPoint  := 1
+ , orderedBibleQuotes   := 0
  , UserReligion         := 1
  , SemantronHoliday     := 0
  , ObserveHolidays      := 0
  , ObserveSecularDays   := 1
  , ObserveReligiousDays := 1
+ , userMuteAllSounds    := 0
  , PreferSecularDays    := 0
  , noTollingWhenMhidden := 0
  , noTollingBgrSounds   := 0
@@ -86,11 +90,12 @@
  , showTimeIdleAfter    := 5 ; [in minutes]
 
 ; OSD settings
- , displayTimeFormat      := 1
+Global displayTimeFormat  := 1
  , DisplayTimeUser        := 3     ; in seconds
  , displayClock           := 1
  , analogDisplay          := 0
  , analogDisplayScale     := 0.3
+ , analogMoonPhases       := 1
  , constantAnalogClock    := 0
  , GuiX                   := 40
  , GuiY                   := 250
@@ -109,14 +114,39 @@
  , OSDmarginSides         := 25
  , maxBibleLength         := 55
 
+; Timers and alarms
+ , userMustDoTimer    := 0
+ , userTimerHours     := 1
+ , userTimerMins      := 30
+ , userMustDoAlarm    := 0
+ , userTimerMsg       := "What is the purpose of God?"
+ , userAlarmMsg       := "Why do people anthropomorphize God?"
+ , userAlarmHours     := 12
+ , userAlarmMins      := 30
+ , AlarmersDarkScreen := 1
+ , userAlarmSound     := 1
+
+; Analog clock stuff
+ , faceBgrColor  := "eeEEee"
+ , faceElements  := "001100"
+ , mainOSDopacity:= 230
+ , faceOpacity   := 254
+ , faceOpacityBgr:= Round(faceOpacity/1.25)
+ , ClockPosX     := 30
+ , ClockPosY     := 90
+ , ClockDiameter := 480
+ , ClockWinSize  := ClockDiameter + 2
+ , ClockCenter   := Round(ClockWinSize/2)
+ , roundedCsize  := Round(ClockDiameter/4)
+
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "2.8.6"
- , ReleaseDate            := "2021 / 09 / 14"
+ , Version                := "3.0.0"
+ , ReleaseDate            := "2021 / 09 / 20"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
- , LastNoon := 0, appName := "Church Bells Tower"
+ , LastNoonAudio := 0, appName := "Church Bells Tower"
  , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-1"
 
    If !A_IsCompiled
@@ -150,9 +180,10 @@ Global CSthin      := "░"   ; light gray
  , bibleQuoteFreq := BibleQuotesInterval * 3600000 ; hours
  , ShowPreview := 0
  , ShowPreviewDate := 0
- , LastNoonSound := 1
+ , LastNoonZeitSound := 1
  , OSDprefix, OSDsuffix
- , stopStrikesNow := 0
+ , windowManageCeleb := 0
+ , stopStrikesNow := 0, mouseToolTipWinCreated := 0
  , ClockVisibility := 0, quoteDisplayTime := 100
  , stopAdditionalStrikes := 0
  , strikingBellsNow := 0
@@ -169,41 +200,54 @@ Global CSthin      := "░"   ; light gray
  , celebYear := A_Year
  , isHolidayToday := 0
  , TypeHolidayOccured := 0
- , hMain := A_ScriptHwnd
- , lastOSDredraw := 1
- , semtr2play := 0
+ , hMain := A_ScriptHwnd, stopWatchIntervalRecords := []
+ , lastOSDredraw := 1, stopWatchHumanStartTime := 0
+ , semtr2play := 0, stopWatchRealStartZeit := 0
+ , stopWatchBeginZeit := 0, stopWatchLapBeginZeit := 0
+ , stopWatchPauseZeit := 0.001, stopWatchLapPauseZeit := 0.001
  , aboutTheme, GUIAbgrColor, AboutTitleColor, hoverBtnColor, BtnTxtColor, GUIAtxtColor
- , attempts2Quit := 0
+ , attempts2Quit := 0, OSDfadedColor := ""
  , roundCornerSize := Round(FontSize/2) + Round(OSDmarginSides/5)
  , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
  , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
  , hBibleTxt, hBibleOSD, hSetWinGui, ColorPickerHandles
  , CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
  , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
- , sndChanQ, sndChanH, sndChanA, sndChanJ, sndChanN, sndChanS
- , analogClockThread, isAnalogClockFile
+ , SNDmedia_ticktok, quartersTotalTime := 0, hoursTotalTime := 0
+ , SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas
+ , SNDmedia_evening, SNDmedia_midnight, SNDmedia_morning
+ , SNDmedia_noon1, SNDmedia_noon2, SNDmedia_noon3, SNDmedia_noon4
+ , SNDmedia_orthodox_chimes1, SNDmedia_orthodox_chimes2
+ , SNDmedia_semantron1, SNDmedia_semantron2, SNDmedia_hours12, SNDmedia_hours11
+ , SNDmedia_quarters1, SNDmedia_quarters2, SNDmedia_quarters3, SNDmedia_quarters4
+ , SNDmedia_hours1, SNDmedia_hours2, SNDmedia_hours3, SNDmedia_hours4, SNDmedia_hours5
+ , SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
+ , hFaceClock, lastShowTime := 1, pToken, scriptStartZeit := A_TickCount
+ , globalG, globalhbm, globalhdc, globalobm
+ , moduleAnalogClockInit := 0
 
 If (roundCornerSize<20)
    roundCornerSize := 20
 
-; Initializations of the core components and functionality
+; Initialization of the core components and functionality
 
-If (A_IsCompiled && storeSettingsREG=0)
-   VerifyFiles()
+; If (A_IsCompiled && storeSettingsREG=0)
+;    VerifyFiles()
 
-Sleep, 5
-InitAHKhThreads()
-Sleep, 5
+Sleep, 1
 SetMyVolume(1)
 InitializeTray()
+InitSoundChannels()
+decideFadeColor()
 
 hCursM := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32646, "Ptr")  ; IDC_SIZEALL
 hCursH := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32649, "Ptr")  ; IDC_HAND
+OnMessage(0x205, "WM_RBUTTONUP")
 OnMessage(0x200, "WM_MouseMove")
 OnMessage(0x404, "AHK_NOTIFYICON")
-Sleep, 5
+Sleep, 1
 theChimer()
-Sleep, 30
+Sleep, 1
 testCelebrations()
 ScriptInitialized := 1      ; the end of the autoexec section and INIT
 If (tickTockNoise=1)
@@ -213,21 +257,71 @@ If !isHolidayToday
    CreateBibleGUI(generateDateTimeTxt())
 
 If (AdditionalStrikes=1)
-   SetTimer, AdditionalStriker, %AdditionalStrikeFreq%
+   SetTimer, AdditionalStrikerPerformer, %AdditionalStrikeFreq%
+
 If (showBibleQuotes=1)
    SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
 
-SetTimer, analogClockStarter, % -DisplayTime + 2000
+If (analogDisplay=1 || constantAnalogClock=1)
+   InitClockFace()
+
+If (constantAnalogClock=1)
+   SetTimer, analogClockStarter, -1000
 
 If (NoWelcomePopupInfo!=1)
    ShowWelcomeWindow()
+
+If (userMustDoAlarm=1)
+   startAlarmTimer()
 
 If (showTimeWhenIdle=1)
    SetTimer, TimerShowOSDidle, 1500
 
 Return    ; the end of auto-exec section
 
+InitSoundChannels() {
+  SNDfile_auxil_bell := A_ScriptDir "\sounds\auxilliary-bell.mp3"
+  SNDfile_christmas := A_ScriptDir "\sounds\christmas.mp3"
+  SNDfile_evening := A_ScriptDir "\sounds\evening.mp3"
+  SNDfile_hours := A_ScriptDir "\sounds\hours.mp3"
+  SNDfile_japan_bell := A_ScriptDir "\sounds\japanese-bell.mp3"
+  SNDfile_midnight := A_ScriptDir "\sounds\midnight.mp3"
+  SNDfile_morning := A_ScriptDir "\sounds\morning.mp3"
+  SNDfile_noon1 := A_ScriptDir "\sounds\noon1.mp3"
+  SNDfile_noon2 := A_ScriptDir "\sounds\noon2.mp3"
+  SNDfile_noon3 := A_ScriptDir "\sounds\noon3.mp3"
+  SNDfile_noon4 := A_ScriptDir "\sounds\noon4.mp3"
+  SNDfile_chimes1 := A_ScriptDir "\sounds\orthodox-chimes1.mp3"
+  SNDfile_chimes2 := A_ScriptDir "\sounds\orthodox-chimes2.mp3"
+  SNDfile_quarters := A_ScriptDir "\sounds\quarters.mp3"
+  SNDfile_semantron1 := A_ScriptDir "\sounds\semantron1.mp3"
+  SNDfile_semantron2 := A_ScriptDir "\sounds\semantron2.mp3"
+  SNDfile_ticktok := A_ScriptDir "\sounds\ticktock.wav"
+
+  Loop, 12
+    SNDmedia_hours%A_Index% := MCI_Open(SNDfile_hours)
+  Loop, 4
+    SNDmedia_quarters%A_Index% := MCI_Open(SNDfile_quarters)
+
+  SNDmedia_auxil_bell := MCI_Open(SNDfile_auxil_bell)
+  SNDmedia_christmas := MCI_Open(SNDfile_christmas)
+  SNDmedia_evening := MCI_Open(SNDfile_evening)
+  SNDmedia_japan_bell := MCI_Open(SNDfile_japan_bell)
+  SNDmedia_midnight := MCI_Open(SNDfile_midnight)
+  SNDmedia_morning := MCI_Open(SNDfile_morning)
+  SNDmedia_noon1 := MCI_Open(SNDfile_noon1)
+  SNDmedia_noon2 := MCI_Open(SNDfile_noon2)
+  SNDmedia_noon3 := MCI_Open(SNDfile_noon3)
+  SNDmedia_noon4 := MCI_Open(SNDfile_noon4)
+  SNDmedia_orthodox_chimes1 := MCI_Open(SNDfile_chimes1)
+  SNDmedia_orthodox_chimes2 := MCI_Open(SNDfile_chimes2)
+  SNDmedia_semantron1 := MCI_Open(SNDfile_semantron1)
+  SNDmedia_semantron2 := MCI_Open(SNDfile_semantron2)
+  SNDmedia_ticktok := MCI_Open(SNDfile_ticktok)
+}
+
 TimerShowOSDidle() {
+     Static isThisIdle := 0
      If (constantAnalogClock=1) || (analogDisplay=1 && ClockVisibility=1) || (PrefOpen=1) || (A_IsSuspended)
         Return
 
@@ -236,6 +330,7 @@ TimerShowOSDidle() {
 
      If (showTimeWhenIdle=1 && (A_TimeIdle > userIdleAfter)  && mouseHidden!=1)
      {
+        isThisIdle := 1
         DoGuiFader := 0
         If (BibleGuiVisible!=1)
            CreateBibleGUI(generateDateTimeTxt(0, 1) "-")
@@ -243,16 +338,19 @@ TimerShowOSDidle() {
         GuiControl, BibleGui:, BibleGuiTXT, % generateDateTimeTxt(0, 1)
         SetTimer, DestroyBibleGui, Delete
         DoGuiFader := 1
-     } Else If (showTimeWhenIdle=1 && BibleGuiVisible=1)
+     } Else If (showTimeWhenIdle=1 && BibleGuiVisible=1 && isThisIdle=1)
+     {
+        isThisIdle := 0
         SetTimer, DestroyBibleGui, -500
+     } Else isThisIdle := 0
 }
 
 ShowWelcomeWindow() {
-    If (PrefOpen=1 || AnyWindowOpen=1)
+    If reactWinOpened(A_ThisFunc, 2)
        Return
 
     Global BtnSilly0, BtnSilly1, BtnSilly2
-    SettingsGUI()
+    GenericPanelGUI()
     AnyWindowOpen := 2
     Gui, Font, s20 Bold, Arial, -wrap
     Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section hwndhIcon, bell-image.png
@@ -270,20 +368,21 @@ ShowWelcomeWindow() {
     }
 
     Gui, Add, Text, xs y+10 w%txtWid%, %appName% is currently running in background. To configure it or exit, please locate its icon in the system tray area, next to the system clock in the taskbar. To access the settings double click or right click on the bell icon.
-    Gui, Add, Button, xs y+10 w%btnWid% gShowSettings, &Settings panel
+    Gui, Add, Button, xs y+10 w%btnWid% h30 gShowSettings, &Settings panel
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleLargeFonts Checked%PrefsLargeFonts% vPrefsLargeFonts, Large UI font sizes
-    Gui, Add, Button, xs y+10 w%btnWid% gAboutWindow, &About today
+    Gui, Add, Button, xs y+10 w%btnWid% hp gPanelAboutWindow, &About today
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleAnalogClock Checked%constantAnalogClock% vconstantAnalogClock, &Analog clock display
-    Gui, Add, Checkbox, xs y+10 gToggleWelcomeInfos Checked%NoWelcomePopupInfo% vNoWelcomePopupInfo, &Never show this window
+    Gui, Add, Checkbox, xs y+10 hp gToggleWelcomeInfos Checked%NoWelcomePopupInfo% vNoWelcomePopupInfo, &Never show this window
     Gui, Show, AutoSize, Welcome to %appName% v%Version%
 }
 
 ToggleWelcomeInfos() {
+  Gui, SettingsGUIA: Default
   GuiControlGet, NoWelcomePopupInfo
 ;  NoWelcomePopupInfo := !NoWelcomePopupInfo
   INIaction(1, "NoWelcomePopupInfo", "SavedSettings")
   CloseWindow()
-  Sleep, 50
+  Sleep, 10
   If (NoWelcomePopupInfo=1)
   {
      MsgBox, 52, %appName%, Do you want to keep the welcome window open for now?
@@ -293,86 +392,91 @@ ToggleWelcomeInfos() {
 }
 
 analogClockStarter() {
-  If (constantAnalogClock=1 && isAnalogClockFile)
+  If (constantAnalogClock=1)
   {
-     ClockVisibility := 1
-     DestroyBibleGui(A_ThisFunc)
-     analogClockThread.ahkFunction["showClock"]
+     If (moduleAnalogClockInit!=1)
+        InitClockFace()
+     ; ClockVisibility := 1
+     ; DestroyBibleGui(A_ThisFunc)
+     showAnalogClock()
   }
 }
 
 VerifyFiles() {
-  Loop, Files, sounds\*.wav
-        countFiles++
+  countFiles := 0
   Loop, Files, sounds\*.mp3
         countFiles++
-  Sleep, 50
+
+  If (countFiles>=16)
+     Return
+
+  Sleep, 10
   FileCreateDir, sounds
-  FileInstall, bell-image.png, bell-image.png
-  FileInstall, bells-tower-change-log.txt, bells-tower-change-log.txt
-  FileInstall, bible-quotes-eng.txt, bible-quotes-eng.txt
-  FileInstall, bible-quotes-fra.txt, bible-quotes-fra.txt
-  FileInstall, bible-quotes-esp.txt, bible-quotes-esp.txt
-  FileInstall, paypal.png, paypal.png
-  FileInstall, sounds\auxilliary-bell.mp3, sounds\auxilliary-bell.mp3
-  FileInstall, sounds\christmas.mp3, sounds\christmas.mp3
-  FileInstall, sounds\evening.mp3, sounds\evening.mp3
-  FileInstall, sounds\hours.mp3, sounds\hours.mp3
-  FileInstall, sounds\japanese-bell.mp3, sounds\japanese-bell.mp3
-  FileInstall, sounds\midnight.mp3, sounds\midnight.mp3
-  FileInstall, sounds\morning.mp3, sounds\morning.mp3
-  FileInstall, sounds\noon1.mp3, sounds\noon1.mp3
-  FileInstall, sounds\noon2.mp3, sounds\noon2.mp3
-  FileInstall, sounds\noon3.mp3, sounds\noon3.mp3
-  FileInstall, sounds\noon4.mp3, sounds\noon4.mp3
-  FileInstall, sounds\orthodox-chimes1.mp3, sounds\orthodox-chimes1.mp3
-  FileInstall, sounds\orthodox-chimes2.mp3, sounds\orthodox-chimes2.mp3
-  FileInstall, sounds\quarters.mp3, sounds\quarters.mp3
-  FileInstall, sounds\semantron1.mp3, sounds\semantron1.mp3
-  FileInstall, sounds\semantron2.mp3, sounds\semantron2.mp3
-  FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
+  ; FileInstall, bell-image.png, bell-image.png
+  ; FileInstall, bells-tower-change-log.txt, bells-tower-change-log.txt
+  ; FileInstall, bible-quotes-eng.txt, bible-quotes-eng.txt
+  ; FileInstall, bible-quotes-fra.txt, bible-quotes-fra.txt
+  ; FileInstall, bible-quotes-esp.txt, bible-quotes-esp.txt
+  ; FileInstall, paypal.png, paypal.png
+  ; FileInstall, sounds\auxilliary-bell.mp3, sounds\auxilliary-bell.mp3
+  ; FileInstall, sounds\christmas.mp3, sounds\christmas.mp3
+  ; FileInstall, sounds\evening.mp3, sounds\evening.mp3
+  ; FileInstall, sounds\hours.mp3, sounds\hours.mp3
+  ; FileInstall, sounds\japanese-bell.mp3, sounds\japanese-bell.mp3
+  ; FileInstall, sounds\midnight.mp3, sounds\midnight.mp3
+  ; FileInstall, sounds\morning.mp3, sounds\morning.mp3
+  ; FileInstall, sounds\noon1.mp3, sounds\noon1.mp3
+  ; FileInstall, sounds\noon2.mp3, sounds\noon2.mp3
+  ; FileInstall, sounds\noon3.mp3, sounds\noon3.mp3
+  ; FileInstall, sounds\noon4.mp3, sounds\noon4.mp3
+  ; FileInstall, sounds\orthodox-chimes1.mp3, sounds\orthodox-chimes1.mp3
+  ; FileInstall, sounds\orthodox-chimes2.mp3, sounds\orthodox-chimes2.mp3
+  ; FileInstall, sounds\quarters.mp3, sounds\quarters.mp3
+  ; FileInstall, sounds\semantron1.mp3, sounds\semantron1.mp3
+  ; FileInstall, sounds\semantron2.mp3, sounds\semantron2.mp3
+  ; FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
   Sleep, 300
 }
 
 AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
-  If (PrefOpen=1 || A_IsSuspended)
+  If (PrefOpen=1 || A_IsSuspended) || (A_TickCount - scriptStartZeit < 950)
      Return
 
   Static LastInvoked := 1, LastInvoked2 := 1
-  If (lParam = 0x201) || (lParam = 0x204)
+  If (lParam = 0x201) || (lParam = 0x204) ; /rl-click
   {
      stopStrikesNow := 1
      strikingBellsNow := 0
      DoGuiFader := 0
-     If (ClockVisibility=0 || defAnalogClockPosChanged=1 && ClockVisibility=1) && (lParam=0x201 && ScriptInitialized=1)         ; left click
+     ; If (ClockVisibility=0 || defAnalogClockPosChanged=1 && ClockVisibility=1) && (lParam=0x201 && ScriptInitialized=1)         ; left click
+     If (ScriptInitialized=1)
         CreateBibleGUI(generateDateTimeTxt())
      DoGuiFader := 1
-     If (A_TickCount-lastInvoked2>7000)
-        FreeAhkResources(1)
      LastInvoked2 := A_TickCount
   } Else If (lParam = 0x207) && (strikingBellsNow=0)   ; middle click
   {
-     If (A_TickCount-lastInvoked2>7000)
-        FreeAhkResources(1)
      LastInvoked2 := A_TickCount
      If (AnyWindowOpen=1)
         stopStrikesNow := 0
      SetMyVolume(1)
      DoGuiFader := 0
-     If (ClockVisibility=0 || defAnalogClockPosChanged=1 && ClockVisibility=1)
+     ; If (ClockVisibility=0 || defAnalogClockPosChanged=1 && ClockVisibility=1)
+     If (ScriptInitialized=1)
         CreateBibleGUI(generateDateTimeTxt())
      If (tollQuarters=1)
-        strikeQuarters()
+        strikeQuarters(1)
      If (tollHours=1 || tollHoursAmount=1)
-        strikeHours()
+        strikeHours(1)
      DoGuiFader := 1
   } Else If (BibleGuiVisible=0 && strikingBellsNow=0)
     && (A_TickCount-lastInvoked>2000) && (A_TickCount-lastFaded>1500)
   {
      LastInvoked := A_TickCount
-     DoGuiFader := 1
-     If (ClockVisibility=0 || defAnalogClockPosChanged=1 && ClockVisibility=1) && (ScriptInitialized=1)
+     DoGuiFader := 0
+     ; If (ClockVisibility=0 || defAnalogClockPosChanged=1 && ClockVisibility=1) && (ScriptInitialized=1)
+     If (ScriptInitialized=1)
         CreateBibleGUI(generateDateTimeTxt(0))
+     DoGuiFader := 1
   }
 }
 
@@ -380,13 +484,8 @@ strikeJapanBell() {
   If (noTollingBgrSounds>=2)
      isSoundPlayingNow()
 
-  If (stopAdditionalStrikes=1)
-     Return
   SetMyVolume(1)
-  If !sndChanJ
-     sndChanJ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\japanese-bell.mp3, 1")
-  Else
-     sndChanJ.ahkReload[]
+  MCXI_Play(SNDmedia_japan_bell)
 }
 
 InvokeBibleQuoteNow() {
@@ -427,10 +526,18 @@ InvokeBibleQuoteNow() {
      }
   }
 
-  If (PrefOpen!=1)
+  If (orderedBibleQuotes=1)
+  {
+     Line2Read := (userBibleStartPoint + 1, 1, countLines, 1)
+     userBibleStartPoint := Line2Read
+     INIaction(1, "userBibleStartPoint", "SavedSettings")
+     If (PrefOpen=1)
+        GuiControl, SettingsGUIA:, userBibleStartPoint, % userBibleStartPoint
+  } Else If (PrefOpen!=1)
   {
      If !countLines
-        countLines := st_count(bibleQuotesFile, "`n") + 1
+        countLines := ST_Count(bibleQuotesFile, "`n") + 1
+
      Loop
      {
        Random, Line2Read, 1, %countLines%
@@ -447,7 +554,7 @@ InvokeBibleQuoteNow() {
      bibleQuote := lineArr[2]
   }
 
-  If st_count(bibleQuote, """")=1
+  If (ST_Count(bibleQuote, """")=1)
      StringReplace, bibleQuote, bibleQuote, "
 
   If (BibleQuotesLang=1)
@@ -457,41 +564,38 @@ InvokeBibleQuoteNow() {
      bibleQuote := RegExReplace(bibleQuote, "i)(\sand.?)$")
      bibleQuote := RegExReplace(bibleQuote, "i)(\sbut)$")
   }
-  bibleQuote := RegExReplace(bibleQuote, "i)(\;|\,|\:)$")
-  LastBibleMsg := bibleQuote
 
-  QuotesAlreadySeen .= "a" Line2Read "a"
-  StringReplace, QuotesAlreadySeen, QuotesAlreadySeen, aa, a
-  StringRight, QuotesAlreadySeen, QuotesAlreadySeen, 91550
+  bibleQuote := RegExReplace(bibleQuote, "i)(\;|\,|\:)$")
   If (StrLen(bibleQuote)>6)
   {
+     LastBibleMsg := bibleQuote
+     QuotesAlreadySeen .= "a" Line2Read "a"
+     StringReplace, QuotesAlreadySeen, QuotesAlreadySeen, aa, a
+     StringRight, QuotesAlreadySeen, QuotesAlreadySeen, 91550
      LastBibleQuoteDisplay := LastBibleQuoteDisplay2 := A_TickCount
      Sleep, 2
      CreateBibleGUI(bibleQuote, 1, 1)
-  }
 
-  If (PrefOpen!=1)
-  {
-     If (menuAdded!=1)
+     If (PrefOpen!=1)
      {
-        menuAdded := 1
-        Menu, Tray, Enable, Show previous Bible &quote
-     }
-     SetMyVolume(1)
-     INIaction(1, "QuotesAlreadySeen", "SavedSettings")
-     If (mouseHidden!=1)
-        strikeJapanBell()
-  } Else SoundPlay, sounds\japanese-bell.mp3
-
-  quoteDisplayTime := 1200 + StrLen(bibleQuote) * 123
-  If (quoteDisplayTime>120100)
-     quoteDisplayTime := 120100
-  Else If (PrefOpen=1)
-     quoteDisplayTime := quoteDisplayTime/2 + DisplayTime
-
-  LastBibleQuoteDisplay := A_TickCount
-  SetTimer, DestroyBibleGui, % -quoteDisplayTime
-  SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
+        SetMyVolume(1)
+        INIaction(1, "QuotesAlreadySeen", "SavedSettings")
+        If (mouseHidden!=1)
+           strikeJapanBell()
+     } Else strikeJapanBell()
+ 
+     quoteDisplayTime := 1200 + StrLen(bibleQuote) * 123
+     If (quoteDisplayTime>120100)
+        quoteDisplayTime := 120100
+     Else If (PrefOpen=1)
+        quoteDisplayTime := quoteDisplayTime/2 + DisplayTime
+ 
+     LastBibleQuoteDisplay := A_TickCount
+     SetTimer, DestroyBibleGui, % -quoteDisplayTime
+     If (showBibleQuotes=1)
+        SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
+  } Else If (showBibleQuotes=1)
+     SetTimer, InvokeBibleQuoteNow, % bibleQuoteFreq//2
 }
 
 DestroyBibleGui(funcu:=0, forced:=0) {
@@ -504,7 +608,7 @@ DestroyBibleGui(funcu:=0, forced:=0) {
      SetTimer, DestroyBibleGui, -50
      Return
   }
-
+  ; SoundBeep
   ; ToolTip, % funcu , , , 2
   GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
   Gui, BibleGui: Destroy
@@ -524,16 +628,20 @@ ShowLastBibleMsg() {
      strikeJapanBell()
      quoteDisplayTime := 1500 + StrLen(LastBibleMsg) * 123
      SetTimer, DestroyBibleGui, % -quoteDisplayTime
-  }
+  } Else
+     CreateBibleGUI("No Bible quote previously displayed", 0, 0, 1)
 }
 
 SetMyVolume(noRestore:=0) {
   Static mustRestoreVol, LastInvoked := 1
 
-  If (PrefOpen=1)
+  If (PrefOpen=1 && hSetWinGui)
+  {
+     Gui, SettingsGUIA: Default
      GuiControlGet, DynamicVolume
-  Else If (AnyWindowOpen>0)
-     CloseWindow()
+  }
+  ; Else If (AnyWindowOpen>0)
+  ;    CloseWindow()
 
   If (DynamicVolume=0)
   {
@@ -548,7 +656,7 @@ SetMyVolume(noRestore:=0) {
      Return
   }
 
-  If (A_TickCount - LastNoonSound<150000) && (PrefOpen=0 && noTollingBgrSounds=2)
+  If (A_TickCount - LastNoonZeitSound<150000) && (PrefOpen=0 && noTollingBgrSounds=2)
      Return
 
   If (ScriptInitialized=1 && AutoUnmute=1 && BeepsVolume>3
@@ -592,6 +700,7 @@ SetMyVolume(noRestore:=0) {
      actualVolume := 99
   If (cutVolumeHalf=1)
      actualVolume := Floor(actualVolume/2.5)
+
   SetVolume(actualVolume)
   Return mustRestoreVol
 }
@@ -604,6 +713,7 @@ SetVolume(val:=100,r:="") {
 
 volSlider() {
     Critical, Off
+    Gui, SettingsGUIA: Default
     GuiControlGet, result , , BeepsVolume, 
     GuiControlGet, tollQuarters
     GuiControlGet, tollHours
@@ -614,12 +724,11 @@ volSlider() {
     BeepsVolume := result
     SetMyVolume(1)
     VerifyTheOptions()
-    GuiControl, , volLevel, % (result<2) ? "Audio: [ MUTE ]" : "Audio volume: " result " % "
+    GuiControl, SettingsGUIA:, volLevel, % (result<2) ? "Audio: [ MUTE ]" : "Audio volume: " result " % "
     If (tollQuarters=1)
-       strikeQuarters()
-
-    If (tollHours=1 || tollHoursAmount=1)
-       strikeHours()
+       strikeQuarters(1)
+    Else If (tollHours=1 || tollHoursAmount=1)
+       strikeHours(1)
 }
 
 RandomNumberCalc(minVariation:=100,maxVariation:=250) {
@@ -631,104 +740,169 @@ RandomNumberCalc(minVariation:=100,maxVariation:=250) {
      If (newNumber - lastNumber > minVariation) || (lastNumber - newNumber > minVariation)
         allGood := 1
   } Until (allGood=1 || A_Index>90000)
+
   lastNumber := newNumber
   Return newNumber
 }
 
-strikeQuarters() {
-  If (stopStrikesNow=1)
-     Return
-
-  sleepDelay := RandomNumberCalc()
-  sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\quarters.mp3, 1")
-
-  If (PrefOpen!=1)
-     Sleep, % strikeInterval + sleepDelay
-  Else
-     Sleep, 600
+strikeQuarters(beats, delayu:=0) {
+  quartersTotalTime := 0
+  Loop, %beats%
+  {
+      randomDelay := RandomNumberCalc()
+      fn := Func("MCXI_Play").Bind(SNDmedia_quarters%A_Index%)
+      thisDelay := strikeInterval * (A_Index - 1) + randomDelay//2 + delayu
+      quartersTotalTime := thisDelay + 2500
+      SetTimer, % fn, % -thisDelay
+  }
 }
 
-strikeHours() {
-  If (stopStrikesNow=1)
-     Return
+strikeHours(beats, delayu:=0) {
+  hoursTotalTime := 0
+  Loop, %beats%
+  {
+      randomDelay := RandomNumberCalc()
+      fn := Func("MCXI_Play").Bind(SNDmedia_hours%A_Index%)
+      thisDelay := strikeInterval * (A_Index - 1) + randomDelay//2 + delayu
+      ; If (A_Index>1)
+      ;    thisDelay += 4000
 
-  sleepDelay := RandomNumberCalc()
-  sndChanH := AhkThread("#NoTrayIcon`nSoundPlay, sounds\hours.mp3, 1") 
-  If (PrefOpen!=1)
-     Sleep, % strikeInterval + sleepDelay
+      hoursTotalTime := thisDelay + 5500
+      SetTimer, % fn, % -thisDelay
+  }
 }
 
-playSemantronDummy() {
-  playSemantron()
-}
-
-playSemantron(snd:=1) {
-  If (stopStrikesNow=1)
-     Return
-
+playSemantron(snd:=1, delayu:=1) {
   If (snd=1)
      semtr2play := "semantron1"
   Else If (snd=2)
      semtr2play := "semantron2"
   Else If (snd=3)
-     semtr2play := "orthodox-chimes2"
+     semtr2play := "orthodox_chimes2"
   Else If (snd=4)
-     semtr2play := "orthodox-chimes1"
-
-  sleepDelay := RandomNumberCalc() * 2
-  Sleep, %sleepDelay%
-
-  If !sndChanS
-     sndChanS := AhkThread("#NoTrayIcon`nMEx:=AhkExported()`nsmd:=MEx.ahkgetvar.semtr2play`nSoundPlay, sounds\%smd%.mp3, 1")
+     semtr2play := "orthodox_chimes1"
   Else
-     sndChanS.ahkReload[]
+      Return
 
-  Global LastNoonSound := A_TickCount
+  sleepDelay := RandomNumberCalc()
+  fn := Func("MCXI_Play").Bind(SNDmedia_%semtr2play%)
+  SetTimer, % fn, % -(delayu + sleepDelay*2)
+  Global LastNoonZeitSound := A_TickCount
+}
+
+tollGivenNoon(snd, delayu) {
+  If (noTollingBgrSounds=2)
+     SetMyVolume(1)
+
+  If !snd
+  {
+     ; INIaction(0, "LastNoonAudio", "SavedSettings")
+     choice := clampInRange(LastNoonAudio + 1, 1, 4, 1)
+     LastNoonAudio := choice
+     INIaction(1, "LastNoonAudio", "SavedSettings")
+  } Else choice := snd
+
+  ToolTip, % "Noon audio playing: " choice
+  sleepDelay := RandomNumberCalc()
+  fn := Func("MCXI_Play").Bind(SNDmedia_noon%choice%)
+  SetTimer, % fn, % -(strikeInterval//2 + sleepDelay//2 + delayu)
+  Global LastNoonZeitSound := A_TickCount
+  SetTimer, removeTooltip, -1000
+}
+
+
+clampInRange(value, min, max, reverse:=0) {
+   If (reverse=1)
+   {
+      If (value>max)
+         value := min
+      Else If (value<min)
+         value := max
+   } Else
+   {
+      If (value>max)
+         value := max
+      Else If (value<min)
+         value := min
+   }
+
+   Return value
 }
 
 TollExtraNoon() {
-  Static lastToll := 1
+  ; Static lastToll := 1
+
   If (noTollingBgrSounds>=2)
      isSoundPlayingNow()
 
   If (AnyWindowOpen=1)
      stopStrikesNow := 0
 
-  If (stopStrikesNow=1 || PrefOpen=1)
-  || ((A_TickCount - lastToll<100000) && (AnyWindowOpen=1))
+  If (PrefOpen=1)  ; || ((A_TickCount - lastToll<100000) && (AnyWindowOpen=1))
      Return
 
-  Global LastNoonSound := A_TickCount
-  Sleep, 50
+  If (stopStrikesNow=1)
+     Return
+
+  Global LastNoonZeitSound := A_TickCount
+  Sleep, 2
   If (noTollingBgrSounds=2)
      SetMyVolume(1)
-  If !sndChanN
-     sndChanN := AhkThread("#NoTrayIcon`nRandom, choice, 1, 4`nSoundPlay, sounds\noon%choice%.mp3, 1")
-  Else
-     sndChanN.ahkReload[]
 
-  lastToll := A_TickCount
+  ; Random, snd, 1, 4
+  tollGivenNoon(0, 250)
+  ; lastToll := A_TickCount
 }
 
-AdditionalStriker() {
+AdditionalStrikerPerformer() {
   If (noTollingBgrSounds>=2)
      isSoundPlayingNow()
 
   If (noTollingWhenMhidden=1)
      mouseHidden := checkMcursorState()
 
-  If (stopAdditionalStrikes=1 || mouseHidden=1 || A_IsSuspended || PrefOpen=1 || strikingBellsNow=1)
+  If (mouseHidden=1 || A_IsSuspended || strikingBellsNow=1)
      Return
+
   SetMyVolume(1)
-  If !sndChanA
-     sndChanA := AhkThread("#NoTrayIcon`nSoundPlay, sounds\auxilliary-bell.mp3, 1")
-  Else
-     sndChanA.ahkReload[]
+  MCXI_Play(SNDmedia_auxil_bell)
+}
+
+PlayAlarmedBell() {
+   Static indexu := 0, bu := 0
+   SetMyVolume(1)
+   If (userAlarmSound=1)
+   {
+      bu := !bu
+      If bu
+         MCXI_Play(SNDmedia_auxil_bell)
+   } Else If (userAlarmSound=2)
+   {
+      indexu := clampInRange(indexu + 1, 1, 4, 1)
+      MCXI_Play(SNDmedia_quarters%indexu%)
+   } Else If (userAlarmSound=3)
+   {
+      indexu := clampInRange(indexu + 1, 1, 4, 1)
+      MCXI_Play(SNDmedia_hours%indexu%)
+   } Else If (userAlarmSound=4)
+   {
+      bu := !bu
+      If bu
+         MCXI_Play(SNDmedia_japan_bell)
+   }
+}
+
+MCXI_Play(hSND) {
+    If (stopAdditionalStrikes=1 || stopStrikesNow=1 || userMuteAllSounds=1)
+       Return
+
+    MCI_SendString("seek " hSND " to 1 wait")
+    MCI_Play(hSND)
 }
 
 readjustBibleTimer() {
   SetTimer, InvokeBibleQuoteNow, Off
-  Sleep, 25
+  Sleep, 5
   SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
 }
 
@@ -736,12 +910,11 @@ theChimer() {
   Critical, on
   Static lastChimed, todayTest
   FormatTime, CurrentTime,, hh:mm
-  SetTimer, FreeAhkResources, Off
   If (lastChimed=CurrentTime || A_IsSuspended || PrefOpen=1)
      mustEndNow := 1
+
   FormatTime, exactTime,, HH:mm
   FormatTime, HoursIntervalTest,, H ; 0-23 format
-
   If (noTollingBgrSounds>=2)
   { 
      testBgrNoise := isSoundPlayingNow()
@@ -751,9 +924,7 @@ theChimer() {
 
   If (todayTest!=A_MDay) && (ScriptInitialized=1)
   {
-     If (A_WDay=2 || A_WDay=5)
-        FreeAhkResources(1,1)
-     Sleep, 100
+     Sleep, 10
      testCelebrations()
   }
 
@@ -781,55 +952,49 @@ theChimer() {
   stopStrikesNow := stopAdditionalStrikes := 0
   strikingBellsNow := 1
   Random, delayRandNoon, 950, 5050
-
+  NoonTollQuartersDelay := 0
   If (InStr(exactTime, "06:00") && tollNoon=1)
   {
+     NoonTollQuartersDelay := 7500
      volumeAction := SetMyVolume()
      showTimeNow()
-     SoundPlay, sounds\morning.mp3, 1
-     If (stopStrikesNow=0)
-        Sleep, %delayRandNoon%
+     MCXI_Play(SNDmedia_morning)
   } Else If (InStr(exactTime, "18:00") && tollNoon=1)
   {
+     NoonTollQuartersDelay := 18500
      volumeAction := SetMyVolume()
      showTimeNow()
      If (BeepsVolume>1)
-        SoundPlay, sounds\evening.mp3, 1
-     If (stopStrikesNow=0)
-        Sleep, %delayRandNoon%
+        MCXI_Play(SNDmedia_evening)
+
      If (StrLen(isHolidayToday)>3 && SemantronHoliday=0 && TypeHolidayOccured>1)
-        SetTimer, TollExtraNoon, -51000
+        tollGivenNoon(0, 51000 + delayRandNoon + NoonTollQuartersDelay)
   } Else If (InStr(exactTime, "00:00") && tollNoon=1)
   {
+     NoonTollQuartersDelay := 6500
      volumeAction := SetMyVolume()
      showTimeNow()
      If (BeepsVolume>1)
-        SoundPlay, sounds\midnight.mp3, 1
-     If (stopStrikesNow=0)
-        Sleep, %delayRandNoon%
+        MCXI_Play(SNDmedia_midnight)
   }
 
+  quartersTotalTime := 0
+  hoursTotalTime := 0
   If (InStr(CurrentTime, ":15") && tollQuarters=1)
   {
      volumeAction := SetMyVolume()
      showTimeNow()
-     strikeQuarters()
+     strikeQuarters(1, NoonTollQuartersDelay)
   } Else If (InStr(CurrentTime, ":30") && tollQuarters=1)
   {
      volumeAction := SetMyVolume()
      showTimeNow()
-     Loop, 2
-        strikeQuarters()
+     strikeQuarters(2, NoonTollQuartersDelay)
   } Else If (InStr(CurrentTime, ":45") && tollQuarters=1)
   {
      volumeAction := SetMyVolume()
      showTimeNow()
-     Loop, 3
-     {
-        strikeQuarters()
-        If (stopStrikesNow=0)
-           Sleep, % A_Index * 160
-     }
+     strikeQuarters(3, NoonTollQuartersDelay)
   } Else If InStr(CurrentTime, ":00")
   {
      FormatTime, countHours2beat,, h   ; 0-12 format
@@ -837,110 +1002,103 @@ theChimer() {
      {
         volumeAction := SetMyVolume()
         showTimeNow()
-        Loop, 4
-        {
-           strikeQuarters()
-           If (stopStrikesNow=0)
-              Sleep, % A_Index * 140
-        }
+        strikeQuarters(4, NoonTollQuartersDelay)
      }
+
      Random, delayRand, 900, 1600
-     If (stopStrikesNow=0)
-        Sleep, %delayRand%
      If (countHours2beat="00") || (countHours2beat=0)
         countHours2beat := 12
+
      If (tollHoursAmount=1 && tollHours=1)
      {
         volumeAction := SetMyVolume()
         showTimeNow()
-        Loop, %countHours2beat%
-        {
-           strikeHours()
-           If (stopStrikesNow=0)
-              Sleep, % A_Index * 85
-        }
+        strikeHours(countHours2beat, delayRand//2 + quartersTotalTime)
      } Else If (tollHours=1)
      {
         volumeAction := SetMyVolume()
         showTimeNow()
-        strikeHours()
+        strikeHours(1, delayRand//2 + quartersTotalTime)
      }
 
      If (InStr(exactTime, "12:0") && tollNoon=1)
      {
-        Random, delayRand, 2000, 8500
-        If (stopStrikesNow=0)
-           Sleep, %delayRand%
+        Random, delayRand2, 2000, 8500
         volumeAction := SetMyVolume()
-        choice := (LastNoon=4) ? 1 : LastNoon + 1
-        If (storeSettingsREG=0)
-           IniWrite, %choice%, %IniFile%, SavedSettings, LastNoon
-        Else
-           RegWrite, REG_SZ, %APPregEntry%, LastNoon, %choice%
-
         If (tollHours=0)
            showTimeNow()
 
-        If (stopStrikesNow=0 && ScriptInitialized=1 && volumeAction>0 && BeepsVolume>1)
+        If (stopStrikesNow=0 && BeepsVolume>1)
         {
-           Global LastNoonSound := A_TickCount
-           SoundPlay, sounds\noon%choice%.mp3, 1
-           Global LastNoonSound := A_TickCount
-        } Else If (stopStrikesNow=0 && BeepsVolume>1)
-        {
-           Random, newDelay, 49000, 99000
-           Global LastNoonSound := A_TickCount
-           SoundPlay, sounds\noon%choice%.mp3
-           Global LastNoonSound := A_TickCount
-           If (A_WDay=1 || StrLen(isHolidayToday)>3)  ; on Sundays or holidays
-              SetTimer, TollExtraNoon, % -newDelay
+           tollGivenNoon(0, delayRand2 + hoursTotalTime)
+           If InStr(isHolidayToday, "easter")  ; on Easter
+           {
+              Random, newDelay, 1500, 6000
+              tollGivenNoon(0, delayRand2 + newDelay + hoursTotalTime)
+              Random, newDelay, 3500, 4000
+              tollGivenNoon(0, delayRand2 + newDelay + hoursTotalTime)
+              Random, newDelay, 2500, 5000
+              tollGivenNoon(0, delayRand2 + newDelay + hoursTotalTime)
+           } Else If (A_WDay=1 || StrLen(isHolidayToday)>3)  ; on Sundays or holidays
+           {
+              Random, newDelay, 49000, 99000
+              tollGivenNoon(0, delayRand2 + newDelay + hoursTotalTime)
+           }
         }
      }
   }
 
-  If (SemantronHoliday=1 && StrLen(isHolidayToday)>3)
+  If (stopStrikesNow=0 && SemantronHoliday=1 && StrLen(isHolidayToday)>3 && InStr(exactTime, ":45"))
   {
      If InStr(exactTime, "09:45")
-        playSemantron(1)
+        playSemantron(1, quartersTotalTime)
      Else If InStr(exactTime, "17:45")
-        playSemantron(2)
+        playSemantron(2, quartersTotalTime)
      Else If InStr(exactTime, "22:45")
-        playSemantron(3)
-
-     If (InStr(exactTime, "11:45") && (A_WDay=1 || A_WDay=7))
+        playSemantron(3, quartersTotalTime)
+     Else If (InStr(exactTime, "11:45") && (A_WDay=1 || A_WDay=7))
      {
-        SetTimer, playSemantronDummy, -60000
-        playSemantron(4)
+        Random, newDelay, 55100, 65100
+        playSemantron(4, quartersTotalTime)
+        playSemantron(1, quartersTotalTime + newDelay)
      }
-  } Else If (StrLen(isHolidayToday)>3 && TypeHolidayOccured=1) && (tollNoon=1 || tollQuarters=1)
+  } Else If (StrLen(isHolidayToday)>3 && SemantronHoliday=0 && TypeHolidayOccured=1) && (tollNoon=1 || tollQuarters=1)
   {
      Random, newDelay, 39000, 89000
      If (InStr(exactTime, "09:45") || InStr(exactTime, "17:45"))
-        SetTimer, TollExtraNoon, % -newDelay
+        tollGivenNoon(0, newDelay)
   }
 
-  If (AutoUnmute=1 && volumeAction>0)
-  {
-     If (volumeAction=1 || volumeAction=3)
-        SoundSet, 1, , mute
-     If (volumeAction=2 || volumeAction=3)
-        SoundSet, %master_vol%
-  }
+  ; If (AutoUnmute=1 && volumeAction>0)
+  ; {
+  ;    If (volumeAction=1 || volumeAction=3)
+  ;       SoundSet, 1, , mute
+  ;    If (volumeAction=2 || volumeAction=3)
+  ;       SoundSet, %master_vol%
+  ; }
+
   strikingBellsNow := 0
   lastChimed := CurrentTime
   SetTimer, theChimer, % calcNextQuarter()
-  SetTimer, FreeAhkResources, -350100, 950
 }
 
 showTimeNow() {
-  If (displayClock=0)
+  If (displayClock=0) || (A_TickCount - scriptStartZeit<1500)
      Return
 
-  If (analogDisplay=1 && isAnalogClockFile)
+  If (analogDisplay=1)
   {
-     analogClockThread.ahkPostFunction["showClock"]
-     DestroyBibleGui(A_ThisFunc)
-  } Else CreateBibleGUI(generateDateTimeTxt(1,1))
+     ClockPosX := GuiX
+     ClockPosY := GuiY
+     If (moduleAnalogClockInit!=1)
+        InitClockFace()
+     showAnalogClock()
+     ; DestroyBibleGui(A_ThisFunc)
+  } Else If (BibleGuiVisible!=1)
+  {
+     CreateBibleGUI(generateDateTimeTxt(1,1))
+     SetTimer, DestroyBibleGui, % - (DisplayTime + 50)
+  }
 }
 
 calcNextQuarter() {
@@ -1064,7 +1222,7 @@ GuiFader(guiName,toggle,alphaLevel) {
    lastEvent := toggle
 }
 
-CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
+CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
     Critical, On
     lastOSDredraw := A_TickCount
     bibleQuoteVisible := (isBibleQuote=1) ? 1 : 0
@@ -1104,10 +1262,19 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
     Gui, BibleGui: Show, NoActivate AutoSize Hide x%GuiX% y%GuiY%, ChurchTowerBibleWin
     WinSet, Transparent, 1, ChurchTowerBibleWin
     WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
+
+    If (isBibleQuote=0 && InStr(msg2Display, ":"))
+    {
+       percentileDay := Round(getPercentOfToday() * 100) "%"
+       hu := Ceil(mainHeig*0.04 + 1)
+       Gui, BibleGui: Add, Progress, x0 y0 w%mainWid% h%hu% c%OSDfadedColor% background%OSDbgrColor%, % percentileDay
+    }
+
     If (centerMsg=1)
     {
        If (makeScreenDark=1)
           ScreenBlocker(0,1)
+
        ActiveMon := MWAGetMonitorMouseIsIn()
        If ActiveMon
        {
@@ -1127,6 +1294,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
           Final_x := GuiX
           Final_y := GuiY
        }
+
        Gui, BibleGui: Show, NoActivate AutoSize x%Final_x% y%Final_y%, ChurchTowerBibleWin
        If (isBibleQuote=1)
           CreateShareButton()
@@ -1149,6 +1317,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0,noAdds:=0) {
 
        Gui, BibleGui: Show, NoActivate x%Final_x% y%Final_y%, ChurchTowerBibleWin
     }
+
     WinSet, Transparent, 1, ChurchTowerBibleWin
     WinSet, AlwaysOnTop, On, ChurchTowerBibleWin
     BibleGuiVisible := 1
@@ -1215,7 +1384,7 @@ CreateShareButton() {
     Gui, ShareBtnGui: Margin, %marginz%, %marginz%
     Gui, ShareBtnGui: Color, c%OSDtextColor%
     Gui, ShareBtnGui: Font, %OSDbgrColor% s%FontSizeMin% Bold,
-    Gui, ShareBtnGui: Add, Text, c%OSDbgrColor% gCopyLastQuote, Copy && share quote
+    Gui, ShareBtnGui: Add, Text, c%OSDbgrColor% gCopyLastQuote, Copy and share quote
     ActiveMon := MWAGetMonitorMouseIsIn()
     If ActiveMon
     {
@@ -1248,6 +1417,17 @@ CopyLastQuote() {
   ToolTip
 }
 
+ResetAnalogClickPosition() {
+   If (constantAnalogClock!=1)
+      Return
+
+   ClockPosX := ClockPosY := 1
+   Gui, ClockGui: Show, NoActivate x%ClockPosX% y%ClockPosY%
+   saveAnalogClockPosition("no")
+   If (constantAnalogClock!=1)
+      Gui, ClockGui: Hide
+}
+
 WM_MouseMove(wP, lP, msg, hwnd) {
 ; Function by Drugwash
   Global
@@ -1259,7 +1439,19 @@ WM_MouseMove(wP, lP, msg, hwnd) {
   If (A_TickCount - LastBibleQuoteDisplay<HideDelay+100) || (A_TickCount - lastOSDredraw<1000)
      Return
 
-  If InStr(hBibleOSD, hwnd)
+  If ((constantAnalogClock=1 || PrefOpen=1) && A=hFaceClock)
+  {
+     If (wP&0x1)
+     {
+        PostMessage, 0xA1, 2,,, ahk_id %hFaceClock%
+        SetTimer, trackMouseAnalogClockDragging, -25
+     }
+     DllCall("user32\SetCursor", "Ptr", hCursM)
+  ; } Else If (constantAnalogClock=0 || PrefOpen=1 && (wP&0x1)) && (A_TickCount - lastShowTime>950)
+  ; {
+  ;    hideAnalogClock()
+  ;    SetTimer, showAnalogClock, -900
+  } Else If InStr(hBibleOSD, hwnd)
   {
      If (PrefOpen=0)
         DestroyBibleGui(A_ThisFunc, 1)
@@ -1285,8 +1477,15 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         DestroyBibleGui(A_ThisFunc, 1)
 }
 
+
+trackMouseAnalogClockDragging() {
+     defAnalogClockPosChanged := 1
+     WinGetPos, ClockPosX, ClockPosY,,, ahk_id %hFaceClock%
+     ; SetTimer, trackMouseDragging, -150
+     SetTimer, saveAnalogClockPosition, -150
+}
+
 trackMouseDragging() {
-; Function by Drugwash
   Global
 
   If (PrefOpen!=1)
@@ -1304,7 +1503,10 @@ trackMouseDragging() {
         WinActivate, ahk_id %hAWin%
   }
   If (bibleQuoteVisible=0)
-     saveGuiPositions()
+     SetTimer, saveGuiPositions, -150
+ 
+  If (GetKeyState("LButton", "P") && PrefOpen=0)
+     SetTimer, trackMouseDragging, -150
 }
 
 saveGuiPositions() {
@@ -1312,31 +1514,56 @@ saveGuiPositions() {
 
   If (PrefOpen=0)
   {
-     Sleep, 700
+     Sleep, 300
      SetTimer, DestroyBibleGui, -1500
      INIaction(1, "GuiX", "OSDprefs")
      INIaction(1, "GuiY", "OSDprefs")
-  } Else If (PrefOpen=1)
+  } Else ; If (PrefOpen=1)
   {
      GuiControl, SettingsGUIA:, GuiX, %GuiX%
      GuiControl, SettingsGUIA:, GuiY, %GuiY%
   }
 }
 
-saveAnalogClockPosition(mX, mY) {
+saveAnalogClockPosition(dummy:=0) {
 ; function called after dragging the OSD to a new position
   defAnalogClockPosChanged := 1
-  ClockGuiY := mY
-  ClockGuiX := mX
-  INIaction(1, "ClockGuiX", "OSDprefs")
-  INIaction(1, "ClockGuiY", "OSDprefs")
-  Sleep, 10
+  If (dummy!="no")
+     WinGetPos, ClockPosX, ClockPosY, , , ahk_id %hFaceClock%
+
+  ClockGuiY := ClockPosY, ClockGuiX := ClockPosX
+  If (PrefOpen=1)
+  {
+     GuiX := ClockPosX, GuiY := ClockPosY
+     GuiControl, SettingsGUIA:, GuiX, %GuiX%
+     GuiControl, SettingsGUIA:, GuiY, %GuiY%
+  } Else
+  {
+    INIaction(1, "ClockGuiX", "OSDprefs")
+    INIaction(1, "ClockGuiY", "OSDprefs")
+    Sleep, 10
+   }
+   If GetKeyState("LButton", "P")
+      SetTimer, saveAnalogClockPosition, -150
+}
+
+GetWindowRectum(hwnd) {
+   size := VarSetCapacity(rect, 16, 0)
+   DllCall("GetWindowRect", "UPtr", hwnd, "UPtr", &rect, "UInt")
+   r := []
+   r.x1 := NumGet(rect, 0, "Int"), r.y1 := NumGet(rect, 4, "Int")
+   r.x2 := NumGet(rect, 8, "Int"), r.y2 := NumGet(rect, 12, "Int")
+   r.w := Abs(max(r.x1, r.x2) - min(r.x1, r.x2))
+   r.h := Abs(max(r.y1, r.y2) - min(r.y1, r.y2))
+
+  Return r
 }
 
 SetStartUp() {
   If (A_IsSuspended || PrefOpen=1)
   {
      SoundBeep, 300, 900
+     WinActivate, ahk_id %hSetWinGui%
      Return
   }
 
@@ -1352,18 +1579,18 @@ SetStartUp() {
         Return
      }
      RegWrite, REG_SZ, %StartRegPath%, %appName%, %regEntry%
-     Menu, Tray, Check, Sta&rt at boot
+     Menu, Tray, Check, Start at boot
      CreateBibleGUI("Enabled Start at Boot",,,1)
   } Else
   {
      RegDelete, %StartRegPath%, %appName%
-     Menu, Tray, Uncheck, Sta&rt at boot
+     Menu, Tray, Uncheck, Start at boot
      CreateBibleGUI("Disabled Start at Boot",,,1)
   }
 }
 
 SuspendScriptNow() {
-  SuspendScript(0)
+   SuspendScript(0)
 }
 
 SuspendScript(partially:=0) {
@@ -1376,9 +1603,9 @@ SuspendScript(partially:=0) {
       SoundBeep, 300, 900
       Return
    }
+
    sillySoundHack()
    GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
-   FreeAhkResources(1)
    If !A_IsSuspended
    {
       stopStrikesNow := 1
@@ -1386,8 +1613,8 @@ SuspendScript(partially:=0) {
       SetTimer, theChimer, Off
       Menu, Tray, Uncheck, &%appName% activated
       SoundLoop("")
-      If (constantAnalogClock=1 && isAnalogClockFile)
-         analogClockThread.ahkFunction["hideClock"]
+      If (constantAnalogClock=1)
+         hideAnalogClock()
    } Else
    {
       If (partially=1)
@@ -1408,6 +1635,7 @@ SuspendScript(partially:=0) {
       If (ClockVisibility!=1 || defAnalogClockPosChanged=1)
          CreateBibleGUI(appName friendlyName,,,1)
    }
+   stopStrikesNow := 1
    Sleep, 20
    Suspend
 }
@@ -1422,43 +1650,54 @@ ReloadScriptNow() {
 
 InitializeTray() {
     Menu, Tray, NoStandard
-    If (ShowBibleQuotes=1)
-    {
-       Menu, Tray, Add, Show previous Bible &quote, ShowLastBibleMsg
-       Menu, Tray, Disable, Show previous Bible &quote
-    }
     Menu, Tray, Add, &Customize, ShowSettings
-    Menu, Tray, Add, L&arge UI fonts, ToggleLargeFonts
+    Menu, Tray, Add, Large UI &fonts, ToggleLargeFonts
     If (storeSettingsREG=0)
-       Menu, Tray, Add, Sta&rt at boot, SetStartUp
-
-    Menu, Tray, Add
+       Menu, Tray, Add, Start at boot, SetStartUp
 
     RegRead, currentReg, %StartRegPath%, %appName%
     If (StrLen(currentReg)>5 && storeSettingsREG=0)
-       Menu, Tray, Check, Sta&rt at boot
+       Menu, Tray, Check, Start at boot
 
     If (PrefsLargeFonts=1)
-       Menu, Tray, Check, L&arge UI fonts
+       Menu, Tray, Check, Large UI &fonts
 
+    Menu, Tray, Add
     RunType := A_IsCompiled ? "" : " [script]"
     If FileExist(tickTockSound)
+    {
        Menu, Tray, Add, Tick/Toc&k sound, ToggleTickTock
-    If isAnalogClockFile
-       Menu, Tray, Add, Analo&g clock display (constantly), toggleAnalogClock
+       If (tickTockNoise=1)
+          Menu, Tray, Check, Tick/Toc&k sound
+    }
+
+    Menu, Tray, Add, Analo&g clock display, toggleAnalogClock
+    Menu, Tray, Add, Reset analog clock position, ResetAnalogClickPosition
+    Menu, Tray, Add, Set &alarm or timer, PanelSetAlarm
+    Menu, Tray, Add, Stop&watch, PanelStopWatch
+    If (ObserveHolidays=1)
+    {
+       Menu, Tray, Add, Celebrations / &holidays, PanelIncomingCelebrations
+       ; Menu, Tray, Add, Mana&ge celebrations, OpenListCelebrationsBtn
+    }
+
+    If (ShowBibleQuotes=1)
+       Menu, Tray, Add, Show pre&vious Bible quote, ShowLastBibleMsg
+    Menu, Tray, Add, Show a Bible &quote now, InvokeBibleQuoteNow
     Menu, Tray, Add
     Menu, Tray, Add, &%appName% activated, SuspendScriptNow
     Menu, Tray, Check, &%appName% activated
+    Menu, Tray, Add, &Mute all sounds, ToggleAllMuteSounds
+    If (userMuteAllSounds=1)
+       Menu, Tray, Check, &Mute all sounds
     Menu, Tray, Add, &Restart, ReloadScriptNow
     Menu, Tray, Add
-    Menu, Tray, Add, &About, AboutWindow
+    Menu, Tray, Add, Abou&t, PanelAboutWindow
     Menu, Tray, Add
     Menu, Tray, Add, E&xit, KillScript, P50
     Menu, Tray, Tip, %appName% v%Version%%RunType%
-    Menu, Tray, Default, &About
-    Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display (constantly)
-    If (tickTockNoise=1)
-       Menu, Tray, Check, Tick/Toc&k sound
+    Menu, Tray, Default, Abou&t
+    Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display
 }
 
 ToggleLargeFonts() {
@@ -1466,29 +1705,47 @@ ToggleLargeFonts() {
     LargeUIfontValue := 13
     INIaction(1, "PrefsLargeFonts", "SavedSettings")
     INIaction(1, "LargeUIfontValue", "SavedSettings")
-    Menu, Tray, % (PrefsLargeFonts=0 ? "Uncheck" : "Check"), L&arge UI fonts
+    Menu, Tray, % (PrefsLargeFonts=0 ? "Uncheck" : "Check"), Large UI &fonts
     If (PrefOpen=1)
     {
        SwitchPreferences(1)
-    } Else If (AnyWindowOpen=1)
-    {
-       CloseWindow()
-       AboutWindow()
-    } Else If (AnyWindowOpen=2)
-    {
-       CloseWindow()
-       ShowWelcomeWindow()
-    } Else If (AnyWindowOpen=3)
-    {
-       CloseWindow()
-       PanelIncomingCelebrations()
+       Return
     }
+ 
+    o_win := AnyWindowOpen
+    CloseWindow()
+    Sleep, 50
+    If (o_win=1)
+       PanelAboutWindow()
+    Else If (o_win=2)
+       ShowWelcomeWindow()
+    Else If (o_win=3)
+       PanelIncomingCelebrations()
+    Else If (o_win=4)
+       PanelSetAlarm()
+    Else If (o_win=5)
+       PanelStopWatch()
+    Else If (windowManageCeleb=1)
+    {
+       CloseCelebListWin()
+       PanelManageCelebrations()
+    }
+}
+
+ToggleAllMuteSounds() {
+    userMuteAllSounds := !userMuteAllSounds
+    INIaction(1, "userMuteAllSounds", "SavedSettings")
+    Menu, Tray, % (userMuteAllSounds=0 ? "Uncheck" : "Check"), &Mute all sounds
+    If (tickTockNoise=1)
+       ToggleTickTock()
 }
 
 ToggleTickTock() {
     If (A_IsSuspended || PrefOpen=1)
     {
        SoundBeep, 300, 900
+       If (PrefOpen=1)
+          WinActivate, ahk_id %hSetWinGui%
        Return
     }
 
@@ -1502,20 +1759,25 @@ ToggleTickTock() {
        SoundLoop("")
 
     If (constantAnalogClock=1)
-    {
-       analogClockThread.ahkassign("tickTockNoise", tickTockNoise)
-       analogClockThread.ahkPostFunction("SynchSecTimer")
-    }
+       SynchSecTimer()
 
     If (noTollingBgrSounds>=2)
        isSoundPlayingNow()
+
     SetMyVolume(1)
+}
+
+toggleMoonPhasesAnalog() {
+    analogMoonPhases := !analogMoonPhases
+    INIaction(1, "analogMoonPhases", "SavedSettings")
 }
 
 ChangeClockSize(newSize) {
    If (A_IsSuspended || PrefOpen=1)
    {
       SoundBeep, 300, 900
+      If (PrefOpen=1)
+         WinActivate, ahk_id %hSetWinGui%
       Return
    }
 
@@ -1525,19 +1787,28 @@ ChangeClockSize(newSize) {
 }
 
 toggleAnalogClock() {
-    If (A_IsSuspended || PrefOpen=1)
-    {
-       SoundBeep, 300, 900
-       Return
-    }
+   If (A_IsSuspended || PrefOpen=1)
+   {
+      SoundBeep, 300, 900
+      If (PrefOpen=1)
+         WinActivate, ahk_id %hSetWinGui%
+      Return
+   }
 
+   o_constantAnalogClock := constantAnalogClock
    constantAnalogClock := !constantAnalogClock
+   If (o_constantAnalogClock && hFaceClock)
+      saveAnalogClockPosition()
+
+   If (constantAnalogClock=1 && moduleAnalogClockInit!=1)
+      InitClockFace()
+
    INIaction(1, "constantAnalogClock", "OSDprefs")
-   Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display (constantly)
+   Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display
    If (constantAnalogClock=1)
-      analogClockThread.ahkPostFunction["showClock"]
+      showAnalogClock()
    Else
-      analogClockThread.ahkPostFunction["hideClock"]
+      hideAnalogClock()
 }
 
 ForceReloadNow() {
@@ -1563,6 +1834,7 @@ ReloadScript(silent:=1) {
        CloseSettings()
        Return
     }
+
     DestroyBibleGui(A_ThisFunc)
     If FileExist(ThisFile)
     {
@@ -1630,7 +1902,7 @@ KillScript(showMSG:=1) {
 ;   various functions used in the UI.
 ;================================================================
 
-SettingsGUI(themed:=0) {
+GenericPanelGUI(themed:=0) {
    Global
    If (themed=1)
       determineUIcolors()
@@ -1675,7 +1947,7 @@ initSettingsWindow() {
        SuspendScript(1)
 
     PrefOpen := 1
-    SettingsGUI()
+    GenericPanelGUI()
 }
 
 verifySettingsWindowSize(noCheckLargeUI:=0) {
@@ -1728,23 +2000,16 @@ verifySettingsWindowSize(noCheckLargeUI:=0) {
 }
 
 SwitchPreferences(forceReopenSame:=0) {
-    testPrefWind := (forceReopenSame=1) ? "lol" : CurrentPrefWindow
-    GuiControlGet, CurrentPrefWindow
-    If (testPrefWind=CurrentPrefWindow)
-       Return
-
     PrefOpen := 0
+    Gui, SettingsGUIA: Default
     GuiControlGet, ApplySettingsBTN, Enabled
     Gui, Submit
     Gui, SettingsGUIA: Destroy
     Sleep, 25
-    SettingsGUI()
+    GenericPanelGUI()
     CheckSettings()
-    If (CurrentPrefWindow=5)
-    {
-       ShowSettings()
-       VerifyTheOptions(ApplySettingsBTN)
-    }
+    ShowSettings()
+    VerifyTheOptions(ApplySettingsBTN)
 }
 
 ApplySettings() {
@@ -1752,22 +2017,24 @@ ApplySettings() {
     CheckSettings()
     PrefOpen := 0
     INIsettings(1)
-    Sleep, 100
+    Sleep, 50
     ReloadScript()
 }
 
 CloseWindow() {
     AnyWindowOpen := 0
+    ResetStopWatchCounter()
     If (tickTockNoise!=1)
        SoundLoop("")
 
     Gui, SettingsGUIA: Destroy
+    hSetWinGui := ""
 }
 
 CloseSettings() {
+   Gui, SettingsGUIA: Default
    GuiControlGet, ApplySettingsBTN, Enabled
    PrefOpen := 0
-   analogClockThread.ahkassign("PrefOpen", PrefOpen)
    CloseWindow()
    If (ApplySettingsBTN=0)
    {
@@ -1784,15 +2051,16 @@ CloseSettings() {
 
 SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
     Static lastInvoked := 1
-    If (CtrlHwnd && IsRightClick=1)
+    Menu, ContextMenu, UseErrorLevel
+    Menu, ContextMenu, Delete
+    Sleep, 25
+    If (CtrlHwnd && IsRightClick=1) || (mouseToolTipWinCreated=1)
     || ((A_TickCount-lastInvoked>250) && IsRightClick=0)
     {
        lastInvoked := A_TickCount
        Return
     }
-    Menu, ContextMenu, UseErrorLevel
-    Menu, ContextMenu, Delete
-    Sleep, 25
+
     Menu, ContextMenu, Add, L&arge UI fonts, ToggleLargeFonts
     Menu, ContextMenu, Add, 
     If (PrefsLargeFonts=1)
@@ -1801,14 +2069,16 @@ SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
     If (PrefOpen=0)
        Menu, ContextMenu, Add, &Settings, ShowSettings
     Menu, ContextMenu, Add
+    Menu, ContextMenu, Add, Donate now, DonateNow
     Menu, ContextMenu, Add, &Restart %appName%, ReloadScriptNow
-    Menu, ContextMenu, Add
-    Menu, ContextMenu, Add, Close menu, dummy
     Menu, ContextMenu, Show
     lastInvoked := A_TickCount
     Return
 }
 
+CelebrationsGuiaGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
+    SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y)
+}
 
 SettingsGUIAGuiEscape:
    If (PrefOpen=1)
@@ -1876,7 +2146,7 @@ setColors(hC, event, c, err=0) {
   r := %ctrl% := hexRGB(Dlg_Color(%ctrl%, hC))
   Critical, %oc%
   GuiControl, %g%:+Background%r%, %ctrl%
-  GuiControl, Enable, ApplySettingsBTN
+  GuiControl, %g%:Enable, ApplySettingsBTN
   Sleep, 100
   OSDpreview()
 }
@@ -1897,7 +2167,7 @@ OSDpreview() {
     {
        DoGuiFader := 1
        If (ClockVisibility=1)
-          analogClockThread.ahkPostFunction["hideClock"]
+          hideAnalogClock()
        DestroyBibleGui(A_ThisFunc)
        Return
     }
@@ -1905,9 +2175,9 @@ OSDpreview() {
     If (analogDisplay=0 || ShowPreviewDate=1)
     {
        If (ClockVisibility=1)
-          analogClockThread.ahkPostFunction["hideClock"]
+          hideAnalogClock()
        CreateBibleGUI(generateDateTimeTxt(1, !ShowPreviewDate))
-    } Else If (A_TickCount - lastInvoked > 200) && (PrefOpen=1)
+    } Else If (A_TickCount - lastInvoked > 200) && (PrefOpen=1 && !GetKeyState("LButton", "P"))
     {
        reInitializeAnalogClock()
        lastInvoked := A_TickCount
@@ -1927,14 +2197,14 @@ OSDpreview() {
 }
 
 reInitializeAnalogClock() {
-   analogClockThread.ahkFunction["hideClock"]
+   hideAnalogClock()
    Sleep, 2
-   analogClockThread.ahkFunction["OnHEXit"]
+   exitAnalogClock()
    Sleep, 2
-   analogClockThread.ahkFunction["InitClockFace"]
+   InitClockFace()
    DestroyBibleGui(A_ThisFunc)
    Sleep, 2
-   analogClockThread.ahkFunction["showClock"]
+   showAnalogClock()
 }
 
 generateDateTimeTxt(LongD:=1, noDate:=0) {
@@ -1965,33 +2235,39 @@ editsOSDwin() {
 }
 
 checkBoxStrikeQuarter() {
+  Gui, SettingsGUIA: Default
   GuiControlGet, tollQuarters
   stopStrikesNow := 0
   VerifyTheOptions()
   If (tollQuarters=1)
-     strikeQuarters()
+     strikeQuarters(1)
 }
 
 checkBoxStrikeHours() {
+  Gui, SettingsGUIA: Default
   GuiControlGet, tollHours
   stopStrikesNow := 0
   VerifyTheOptions()
   If (tollHours=1)
-     strikeHours()
+     strikeHours(1)
 }
 
 checkBoxStrikeAdditional() {
+  Gui, SettingsGUIA: Default
   GuiControlGet, AdditionalStrikes
   stopStrikesNow := 0
   VerifyTheOptions()
   If (AdditionalStrikes=1)
-     SoundPlay, sounds\auxilliary-bell.mp3
+     MCXI_Play(SNDmedia_auxil_bell)
 }
 
 ShowSettings() {
     doNotOpen := initSettingsWindow()
     If (doNotOpen=1)
+    {
+       WinActivate, ahk_id %hSetWinGui%
        Return
+    }
 
     Global CurrentPrefWindow := 5
     Global DoNotRepeatTimer := A_TickCount
@@ -2001,7 +2277,6 @@ ShowSettings() {
     editFieldWid := 220
     btnWid := 90
 
-    analogClockThread.ahkassign("PrefOpen", PrefOpen)
     If (PrefsLargeFonts=1)
     {
        Gui, Font, s%LargeUIfontValue%
@@ -2010,7 +2285,6 @@ ShowSettings() {
        columnBpos1 := columnBpos2 := columnBpos2 + 90
     }
     columnBpos1b := columnBpos1 + 20
-
     Gui, Add, Tab3, -Background +hwndhTabs, Bells|Extras|Restrictions|OSD options
 
     Gui, Tab, 1 ; general
@@ -2030,24 +2304,29 @@ ShowSettings() {
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
     Gui, Add, UpDown, gVerifyTheOptions vstrikeInterval Range900-5500, %strikeInterval%
 
+    wu := (PrefsLargeFonts=1) ? 125:95
+    vu := (PrefsLargeFonts=1) ? 55:45
     Gui, Tab, 2 ; extras
     Gui, Add, Checkbox, x+15 y+15 Section gVerifyTheOptions Checked%showBibleQuotes% vshowBibleQuotes, Show a Bible verse every (in hours)
     Gui, Add, Edit, x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF40, %BibleQuotesInterval%
     Gui, Add, UpDown, gVerifyTheOptions vBibleQuotesInterval Range1-12, %BibleQuotesInterval%
     Gui, Add, DropDownList, xs+15 y+7 w270 gVerifyTheOptions AltSubmit Choose%BibleQuotesLang% vBibleQuotesLang, World English Bible (2000)|Français: Louis Segond (1910)|Español: Reina Valera (1909)
     Gui, Add, Text, xs+15 y+10 vTxt10, Font size
-    Gui, Add, Edit, x+10 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF73, %FontSizeQuotes%
+    Gui, Add, Edit, x+10 w%vu% geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF73, %FontSizeQuotes%
     Gui, Add, UpDown, gVerifyTheOptions vFontSizeQuotes Range10-200, %FontSizeQuotes%
-    Gui, Add, Button, x+10 hp w120 gInvokeBibleQuoteNow vBtn2, Preview verse
+    Gui, Add, Button, x+10 hp w%wu% gInvokeBibleQuoteNow vBtn2, Preview verse
+    Gui, Add, Edit, x+10 w%vu% r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF4, % userBibleStartPoint
+    Gui, Add, UpDown, gVerifyTheOptions vuserBibleStartPoint Range1-27400, % userBibleStartPoint
+    Gui, Add, Checkbox, x+5 gVerifyTheOptions Checked%orderedBibleQuotes% vorderedBibleQuotes, Define start point
     Gui, Add, Text, xs+15 y+10 vTxt4, Maximum line length (in characters)
-    Gui, Add, Edit, x+10 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60, %maxBibleLength%
+    Gui, Add, Edit, x+10 w%vu% geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60, %maxBibleLength%
     Gui, Add, UpDown, vmaxBibleLength gVerifyTheOptions Range20-130, %maxBibleLength%
     Gui, Add, Checkbox, xs+15 y+10 gVerifyTheOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen when displaying Bible verses
     Gui, Add, Checkbox, y+10 gVerifyTheOptions Checked%noBibleQuoteMhidden% vnoBibleQuoteMhidden, Do not show Bible verses when the mouse cursor is hidden`n(e.g., when watching videos on full-screen)
 
     Gui, Add, Checkbox, xs y+20 gVerifyTheOptions Checked%ObserveHolidays% vObserveHolidays, Observe Christian and/or secular holidays
     Gui, Add, Checkbox, xs y+7 gVerifyTheOptions Checked%SemantronHoliday% vSemantronHoliday, Mark days of feast by regular semantron drumming
-    Gui, Add, Button, xs+15 y+7 h25 gOpenListCelebrationsBtn vBtn3, Manage list of holidays
+    Gui, Add, Button, xs+15 y+7 h30 gOpenListCelebrationsBtn vBtn3, Manage list of holidays
 
     Gui, Tab, 3 ; restrictions
     Gui, Add, Text, x+15 y+15 Section, When other sounds are playing (e.g., music or movies)
@@ -2098,7 +2377,7 @@ ShowSettings() {
     Gui, Add, UpDown, gVerifyTheOptions vFontSize Range12-295, %FontSize%
     Gui, Add, Edit, xp yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99, %showTimeIdleAfter%
     Gui, Add, UpDown, vshowTimeIdleAfter gVerifyTheOptions Range1-950, %showTimeIdleAfter%
-    Gui, Add, Text, x+5 vtxt100, idle after (in min.)
+    Gui, Add, Text, x+5 vtxt100, idle time (in min.)
     Gui, Add, Edit,  xs yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6, %DisplayTimeUser%
     Gui, Add, UpDown, vDisplayTimeUser gVerifyTheOptions Range1-99, %DisplayTimeUser%
     Gui, Add, Checkbox, x+10 hp gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners
@@ -2112,7 +2391,7 @@ ShowSettings() {
         fontNameInstalled := FontList[A_Index]
         If (fontNameInstalled ~= "i)(@|oem|extb|symbol|marlett|wst_|glyph|reference specialty|system|terminal|mt extra|small fonts|cambria math|this font is not|fixedsys|emoji|hksc| mdl|wingdings|webdings)") || (fontNameInstalled=FontName)
            Continue
-        GuiControl, , FontName, %fontNameInstalled%
+        GuiControl, SettingsGUIA:, FontName, %fontNameInstalled%
     }
 
     Gui, Tab
@@ -2142,6 +2421,8 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControlGet, analogDisplay
     GuiControlGet, showTimeIdleAfter
     GuiControlGet, showTimeWhenIdle
+    GuiControlGet, userBibleStartPoint
+    GuiControlGet, orderedBibleQuotes
 
     GuiControl, % (EnableApply=0 ? "Disable" : "Enable"), ApplySettingsBTN
     GuiControl, % (AdditionalStrikes=0 ? "Disable" : "Enable"), editF38
@@ -2153,6 +2434,9 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), makeScreenDark
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), BibleQuotesLang
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), noBibleQuoteMhidden
+    GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), orderedBibleQuotes
+    GuiControl, % (showBibleQuotes=0 || orderedBibleQuotes-1) ? "Disable" : "Enable", userBibleStartPoint
+    GuiControl, % (showBibleQuotes=0 || orderedBibleQuotes-1) ? "Disable" : "Enable", editF4
     GuiControl, % (displayClock=0 ? "Disable" : "Enable"), analogDisplay
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursA
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), silentHoursB
@@ -2174,12 +2458,6 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     Static LastInvoked := 1
     If (forceNoPreview=1)
        Return
-
-    If !isAnalogClockFile
-    {
-       analogDisplay := 0
-       GuiControl, % (isAnalogClockFile!=1 ? "Disable" : "Enable"), analogDisplay
-    }
 
     If (A_TickCount - LastInvoked>250) || (BibleGuiVisible=0 && ShowPreview=1)
     || (BibleGuiVisible=1 && ShowPreview=0)
@@ -2222,14 +2500,14 @@ MWAGetMonitorMouseIsIn(coordX:=0,coordY:=0) {
   SysGet, MonitorCount, 80  ; monitorcount, so we know how many monitors there are, and the number of loops we need to do
   Loop, %MonitorCount%
   {
-    SysGet, mon%A_Index%, Monitor, %A_Index%  ; "Monitor" will get the total desktop space of the monitor, including taskbars
+      SysGet, mon%A_Index%, Monitor, %A_Index%  ; "Monitor" will get the total desktop space of the monitor, including taskbars
 
-    If (Mx>=mon%A_Index%left) && (Mx<mon%A_Index%right)
-    && (My>=mon%A_Index%top) && (My<mon%A_Index%bottom)
-    {
-      ActiveMon := A_Index
-      Break
-    }
+      If (Mx>=mon%A_Index%left) && (Mx<mon%A_Index%right)
+      && (My>=mon%A_Index%top) && (My<mon%A_Index%bottom)
+      {
+         ActiveMon := A_Index
+         Break
+      }
   }
   Return ActiveMon
 }
@@ -2680,10 +2958,10 @@ coretestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         Gui, ShareBtnGui: Destroy
         quoteDisplayTime := StrLen(aisHolidayToday) * 140
         If InStr(aisHolidayToday, "Christmas")
-           sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\christmas.mp3, 1")
+           MCXI_Play(SNDmedia_christmas)
         Else
            strikeJapanBell()
-        Sleep, 1000
+        Sleep, 100
         SetTimer, DestroyBibleGui, % -quoteDisplayTime
      }
   }
@@ -2693,13 +2971,17 @@ coretestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
 
 OpenListCelebrationsBtn() {
   celebYear := A_Year
-  VerifyTheOptions()
-  PanelListCelebrations()
+  If (PrefOpen=1 && hSetWinGui)
+     VerifyTheOptions()
+  PanelManageCelebrations()
 }
 
-PanelListCelebrations(tabChoice:=1) {
+PanelManageCelebrations(tabChoice:=1) {
 
   Global LViewEaster, LViewOthers, LViewSecular, LViewPersonal, CurrentTabLV, ResetYearBTN
+  If (AnyWindowOpen && PrefOpen!=1)
+     CloseWindow()
+
   Gui, CelebrationsGuia: Destroy
   Sleep, 15
   Gui, CelebrationsGuia: Default
@@ -2713,21 +2995,22 @@ PanelListCelebrations(tabChoice:=1) {
      Gui, Font, s%LargeUIfontValue%
   }
 
+  windowManageCeleb := 1
   Gui, Add, Checkbox, x15 y10 gupdateOptionsLVsGui Checked%ObserveReligiousDays% vObserveReligiousDays, Observe religious feasts / holidays
   Gui, Add, DropDownList, x+2 w100 gupdateOptionsLVsGui AltSubmit Choose%UserReligion% vUserReligion, Catholic|Orthodox
   btnWid := (PrefsLargeFonts=1) ? 70 : 50
   lstWid2 := lstWid - btnWid
-  Gui, Add, Button, xs+%lstWid2% yp+0 gaddNewEntryWindow w%btnWid% h30, &Add
+  Gui, Add, Button, xs+%lstWid2% yp+0 gPaneladdNewEntryWindow w%btnWid% h30, &Add
   Gui, Add, Tab3, xs+0 y+0 AltSubmit Choose%tabChoice% vCurrentTabLV, Christian|Easter related|Secular|Personal
 
   Gui, Tab, 1
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r7 Grid NoSort -Hdr vLViewOthers, Index|Date|Detailz
+  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r8 Grid NoSort -Hdr vLViewOthers, Index|Date|Detailz
   Gui, Tab, 2
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r7 Grid NoSort -Hdr vLViewEaster, Index|Date|Detailz
+  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r8 Grid NoSort -Hdr vLViewEaster, Index|Date|Detailz
   Gui, Tab, 3
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r7 Grid NoSort -Hdr vLViewSecular, Index|Date|Detailz
+  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r8 Grid NoSort -Hdr vLViewSecular, Index|Date|Detailz
   Gui, Tab, 4
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r7 Grid NoSort -Hdr vLViewPersonal, Index|Date|Detailz
+  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r8 Grid NoSort -Hdr vLViewPersonal, Index|Date|Detailz
 
   Gui, Tab
   Gui, Add, Checkbox, y+15 Section gupdateOptionsLVsGui Checked%ObserveSecularDays% vObserveSecularDays, Observe secular holidays
@@ -2737,14 +3020,15 @@ PanelListCelebrations(tabChoice:=1) {
   Gui, Add, Button, xs y+15 w%btnWid% h30 gPrevYearList , &Previous year
   Gui, Add, Button, x+1 w55 hp gResetYearList vResetYearBTN, %celebYear%
   Gui, Add, Button, x+1 w%btnWid% hp gNextYearList , &Next year
-  Gui, Add, Button, x+20 w%btnWid% hp gCloseCelebListWin, &Close list
+  Gui, Add, Button, x+20 wp-25 hp gCloseCelebListWin, &Close list
   Gui, Show, AutoSize, Celebrations list: %appName%
   updateOptionsLVsGui()
-  SetTimer, AutoDestroyCelebList, 200
+  If (PrefOpen=1 && hSetWinGui)
+     SetTimer, AutoDestroyCelebList, 200
 }
 
 updateOptionsLVsGui() {
-  Gui, CelebrationsGuia:Default
+  Gui, CelebrationsGuia: Default
   GuiControlGet, ObserveSecularDays
   GuiControlGet, ObserveReligiousDays
   GuiControlGet, PreferSecularDays
@@ -2981,7 +3265,7 @@ updateHolidaysLVs() {
   GuiControl, CelebrationsGuia:, ResetYearBTN, %celebYear%
 }
 
-addNewEntryWindow() {
+PaneladdNewEntryWindow() {
 
   Global newDay, newMonth, newEvent
   Gui, CelebrationsGuia: Destroy
@@ -2995,23 +3279,27 @@ addNewEntryWindow() {
   btnWid := (PrefsLargeFonts=1) ? 125 : 90
   drpWid := (PrefsLargeFonts=1) ? 75 : 50
   drpWid2 := (PrefsLargeFonts=1) ? 125 : 100
+  windowManageCeleb := 2
   Gui, Add, Text, x15 y10 Section, Please enter the day month, and event name.
   Gui, Add, DropDownList, y+10 Choose%A_MDay% w%drpWid% vnewDay, 01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31
   Gui, Add, DropDownList, x+5 Choose%A_Mon% w%drpWid2% vnewMonth, 01 January|02 February|03 March|04 April|05 May|06 June|07 July|08 August|09 September|10 October|11 November|12 December
   Gui, Add, Edit, xs y+7 w400 r1 limit90 -multi -wantReturn -wantTab -wrap vnewEvent, 
-  Gui, Add, Button, xs y+15 w%btnWid% h25 Default gSaveNewEntryBtn , &Add entry
-  Gui, Add, Button, x+5 w%btnWid% hp gCancelNewEntryBtn, &Cancel
+  Gui, Add, Button, xs y+15 w%btnWid% h30 Default gSaveNewEntryBtn , &Add entry
+  Gui, Add, Button, x+5 wp-25 hp gCancelNewEntryBtn, &Cancel
   Gui, Show, AutoSize, Add new celebration: %appName%
-  SetTimer, AutoDestroyCelebList, 200
+  If (PrefOpen=1 && hSetWinGui)
+     SetTimer, AutoDestroyCelebList, 200
 }
 
 SaveNewEntryBtn() {
+  Gui, CelebrationsGuia: Default
   GuiControlGet, newDay
   GuiControlGet, newMonth
   GuiControlGet, newEvent
 
   If (StrLen(newEvent)<4)
      wrongThis := 1
+
   newMonth := SubStr(newMonth, 1,2)
   testDate := A_Year newMonth newDay "010101"
   FormatTime, LongaData, %testDate%, LongDate
@@ -3029,7 +3317,7 @@ SaveNewEntryBtn() {
      Gui, CelebrationsGuia: Destroy
      PersonalDay := INIactionNonGlobal(1, newMonth "." newDay, newEvent, "Celebrations")
      Sleep, 200
-     PanelListCelebrations(4)
+     PanelManageCelebrations(4)
   }
 }
 
@@ -3055,6 +3343,7 @@ ActionListViewKBDs() {
   Static lastAsked := 1
   If (A_GuiEvent="DoubleClick")
   {
+     Gui, CelebrationsGuia: Default
      GuiControlGet, CurrentTabLV
      If (CurrentTabLV=1)
         Gui, CelebrationsGuia:ListView, LViewOthers
@@ -3135,6 +3424,7 @@ ActionListViewKBDs() {
 PrevYearList() {
   If (A_Year - celebYear>=10)
      Return
+
   celebYear--
   updateHolidaysLVs()
 }
@@ -3142,6 +3432,7 @@ PrevYearList() {
 NextYearList() {
   If (celebYear - A_Year>=10)
      Return
+
   celebYear++
   updateHolidaysLVs()
 }
@@ -3149,29 +3440,59 @@ NextYearList() {
 ResetYearList() {
   If (celebYear=A_Year)
      Return
+
   celebYear := A_Year
   updateHolidaysLVs()
 }
 
 AutoDestroyCelebList() {
   CurrWin := WinExist("A"),
-  If (CurrWin=hSetWinGui)
+  If (CurrWin=hSetWinGui && PrefOpen=1 && hSetWinGui)
      CloseCelebListWin()
 }
 
 CloseCelebListWin() {
    celebYear := A_Year
+   Gui, CelebrationsGuia: Default
+   If (windowManageCeleb=1)
+   {
+      GuiControlGet, ObserveSecularDays
+      GuiControlGet, ObserveReligiousDays
+      GuiControlGet, PreferSecularDays
+      GuiControlGet, UserReligion
+   }
+
    SetTimer, AutoDestroyCelebList, Off
    Gui, CelebrationsGuia: Destroy
    Sleep, 50
-   WinActivate, ahk_id %hSetWinGui%
+   If (PrefOpen=1 && hSetWinGui)
+   {
+      WinActivate, ahk_id %hSetWinGui%
+   } Else
+   {
+      If (windowManageCeleb=1)
+      {
+         INIaction(1, "ObserveSecularDays", "SavedSettings")
+         INIaction(1, "ObserveReligiousDays", "SavedSettings")
+         INIaction(1, "PreferSecularDays", "SavedSettings")
+         INIaction(1, "UserReligion", "SavedSettings")
+      }
+      testCelebrations()
+   }
+
+   If (windowManageCeleb=2)
+      mustReopen := 1
+
+   windowManageCeleb := 0
+   If (mustReopen=1)
+      PanelManageCelebrations()
 }
 
 CancelNewEntryBtn() {
    celebYear := A_Year
    WinActivate, ahk_id %hSetWinGui%
    Sleep, 50
-   PanelListCelebrations(4)
+   PanelManageCelebrations(4)
 }
 
 compareYearDays(givenDay, CurrentDay) {
@@ -3237,20 +3558,10 @@ testEquiSols() {
 }
 
 PanelIncomingCelebrations() {
-    If (PrefOpen=1)
-    {
-       SoundBeep, 300, 900
+    If reactWinOpened(A_ThisFunc, 3)
        Return
-    }
 
-    If (AnyWindowOpen=1)
-    {
-       CloseWindow()
-       SetTimer, PanelIncomingCelebrations, -100
-       Return
-    }
-
-    SettingsGUI(1)
+    GenericPanelGUI(1)
     AnyWindowOpen := 3
     btnWid := 100
     txtWid := 360
@@ -3298,12 +3609,11 @@ PanelIncomingCelebrations() {
     Gui, Add, Button, xs+1 y+15 w1 h1, L
     Gui, Add, Edit, xp+1 yp+1 ReadOnly r15 w%txtWid%, % listu
     Gui, Font, Normal
-    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gAboutWindow hwndhBtn1, Back
+    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn hwndhBtn1, Manage
     Gui, Add, Button, x+5 hp wp+15 gShowSettings hwndhBtn2, Settings
     Gui, Add, Button, x+5 hp wp-15 gCloseWindow hwndhBtn3, Close
 
-    Gui, Show, AutoSize, Celebrations list
-
+    Gui, Show, AutoSize, Celebrations list: %appName%
     Opt1 := [0, "0xff" AboutTitleColor, , "0xff" BtnTxtColor, 15, "0x" GUIAbgrColor, , 0]
     Opt2 := [ , "0xef" hoverBtnColor]
     Opt3 := [ , "0xff" BtnTxtColor, , "0xff" hoverBtnColor]
@@ -3312,20 +3622,379 @@ PanelIncomingCelebrations() {
     ImageButton.Create(hBtn3, Opt1, Opt2, Opt3)
 }
 
-AboutWindow() {
-    If (PrefOpen=1)
+reactWinOpened(funcu, idu) {
+    If (PrefOpen=1 || AnyWindowOpen=idu)
     {
-       SoundBeep, 300, 900
-       Return
-    }
-
-    If (AnyWindowOpen=1)
+       If (PrefOpen=1)
+          SoundBeep, 300, 900
+       WinActivate, ahk_id %hSetWinGui%
+       Return 1
+    } Else If AnyWindowOpen
     {
        CloseWindow()
-       Return
+       Sleep, 25
+    } Else If windowManageCeleb
+    {
+       CloseCelebListWin()
+       Sleep, 25
     }
 
-    SettingsGUI(1)
+    ; If IsFunc(funcu)
+    ;    %funcu%()
+}
+
+PanelSetAlarm() {
+    If reactWinOpened(A_ThisFunc, 4)
+       Return
+
+    INIaction(0, "userTimerMins", "SavedSettings")
+    INIaction(0, "userTimerHours", "SavedSettings")
+    INIaction(0, "userTimerMsg", "SavedSettings")
+ 
+    GenericPanelGUI(0)
+    AnyWindowOpen := 4
+    btnWid := 100
+    txtWid := 360
+    Global btn1, editF1, editF2, editF4
+    If (PrefsLargeFonts=1)
+    {
+       btnWid := btnWid + 50
+       txtWid := txtWid + 105
+       Gui, Font, s%LargeUIfontValue%
+    }
+
+    btnW1 := (PrefsLargeFonts=1) ? 105 : 80
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    Gui, Add, Text, x15 y15 Section, Alarm and timer options
+    Gui, Add, Checkbox, xs y+10 Section gupdateUIalarmsPanel Checked%userMustDoTimer% vuserMustDoTimer, Set timer duration (in hours`, mins):
+    Gui, Add, Edit, xs+15 y+10 w70 number -multi limit2 veditF1, % userTimerHours
+    Gui, Add, UpDown, vuserTimerHours Range0-12, % userTimerHours
+    Gui, Add, Edit, x+5 w70 number -multi limit2 veditF2, % userTimerMins
+    Gui, Add, UpDown, vuserTimerMins Range0-59, % userTimerMins
+    Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserTimerMsg, % userTimerMsg
+
+    Gui, Add, Checkbox, xs y+20 gupdateUIalarmsPanel Checked%userMustDoAlarm% vuserMustDoAlarm, Set alarm at (hours`, minutes):
+    Gui, Add, Edit, xs+15 y+10 w70 number -multi limit2 veditF3, % userAlarmHours
+    Gui, Add, UpDown, vuserAlarmHours Range0-23, % userAlarmHours
+    Gui, Add, Edit, x+5 w70 number -multi limit2 veditF4, % userAlarmMins
+    Gui, Add, UpDown, vuserAlarmMins Range0-59, % userAlarmMins
+    Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserAlarmMsg, % userAlarmMsg
+
+    Gui, Add, Checkbox, xs y+20 gupdateUIalarmsPanel Checked%AlarmersDarkScreen% vAlarmersDarkScreen, Flash dark screen on alerts
+    Gui, Add, DropDownList, xs y+7 wp AltSubmit Choose%userAlarmSound% vuserAlarmSound, Auxilliary bell|Quarters bell|Hours bell|Gong|No sound alert
+    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gBtnApplyAlarms, &Apply
+    Gui, Add, Button, x+5 hp wp-15 gCloseWindow , &Cancel
+
+    Gui, Show, AutoSize, Alarm and timer: %appName%
+    SetTimer, updateUIalarmsPanel, -150
+}
+
+PanelStopWatch() {
+    If reactWinOpened(A_ThisFunc, 5)
+       Return
+
+    GenericPanelGUI(0)
+    AnyWindowOpen := 5
+    btnWid := 100
+    txtWid := 360
+    Global btn1, editF1, editF2, editF4, UIstopWatchLabel, UserStopWatchListZeits, UIstopWatchInfos, setAlwaysOnTop, UIstopWatchInterval
+    setAlwaysOnTop := 0
+    If (PrefsLargeFonts=1)
+    {
+       btnWid := btnWid + 50
+       txtWid := txtWid + 105
+       Gui, Font, s%LargeUIfontValue%
+    }
+
+    stopWatchBeginZeit := 0
+    stopWatchPauseZeit := 0.001
+    stopWatchLapBeginZeit := 0
+    stopWatchLapPauseZeit := 0.001
+    stopWatchRealStartZeit := 0
+    btnW1 := (PrefsLargeFonts=1) ? 105 : 80
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    Gui, Add, Text, x15 y15 Section, Time is here and there...
+    Gui, Font, s22
+    Gui, Add, Text, y+10 vUIstopWatchLabel gstartStopWatchCounter, 00:00:00.00
+    Gui, Font
+    If (PrefsLargeFonts=1)
+       Gui, Font, s%LargeUIfontValue%
+    Gui, Add, Text, y+5 vUIstopWatchInfos gstartStopWatchCounter, 00:00:00 - 00:00:00
+    Gui, Add, ComboBox, xs y+10 wp+55 vUserStopWatchListZeits, No records||
+    Gui, Add, Text, x+5 wp-80 hp vUIstopWatchInterval gRecordStopWatchInterval, 00:00:00.00
+    Gui, Add, Checkbox, xs y+15 wp+25 gToggleAlwaysOnTopSettingsWindow  Checked%setAlwaysOnTop% vsetAlwaysOnTop, Always on top
+    Gui, Add, Button, xs+0 y+5 h30 wp Default gstartStopWatchCounter, &Start / Pause
+    Gui, Add, Button, x+5 h30 wp gRecordStopWatchInterval, &Record interval
+    Gui, Add, Button, xs+0 y+5 hp wp gResetStopWatchCounter, &Reset
+    Gui, Add, Button, x+5 hp wp gCloseWindow, &Cancel
+
+    Gui, Show, AutoSize, Stopwatch: %appName%
+}
+
+ToggleAlwaysOnTopSettingsWindow() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, setAlwaysOnTop
+  If (setAlwaysOnTop=1)
+     WinSet, AlwaysOnTop, On, ahk_id %hSetWinGui%
+  Else
+     WinSet, AlwaysOnTop, Off, ahk_id %hSetWinGui%
+}
+
+RecordStopWatchInterval() {
+  If (AnyWindowOpen=5 && stopWatchBeginZeit && stopWatchPauseZeit)
+  {
+     GuiControl, SettingsGUIA:, UIstopWatchInterval, 00:00:00.0
+     coreSecToHHMMSS((A_TickCount - stopWatchBeginZeit)/1000 + stopWatchPauseZeit/1000, hrs, mins, sec)
+     Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
+     SecB := SubStr(Sec, InStr(Sec, ".") + 1)
+ 
+     coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec)
+     HrzA := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Round(Sec))
+ 
+     coreSecToHHMMSS((A_TickCount - stopWatchLapBeginZeit)/1000 + stopWatchLapPauseZeit/1000, hrs, mins, sec)
+     HrzB := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
+     SecC := SubStr(Sec, InStr(Sec, ".") + 1)
+     finalu := HrzB "." SecC " / " Hrz "." SecB " / " HrzA
+     stopWatchIntervalRecords.Push(finalu)
+     Loop, % stopWatchIntervalRecords.Count()
+         listu .= stopWatchIntervalRecords[A_Index] "|"
+     listu := "|" Trim(listu, "|") "||"
+     GuiControl, SettingsGUIA:, UserStopWatchListZeits, % listu
+     stopWatchLapPauseZeit := 0.001
+     stopWatchLapBeginZeit := A_TickCount
+  }
+}
+
+ResetStopWatchCounter() {
+   stopWatchBeginZeit := 0
+   stopWatchPauseZeit := 0.001
+   stopWatchLapBeginZeit := 0
+   stopWatchLapPauseZeit := 0.001
+   stopWatchRealStartZeit := 0
+   SetTimer, uiStopWatchUpdater, Off
+   SetTimer, uiStopWatchPausedUpdater, Off
+   If (AnyWindowOpen=5)
+   {
+      GuiControl, SettingsGUIA:, UIstopWatchInfos, 00:00:00 - 00:00:00
+      GuiControl, SettingsGUIA:, UIstopWatchLabel, 00:00:00.0
+      GuiControl, SettingsGUIA:, UIstopWatchInterval, 00:00:00.0
+   }
+}
+
+startStopWatchCounter() {
+   If stopWatchBeginZeit
+   {
+      SetTimer, uiStopWatchUpdater, Off
+      stopWatchPauseZeit += A_TickCount - stopWatchBeginZeit
+      stopWatchBeginZeit := 0
+      stopWatchLapPauseZeit += A_TickCount - stopWatchLapBeginZeit
+      stopWatchLapBeginZeit := 0
+      If stopWatchRealStartZeit
+         SetTimer, uiStopWatchPausedUpdater, 50
+      Return
+   }
+
+   SetTimer, uiStopWatchPausedUpdater, Off
+   stopWatchBeginZeit := A_TickCount
+   stopWatchLapBeginZeit := A_TickCount
+   If (stopWatchPauseZeit<2)
+   {
+      FormatTime, CurrentTime,, H:mm:ss
+      stopWatchHumanStartTime := CurrentTime
+      stopWatchRealStartZeit := A_TickCount
+   }
+   SetTimer, uiStopWatchUpdater, 50
+}
+
+uiStopWatchUpdater() {
+  If (AnyWindowOpen!=5)
+  {
+     ResetStopWatchCounter()
+     Return
+  }
+
+  coreSecToHHMMSS((A_TickCount - stopWatchBeginZeit)/1000 + stopWatchPauseZeit/1000, hrs, mins, sec)
+  Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
+  SecB := SubStr(Sec, InStr(Sec, ".") + 1)
+  GuiControl, SettingsGUIA:, UIstopWatchLabel, %hrz%.%SecB% ; :%mins%:%sec%
+
+  coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec)
+  Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Round(Sec))
+  ; Mins := Format("{:02}", Mins)
+  GuiControl, SettingsGUIA:, UIstopWatchInfos, %stopWatchHumanStartTime% - %hrz% ; :%mins%:%sec%
+  
+  ; ToolTip, % stopWatchLapBeginZeit "`n" stopWatchLapPauseZeit , , , 2
+  coreSecToHHMMSS((A_TickCount - stopWatchLapBeginZeit)/1000 + stopWatchLapPauseZeit/1000, hrs, mins, sec)
+  Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
+  SecB := SubStr(Sec, InStr(Sec, ".") + 1)
+  GuiControl, SettingsGUIA:, UIstopWatchInterval, %hrz%.%SecB% ; :%mins%:%sec%
+}
+
+uiStopWatchPausedUpdater() {
+  If (AnyWindowOpen!=5)
+  {
+     ResetStopWatchCounter()
+     Return
+  }
+
+  coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec)
+  Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Round(Sec))
+  ; Mins := Format("{:02}", Mins)
+  GuiControl, SettingsGUIA:, UIstopWatchInfos, %stopWatchHumanStartTime% - %hrz% ; :%mins%:%sec%
+}
+
+coreSecToHHMMSS(Seco, ByRef Hrs, ByRef Min, ByRef Sec) {
+  OldFormat := A_FormatFloat
+  SetFormat, Float, 2.00
+  Hrs := Seco//3600/1
+  Min := Mod(Seco//60, 60)/1
+  SetFormat, Float, %OldFormat%
+  Sec := Round(Mod(Seco, 60), 1)
+}
+
+updateUIalarmsPanel() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, OutputVarA, SettingsGUIA:, userMustDoTimer
+  GuiControlGet, OutputVarB, SettingsGUIA:, userMustDoAlarm
+  act := (OutputVarB=1) ? "Enable" : "Disable"
+  GuiControl, SettingsGUIA: %act%, userAlarmHours
+  GuiControl, SettingsGUIA: %act%, userAlarmMins
+  GuiControl, SettingsGUIA: %act%, userAlarmMsg
+  GuiControl, SettingsGUIA: %act%, editF3
+  GuiControl, SettingsGUIA: %act%, editF4
+
+  act := (OutputVarA=1) ? "Enable" : "Disable"
+  GuiControl, SettingsGUIA: %act%, userTimerHours
+  GuiControl, SettingsGUIA: %act%, userTimerMins
+  GuiControl, SettingsGUIA: %act%, userTimerMsg
+  GuiControl, SettingsGUIA: %act%, editF1
+  GuiControl, SettingsGUIA: %act%, editF2
+}
+
+BtnApplyAlarms() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, AlarmersDarkScreen
+  GuiControlGet, userMustDoTimer
+  GuiControlGet, userTimerHours
+  GuiControlGet, userTimerMins
+  GuiControlGet, userTimerMsg
+  GuiControlGet, userMustDoAlarm
+  GuiControlGet, userAlarmHours
+  GuiControlGet, userAlarmMins
+  GuiControlGet, userAlarmMsg
+  GuiControlGet, userAlarmSound
+
+  userTimerMsg := Trim(userTimerMsg)
+  userAlarmMsg := Trim(userAlarmMsg)
+
+  INIaction(1, "userMustDoAlarm", "SavedSettings")
+  INIaction(1, "AlarmersDarkScreen", "SavedSettings")
+  INIaction(1, "userAlarmSound", "SavedSettings")
+  INIaction(1, "userAlarmMsg", "SavedSettings")
+  INIaction(1, "userAlarmHours", "SavedSettings")
+  INIaction(1, "userAlarmMins", "SavedSettings")
+  INIaction(1, "userTimerMins", "SavedSettings")
+  INIaction(1, "userTimerHours", "SavedSettings")
+  INIaction(1, "userTimerMsg", "SavedSettings")
+  If (userMustDoTimer=1 && (userTimerHours || userTimerMins))
+  {
+     delayu := MCI_ToMilliseconds(userTimerHours, userTimerMins, 0)
+     SetTimer, doUserTimerAlert, % -delayu
+  } Else 
+  {
+     userMustDoTimer := 0
+     SetTimer, doUserTimerAlert, Off
+  }
+
+  If (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours))
+  {
+     startAlarmTimer()
+  } Else
+  {
+     userMustDoAlarm := 0
+     INIaction(1, "userMustDoAlarm", "SavedSettings")
+  }
+
+  CloseWindow()
+}
+
+doUserTimerAlert() {
+  userMustDoTimer := 0
+  stopStrikesNow := stopAdditionalStrikes := 0
+  If (userAlarmSound!=4)
+     strikeJapanBell()
+  thisMsg := Trim(userTimerMsg) ? "`n" Trim(userTimerMsg) : "NONE"
+  If (AlarmersDarkScreen=1)
+     ScreenBlocker(0,1)
+
+  WinSet, AlwaysOnTop, Off, ScreenShader
+  showTimeNow()
+  If (userAlarmSound<5)
+     SetTimer, PlayAlarmedBell, 1500
+
+  MsgBox, 4, Timer: %appName%, % "Timer message: "  thisMsg "`n`nPress Yes to repeat timer."
+  IfMsgBox, Yes
+  {
+     userMustDoTimer := 1
+     delayu := MCI_ToMilliseconds(userTimerHours, userTimerMins, 0)
+     SetTimer, doUserTimerAlert, % -delayu
+  }
+  SetTimer, PlayAlarmedBell, Off
+}
+
+doUserAlarmAlert() {
+  stopStrikesNow := stopAdditionalStrikes := 0
+  If (userAlarmSound!=4)
+  {
+     strikeJapanBell()
+     SetTimer, strikeJapanBell, -1500
+  }
+  thisMsg := Trim(userAlarmMsg) ? "`n" Trim(userAlarmMsg) : "NONE"
+  If (AlarmersDarkScreen=1)
+     ScreenBlocker(0,1)
+
+  showTimeNow()
+  If (userAlarmSound<5)
+     SetTimer, PlayAlarmedBell, 1500
+
+  MsgBox, 4, Alarm: %appName%, % "Alarm message: " thisMsg "`n`nPress Yes to repeat the alarm next day."
+  IfMsgBox, Yes
+  {
+     userMustDoAlarm := 1
+     startAlarmTimer()
+  } Else userMustDoAlarm := 0
+
+  SetTimer, PlayAlarmedBell, Off
+  INIaction(1, "userMustDoAlarm", "SavedSettings")
+}
+
+startAlarmTimer() {
+  nowu := SubStr(A_Now, 1, 12)
+  tH := StrLen(userAlarmHours)!=2 ? "0" . userAlarmHours : userAlarmHours
+  tM := StrLen(userAlarmMins)!=2 ? "0" . userAlarmMins : userAlarmMins
+  newu := A_Year A_Mon A_DD tH tM
+  If (nowu>=newu)
+     newu += 1, Days
+
+  ; ToolTip, % nowu "`n" newu , , , 2
+  newu -= nowu, SS
+  SetTimer, doUserAlarmAlert, % -newu*1000
+}
+
+getPercentOfToday(ByRef minsPassed:=0) {
+   FormatTime, CurrentDateTime,, yyyyMMddHHmm
+   FormatTime, CurrentDay,, yyyyMMdd
+   FirstMinOfDay := CurrentDay "0001"
+   EnvSub, CurrentDateTime, %FirstMinOfDay%, Minutes
+   minsPassed := CurrentDateTime + 1
+   Return minsPassed/1450
+}
+
+PanelAboutWindow() {
+    If reactWinOpened(A_ThisFunc, 1)
+       Return
+
+    GenericPanelGUI(1)
     AnyWindowOpen := 1
     btnWid := 100
     txtWid := 360
@@ -3365,13 +4034,7 @@ AboutWindow() {
     FormatTime, CurrentYear,, yyyy
     NextYear := CurrentYear + 1
 
-    FormatTime, CurrentDateTime,, yyyyMMddHHmm
-    FormatTime, CurrentDay,, yyyyMMdd
-    FirstMinOfDay := CurrentDay "0001"
-    EnvSub, CurrentDateTime, %FirstMinOfDay%, Minutes
-    minsPassed := CurrentDateTime + 1
-    percentileDay := Round(minsPassed/1450*100) "%"
-
+    percentileDay := Round(getPercentOfToday(minsPassed) * 100) "%"
     Gui, Add, Text, x15 y+10 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
     If (MarchEquinox ~= "until|here")
        Gui, Font, Bold
@@ -3393,6 +4056,7 @@ AboutWindow() {
     If !InStr(DecSolstice, "hide")
        Gui, Add, Text, y+7 w%txtWid%, %DecSolstice%
     Gui, Font, Normal
+
     weeksPassed := Floor(A_YDay/7)
     weeksPlural := (weeksPassed>1) ? "weeks" : "week"
     weeksPlural2 := (weeksPassed>1) ? "have" : "has"
@@ -3421,6 +4085,7 @@ AboutWindow() {
           holidayMsg := "Today's event: " isHolidayToday "."
        Gui, Add, Text, y+7 w%txtWid%, %holidayMsg%
     }
+
     testFeast := A_Mon "." A_MDay
     If (testFeast="01.01") || (testFeast="02.01")
     {
@@ -3436,6 +4101,7 @@ AboutWindow() {
        Gui, Add, Text, y+7, The days are getting shorter until the winter solstice, in December.
     Else If (A_YDay>356 || A_YDay<167)
        Gui, Add, Text, y+7, The days are getting longer until the summer solstice, in June.
+
     If (A_OSVersion="WIN_XP")
     {
        Gui, Font,, Arial ; only as backup, doesn't have all characters on XP
@@ -3445,8 +4111,12 @@ AboutWindow() {
        Gui, Font,, DejaVu LGC Sans
     }
 
+    moonPhase := MoonPhaseCalculator(A_Year, A_Mon, A_MDay)
+    moonPhaseN := moonPhase[1]
+    moonPhaseF := Round(moonPhase[3] * 100)
     Gui, Add, Text, xp+30 y+15 Section, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
     Gui, Add, Text, xp+15 y+5, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
+    Gui, Add, Text, xs y+10, Moon phase: %moonPhaseN% (%moonPhaseF%`% of the cycle).
     Gui, Add, Text, xs y+10, % "0h {" CalcTextHorizPrev(minsPassed, 1440, 0, 22) "} 24h "
     Gui, Add, Text, xp+15 y+5, %minsPassed% minutes (%percentileDay%) of today have elapsed.
     If (A_OSVersion="WIN_XP")
@@ -3491,7 +4161,7 @@ AboutWindow() {
     LinkUseDefaultColor(hLink2)
     verifySettingsWindowSize()
     If InStr(isHolidayToday, "Christmas") && (stopAdditionalStrikes=0)
-       sndChanQ := AhkThread("#NoTrayIcon`nSoundPlay, sounds\christmas.mp3, 1")
+       MCXI_Play(SNDmedia_christmas)
 }
 
 CloseWindowAbout() {
@@ -3572,6 +4242,7 @@ INIsettings(a) {
   INIaction(a, "tollHours", "SavedSettings")
   INIaction(a, "tollHoursAmount", "SavedSettings")
   INIaction(a, "displayClock", "SavedSettings")
+  INIaction(a, "analogMoonPhases", "SavedSettings")
   INIaction(a, "silentHours", "SavedSettings")
   INIaction(a, "silentHoursA", "SavedSettings")
   INIaction(a, "silentHoursB", "SavedSettings")
@@ -3581,9 +4252,11 @@ INIsettings(a) {
   INIaction(a, "BeepsVolume", "SavedSettings")
   INIaction(a, "DynamicVolume", "SavedSettings")
   INIaction(a, "AutoUnmute", "SavedSettings")
+  INIaction(a, "userAlarmSound", "SavedSettings")
+  INIaction(a, "userMuteAllSounds", "SavedSettings")
   INIaction(a, "tickTockNoise", "SavedSettings")
   INIaction(a, "strikeInterval", "SavedSettings")
-  INIaction(a, "LastNoon", "SavedSettings")
+  INIaction(a, "LastNoonAudio", "SavedSettings")
   INIaction(a, "AdditionalStrikes", "SavedSettings")
   INIaction(a, "strikeEveryMin", "SavedSettings")
   INIaction(a, "QuotesAlreadySeen", "SavedSettings")
@@ -3591,6 +4264,8 @@ INIsettings(a) {
   INIaction(a, "BibleQuotesLang", "SavedSettings")
   INIaction(a, "noBibleQuoteMhidden", "SavedSettings")
   INIaction(a, "BibleQuotesInterval", "SavedSettings")
+  INIaction(a, "userBibleStartPoint", "SavedSettings")
+  INIaction(a, "orderedBibleQuotes", "SavedSettings")
   INIaction(a, "SemantronHoliday", "SavedSettings")
   INIaction(a, "ObserveHolidays", "SavedSettings")
   INIaction(a, "ObserveSecularDays", "SavedSettings")
@@ -3600,6 +4275,11 @@ INIsettings(a) {
   INIaction(a, "noTollingWhenMhidden", "SavedSettings")
   INIaction(a, "noTollingBgrSounds", "SavedSettings")
   INIaction(a, "NoWelcomePopupInfo", "SavedSettings")
+  INIaction(a, "userMustDoAlarm", "SavedSettings")
+  INIaction(a, "userAlarmMsg", "SavedSettings")
+  INIaction(a, "userAlarmHours", "SavedSettings")
+  INIaction(a, "userAlarmMins", "SavedSettings")
+  INIaction(a, "AlarmersDarkScreen", "SavedSettings")
 
 ; OSD settings
   INIaction(a, "DisplayTimeUser", "OSDprefs")
@@ -3679,6 +4359,11 @@ CheckSettings() {
     BinaryVar(PreferSecularDays, 0)
     BinaryVar(showTimeWhenIdle, 0)
     BinaryVar(OSDroundCorners, 1)
+    BinaryVar(userMuteAllSounds, 1)
+    BinaryVar(userMustDoAlarm, 1)
+    BinaryVar(userMustDoTimer, 1)
+    BinaryVar(userBibleStartPoint, 1)
+    BinaryVar(AlarmersDarkScreen, 1)
 
 ; verify numeric values: min, max and default values
     If (InStr(analogDisplayScale, "err") || !analogDisplayScale)
@@ -3703,7 +4388,7 @@ CheckSettings() {
     MinMaxVar(silentHours, 1, 3, 1)
     MinMaxVar(silentHoursA, 0, 23, 12)
     MinMaxVar(silentHoursB, 0, 23, 14)
-    MinMaxVar(LastNoon, 1, 4, 2)
+    MinMaxVar(LastNoonAudio, 1, 4, 2)
     MinMaxVar(showTimeIdleAfter, 1, 950, 5)
     MinMaxVar(LargeUIfontValue, 10, 18, 13)
     MinMaxVar(UserReligion, 1, 2, 1)
@@ -3712,6 +4397,7 @@ CheckSettings() {
     MinMaxVar(maxBibleLength, 20, 130, 55)
     MinMaxVar(noTollingBgrSounds, 1, 3, 1)
     MinMaxVar(OSDalpha, 75, 252, 230)
+    MinMaxVar(userAlarmSound, 1, 5, 4)
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
     If (ObserveHolidays=0)
@@ -3748,8 +4434,7 @@ Cleanup() {
     DllCall("wtsapi32\WTSUnRegisterSessionNotification", "Ptr", A_ScriptHwnd)
     DllCall("kernel32\FreeLibrary", "Ptr", hWinMM)
     Fnt_DeleteFont(hFont)
-    FreeAhkResources(1)
-    Sleep, 50
+    Sleep, 5
 }
 ; ------------------------------------------------------------- ; from Drugwash
 
@@ -4053,43 +4738,8 @@ SoundLoop(File := "") {
 }
 
 dummy() {
-    Return
-}
-
-FreeAhkResources(cleanAll:=0,bumpExec:=0) {
-  Static lastExec := 1
-       , timesExec := 0
-       , timesCleaned := 0
-
-  If (A_TickCount - lastExec<1900)
-     Return
-
-  Loop, 2
-  {
-    If (tollQuarters=1)
-       ahkthread_free(sndChanQ), sndChanQ := ""
-    If (tollHours=1)
-       ahkthread_free(sndChanH), sndChanH := ""
-    If (cleanAll=1 || timesCleaned>15)
-    {
-       If (tollNoon=1)
-          ahkthread_free(sndChanN), sndChanN := ""
-       If (SemantronHoliday=1)
-          ahkthread_free(sndChanS), sndChanS := ""
-       If (AdditionalStrikes=1)
-          ahkthread_free(sndChanA), sndChanA := ""
-       If (ShowBibleQuotes=1)
-          ahkthread_free(sndChanJ), sndChanJ := ""
-    }
-    Sleep, 100
-    timesCleaned++
-  }
-  lastExec := A_TickCount
-
-  If (bumpExec=1)
-     timesExec++
-  If (timesExec>4)
-     ReloadScript()
+  Sleep, 0
+  Return
 }
 
 sillySoundHack() {   ; this helps mitigate issues caused by apps like Team Viewer
@@ -4098,85 +4748,6 @@ sillySoundHack() {   ; this helps mitigate issues caused by apps like Team Viewe
      SoundBeep, 0, 1
      Result := DllCall("winmm\PlaySoundW", "Ptr", 0, "Ptr", 0, "Uint", 0x46) ; SND_PURGE|SND_MEMORY|SND_NODEFAULT
      Return Result
-}
-
-InitAHKhThreads() {
-    Static func2exec := "ahkThread"
-    If IsFunc(func2exec) && StrLen(A_GlobalStruct)>4
-    {
-      If A_IsCompiled
-      {
-         If GetRes(data, 0, "ANALOG-CLOCK-DISPLAY.AHK", "LIB")
-         {
-            analogClockThread := %func2exec%(StrGet(&data))
-            While !isAnalogClockFile := analogClockThread.ahkgetvar.isAnalogClockFile
-                  Sleep, 10
-         }
-         VarSetCapacity(data, 0)
-      } Else
-      {
-          isAnalogClockFile := FileExist("analog-clock-display.ahk")
-          If isAnalogClockFile
-             analogClockThread := %func2exec%(" #Include *i analog-clock-display.ahk ")
-      }
-    } Else (NoAhkH := 1)
-}
-
-GetRes(ByRef bin, lib, res, type) {
-  hL := 0
-  If lib
-     hM := DllCall("kernel32\GetModuleHandleW", "Str", lib, "Ptr")
-
-  If !lib
-  {
-     hM := 0  ; current module
-  } Else If !hM
-  {
-     If (!hL := hM := DllCall("kernel32\LoadLibraryW", "Str", lib, "Ptr"))
-        Return
-  }
-
-  dt := (type+0 != "") ? "UInt" : "Str"
-  hR := DllCall("kernel32\FindResourceW"
-      , "Ptr" , hM
-      , "Str" , res
-      , dt , type
-      , "Ptr")
-
-  If !hR
-  {
-     OutputDebug, % FormatMessage(A_ThisFunc "(" lib ", " res ", " type ", " l ")", A_LastError)
-     Return
-  }
-
-  hD := DllCall("kernel32\LoadResource"
-      , "Ptr" , hM
-      , "Ptr" , hR
-      , "Ptr")
-  hB := DllCall("kernel32\LockResource"
-      , "Ptr" , hD
-      , "Ptr")
-  sz := DllCall("kernel32\SizeofResource"
-      , "Ptr" , hM
-      , "Ptr" , hR
-      , "UInt")
-  If !sz
-  {
-     OutputDebug, Error: resource size 0 in %A_ThisFunc%(%lib%, %res%, %type%)
-     DllCall("kernel32\FreeResource", "Ptr" , hD)
-     If hL
-        DllCall("kernel32\FreeLibrary", "Ptr", hL)
-     Return
-  }
-
-  VarSetCapacity(bin, 0), VarSetCapacity(bin, sz, 0)
-  DllCall("ntdll\RtlMoveMemory", "Ptr", &bin, "Ptr", hB, "UInt", sz)
-  DllCall("kernel32\FreeResource", "Ptr" , hD)
-
-  If hL
-     DllCall("kernel32\FreeLibrary", "Ptr", hL)
-
-  Return sz
 }
 
 checkMcursorState() {
@@ -4207,6 +4778,9 @@ checkMcursorState() {
 
 isSoundPlayingNow(looped:=0) {
 ; source: https://autohotkey.com/board/topic/21984-vista-audio-control-functions/
+  If (A_OSVersion="WIN_XP" || A_OSVersion="WIN_2000")
+     Return
+
   If (tickTockNoise=1)
      SoundLoop("")
 
@@ -4236,11 +4810,8 @@ isSoundPlayingNow(looped:=0) {
       Sleep, % devicePeriod * 10
   }
 
-  If (looped=0 && c>0 && ScriptInitialized=1)
-  {
-     Sleep, 1500
-     z := isSoundPlayingNow(1)
-  }
+  ; If (looped=0 && c>0 && ScriptInitialized=1)
+  ;    SetTimer, dummyDoLoopisSoundPlayingNow, -1500
 
   If (c>1 && noTollingBgrSounds=2)
      cutVolumeHalf := 1
@@ -4255,3 +4826,324 @@ isSoundPlayingNow(looped:=0) {
   Else
      Return 0
 }
+
+dummyDoLoopisSoundPlayingNow() {
+   isSoundPlayingNow(1)
+}
+
+MoonPhaseCalculator(year, month, day) {
+    ; based on https://gist.github.com/endel/dfe6bb2fbe679781948c
+    ; by Endel
+
+    c := e := jd := b := 0
+    if (month<3)
+    {
+       year--
+       month += 12
+    }
+    day += Round(getPercentOfToday(), 3)
+    month++
+    c := 365.25 * year
+    e := 30.6 * month
+    jd := c + e + day - 694039.09   ; jd is total days elapsed
+    jd := jd/29.5305882             ; divide by the moon cycle
+    b := Floor(jd)  ; int(jd) -> b, take integer part of jd
+    jd -= b         ; subtract integer part to leave fractional part of original jd
+    b := jd * 8  ; scale fraction from 0-8
+    if (b>=8)
+       b := 0 ; 0 and 8 are the same so turn 8 into 0
+    perc := b/8
+    Static phaseNames := {0:"〇 New Moon", 1:"Waxing Crescent Moon", 2:"◐ First Quarter Moon", 3:"Waxing Gibbous Moon", 4:"⚫ Full Moon", 5:"Waning Gibbous Moon", 6:"◑ Last Quarter Moon", 7:"Waning Crescent Moon"}
+    z := Round(b)
+    thisPhase := phaseNames[z]
+    return [thisPhase, b, perc]
+
+}
+
+MixARGB(color1, color2, t := 0.5, gamma := 1) {
+   rgamma := 1/gamma
+   a1 := (color1 >> 24) & 0xff,  r1 := (color1 >> 16) & 0xff,  g1 := (color1 >>  8) & 0xff,  b1 := (color1 >>  0) & 0xff
+   a2 := (color2 >> 24) & 0xff,  r2 := (color2 >> 16) & 0xff,  g2 := (color2 >>  8) & 0xff,  b2 := (color2 >>  0) & 0xff
+   
+   ga1 := (a1 / 255) ** gamma,   gr1 := (r1 / 255) ** gamma,   gg1 := (g1 / 255) ** gamma,   gb1 := (b1 / 255) ** gamma
+   ga2 := (a2 / 255) ** gamma,   gr2 := (r2 / 255) ** gamma,   gg2 := (g2 / 255) ** gamma,   gb2 := (b2 / 255) ** gamma
+   
+   ma := ga1 * (1-t) + ga2 * t,  mr := gr1 * (1-t) + gr2 * t,  mg := gg1 * (1-t) + gg2 * t,  mb := gb1 * (1-t) + gb2 * t
+   mga := 255 * (ma ** rgamma),  mgr := 255 * (mr ** rgamma),  mgg := 255 * (mg ** rgamma),  mgb := 255 * (mb ** rgamma)
+
+   thisColor := Gdip_ToARGB(mga, mgr, mgg, mgb)
+   Return thisColor := Format("{1:#x}", thisColor)
+}
+
+decideFadeColor() {
+  newColor := MixARGB("0xFF" OSDbgrColor, "0xFF" OSDtextColor)
+  OSDfadedColor := SubStr(newColor, 5)
+}
+
+
+GetWindowBounds(hWnd) {
+   ; function by GeekDude: https://gist.github.com/G33kDude/5b7ba418e685e52c3e6507e5c6972959
+   ; W10 compatible function to find a window's visible boundaries
+   ; modified by Marius Șucan to return an array
+   size := VarSetCapacity(rect, 16, 0)
+   er := DllCall("dwmapi\DwmGetWindowAttribute"
+      , "UPtr", hWnd  ; HWND  hwnd
+      , "UInt", 9     ; DWORD dwAttribute (DWMWA_EXTENDED_FRAME_BOUNDS)
+      , "UPtr", &rect ; PVOID pvAttribute
+      , "UInt", size  ; DWORD cbAttribute
+      , "UInt")       ; HRESULT
+
+   If er
+      DllCall("GetWindowRect", "UPtr", hwnd, "UPtr", &rect, "UInt")
+
+   r := []
+   r.x1 := NumGet(rect, 0, "Int"), r.y1 := NumGet(rect, 4, "Int")
+   r.x2 := NumGet(rect, 8, "Int"), r.y2 := NumGet(rect, 12, "Int")
+   r.w := Abs(max(r.x1, r.x2) - min(r.x1, r.x2))
+   r.h := Abs(max(r.y1, r.y2) - min(r.y1, r.y2))
+   ; ToolTip, % r.w " --- " r.h , , , 2
+   Return r
+}
+
+GetWinClientSize(ByRef w, ByRef h, hwnd, mode) {
+; by Lexikos http://www.autohotkey.com/forum/post-170475.html
+; modified by Marius Șucan
+    Static prevW, prevH, prevHwnd, lastInvoked := 1
+    If (A_TickCount - lastInvoked<95) && (prevHwnd=hwnd)
+    {
+       W := prevW, H := prevH
+       Return
+    }
+
+    prevHwnd := hwnd
+    VarSetCapacity(rc, 16, 0)
+    If (mode=1)
+    {
+       r := GetWindowBounds(hwnd)
+       prevW := W := r.w
+       prevH := H := r.h
+       lastInvoked := A_TickCount
+       Return
+    } Else DllCall("GetClientRect", "uint", hwnd, "uint", &rc)
+
+    prevW := W := NumGet(rc, 8, "int")
+    prevH := H := NumGet(rc, 12, "int")
+    lastInvoked := A_TickCount
+} 
+
+mouseTurnOFFtooltip() {
+   Gui, mouseToolTipGuia: Destroy
+   mouseToolTipWinCreated := 0
+}
+
+mouseCreateOSDinfoLine(msg:=0, largus:=0) {
+    Critical, On
+    Static prevMsg, lastInvoked := 1
+    Global TippyMsg
+
+    thisHwnd := hSetWinGui
+    If (StrLen(msg)<3) || (prevMsg=msg && mouseToolTipWinCreated=1) || (A_TickCount - lastInvoked<100) || !thisHwnd
+       Return
+
+    lastInvoked := A_TickCount
+    Gui, mouseToolTipGuia: Destroy
+    thisFntSize := (largus=1) ? Round(LargeUIfontValue*1.55) : LargeUIfontValue
+    If (thisFntSize<12)
+       thisFntSize := 12
+    bgrColor := OSDbgrColor
+    txtColor := OSDtextColor
+    Sleep, 25
+
+    Gui, mouseToolTipGuia: -DPIScale -Caption +Owner%thisHwnd% +ToolWindow +hwndhGuiTip
+    Gui, mouseToolTipGuia: Margin, % thisFntSize, % thisFntSize
+    Gui, mouseToolTipGuia: Color, c%bgrColor%
+    Gui, mouseToolTipGuia: Font, s%thisFntSize% Bold Q5, %FontName%
+    Gui, mouseToolTipGuia: Add, Text, 0x80 c%txtColor% gmouseTurnOFFtooltip vTippyMsg, %msg%
+    Gui, mouseToolTipGuia: Show, NoActivate AutoSize Hide x1 y1, QPVOguiTipsWin
+
+    GetPhysicalCursorPos(mX, mY)
+    tipX := mX + 15
+    tipY := mY + 15
+    ResWidth := adjustWin2MonLimits(hGuiTip, tipX, tipY, Final_x, Final_y, Wid, Heig)
+    MaxWidth := Floor(ResWidth*0.85)
+    If (MaxWidth<Wid && MaxWidth>10)
+    {
+       GuiControl, mouseToolTipGuia: Move, TippyMsg, w1 h1
+       GuiControl, mouseToolTipGuia:, TippyMsg,
+       Gui, mouseToolTipGuia: Add, Text, 0x80 xp yp c%txtColor% gmouseTurnOFFtooltip w%MaxWidth%, %msg%
+       Gui, mouseToolTipGuia: Show, NoActivate AutoSize Hide x1 y1, QPVguiTipsWin
+       ResWidth := adjustWin2MonLimits(hGuiTip, tipX, tipY, Final_x, Final_y, Wid, Heig)
+    }
+
+    prevMsg := msg
+    mouseToolTipWinCreated := 1
+    WinSet, AlwaysOnTop, On, ahk_id %hGuiTip%
+    WinSet, Transparent, 225, ahk_id %hGuiTip%
+    Gui, mouseToolTipGuia: Show, NoActivate AutoSize x%Final_x% y%Final_y%, QPVguiTipsWin
+    delayu := StrLen(msg) * 70 + 900
+    If (delayu<msgDisplayTime/2)
+       delayu := msgDisplayTime//2 + 1
+    SetTimer, mouseTurnOFFtooltip, % -delayu
+}
+
+adjustWin2MonLimits(winHwnd, winX, winY, ByRef rX, ByRef rY, ByRef Wid, ByRef Heig) {
+   GetWinClientSize(Wid, Heig, winHwnd, 1)
+   ActiveMon := MWAGetMonitorMouseIsIn(winX, winY)
+   If ActiveMon
+   {
+      SysGet, bCoord, Monitor, %ActiveMon%
+      rX := max(bCoordLeft, min(winX, bCoordRight - Wid))
+      rY := max(bCoordTop, min(winY, bCoordBottom - Heig*1.2))
+      ResWidth := Abs(max(bCoordRight, bCoordLeft) - min(bCoordRight, bCoordLeft))
+      ; ResHeight := Abs(max(bCoordTop, bCoordBottom) - min(bCoordTop, bCoordBottom))
+   } Else
+   {
+      rX := winX
+      rY := winY
+   }
+
+   Return ResWidth
+}
+
+
+GetPhysicalCursorPos(ByRef mX, ByRef mY) {
+; function from: https://github.com/jNizM/AHK_DllCall_WinAPI/blob/master/src/Cursor%20Functions/GetPhysicalCursorPos.ahk
+; by jNizM, modified by Marius Șucan
+    Static lastMx, lastMy, lastInvoked := 1
+    If (A_TickCount - lastInvoked<70)
+    {
+       mX := lastMx
+       mY := lastMy
+       Return
+    }
+
+    lastInvoked := A_TickCount
+    Static POINT
+         , init := VarSetCapacity(POINT, 8, 0) && NumPut(8, POINT, "Int")
+    GPC := DllCall("user32.dll\GetPhysicalCursorPos", "Ptr", &POINT)
+    If (!GPC || A_OSVersion="WIN_XP")
+    {
+       MouseGetPos, mX, mY
+       lastMx := mX
+       lastMy := mY
+       Return
+     ; Return DllCall("kernel32.dll\GetLastError")
+    }
+
+    lastMx := mX := NumGet(POINT, 0, "Int")
+    lastMy := mY := NumGet(POINT, 4, "Int")
+    Return
+}
+
+WM_RBUTTONUP() {
+    ; unused function - see GuiContextMenu() functions 
+    ; Tooltip, %A_GuiControl%
+    thisWin := WinActive("A")
+    If (mouseToolTipWinCreated=1)
+       mouseTurnOFFtooltip()
+    Else If (AnyWindowOpen && !InStr(A_GuiControl, "lview")) || (MsgBox2hwnd && A_IsSuspended)
+       SettingsToolTips()
+}
+
+SettingsToolTips() {
+   ActiveWin := WinActive("A")
+   If (ActiveWin!=hSetWinGui)
+      Return
+
+   If (mouseToolTipWinCreated=1)
+      mouseTurnOFFtooltip()
+ 
+   Gui, SettingsGUIA: Default
+   GuiControlGet, value, , %A_GuiControl%
+   ; MouseGetPos, , , , hwnd, 1 ; |2|3]
+   GuiControlGet, hwnd, hwnd, %A_GuiControl%
+   ControlGetText, info,, ahk_id %hwnd%
+   ControlGet, listBoxOptions, List,,, ahk_id %hwnd%
+   ControlGet, ctrlActiveState, Enabled,,, ahk_id %hwnd%
+   If (info=value)
+      info := ""
+
+   If StrLen(info)>0
+      info .= "`n"
+
+   If (posuk := InStr(value, "&"))
+      hotkeyu := "`nAlt+" SubStr(value, posuk + 1, 1)
+   Else If (posuk := InStr(A_GuiControl, "&"))
+      hotkeyu := "`nAlt+" SubStr(A_GuiControl, posuk + 1, 1)
+   
+   StringUpper, hotkeyu, hotkeyu
+   value := StrReplace(value, "&")
+   ctrlu := StrReplace(A_GuiControl, "&")
+   If (ctrlu=value)
+      value := ""
+
+   ; btnType := GetButtonType(hwnd)
+   If StrLen(value)>0
+   {
+      thisValueNumber := isNumber(Trim(value))
+      value .= " = "
+   }
+
+   MouseGetPos, , , id, controla, 2
+   If !hwnd
+      ControlGetText, info, , ahk_id %controla%
+
+   If !hotkeyu
+   {
+      If (posuk := InStr(info, "&"))
+         hotkeyu := "`nAlt+" SubStr(info, posuk + 1, 1)
+   }
+
+   info := StrReplace(info, "&")
+   WinGetClass, OutputVar, ahk_id %hwnd%
+   If OutputVar
+   {
+      If InStr(OutputVar, "_trackbar")
+      {
+         SendMessage, 0x0401,,,, ahk_id %hwnd%   ; TBM_GETRANGEMIN
+         minu := ErrorLevel
+         SendMessage, 0x0402,,,, ahk_id %hwnd%   ; TBM_GETRANGEMAX
+         maxu := ErrorLevel
+         OutputVar := "Slider: " minu "; " maxu
+      } Else If (InStr(OutputVar, "Button") && thisValueNumber=1 && InStr(value, "="))
+         OutputVar := "Checkbox"
+      Else If InStr(OutputVar, "_updown")
+      {
+         SendMessage, 0x0400+102,,,, ahk_id %hwnd%   ; UDM_GETRANGE
+         UDM_GETRANGE := ErrorLevel
+         minu := UDM_GETRANGE >> 16
+         maxu := UDM_GETRANGE & 0xFFFF
+         OutputVar := "Up/Down range: " minu "; " maxu
+      } Else If InStr(OutputVar, "edit")
+      {
+         OutputVar := "Edit field"
+      } Else If (InStr(OutputVar, "static") && value)
+      {
+         OutputVar := "Clickable" ; value  " - " ctrlu
+         controlType := "`n[" OutputVar "]"
+      }
+      If !InStr(OutputVar, "static")
+         controlType := "`n[" OutputVar "]"
+   }
+
+   msg2show := info value ctrlu controlType hotkeyu
+   ; ToolTip, % A_DefaultGUI "===" msg2show , , , 2
+   ; If (ctrlActiveState!=1 && StrLen(msg2show)>2 && btnType)
+   ;    msg2show .= "`n[CONTROL DISABLED]"
+   If StrLen(listBoxOptions)>3
+   {
+      countListBoxOptions := ST_Count(listBoxOptions, "`n") + 1
+      If (countListBoxOptions>10)
+         listBoxOptions := "[too many to list]"
+      msg2show .= "`n`nLIST OPTIONS: " countListBoxOptions "`n" listBoxOptions
+   }
+
+   ; If (!value && btnType)
+   ;    msg2show .= "`n`nCONTROL TYPE:`n" btnType
+   If InStr(msg2show, "lib\") || InStr(msg2show, "a href=")
+      Return
+
+   mouseCreateOSDinfoLine(msg2show, PrefsLargeFonts)
+   Return msg2show
+}
+
