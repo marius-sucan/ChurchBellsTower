@@ -5,6 +5,9 @@
 
 Work began on this project in late August 2018.
 
+v3.0.1 - 2021 / 09 / 21
+  - minor bug fixes and improvements
+
 v3.0.0 - 2021 / 09 / 20
   - [new] set alarm and timer options, with personalized messages 
   - [new] stopwatch panel; feature meant to help users track activities

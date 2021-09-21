@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.0.0
+;@Ahk2Exe-SetVersion 3.0.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -141,8 +141,8 @@ Global displayTimeFormat  := 1
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "3.0.0"
- , ReleaseDate            := "2021 / 09 / 20"
+ , Version                := "3.0.1"
+ , ReleaseDate            := "2021 / 09 / 21"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := ""
@@ -199,7 +199,7 @@ Global CSthin      := "░"   ; light gray
  , CurrentPrefWindow := 0
  , celebYear := A_Year
  , isHolidayToday := 0
- , TypeHolidayOccured := 0
+ , TypeHolidayOccured := 0, userTimerExpire := 0
  , hMain := A_ScriptHwnd, stopWatchIntervalRecords := []
  , lastOSDredraw := 1, stopWatchHumanStartTime := 0
  , semtr2play := 0, stopWatchRealStartZeit := 0
@@ -333,7 +333,7 @@ TimerShowOSDidle() {
         isThisIdle := 1
         DoGuiFader := 0
         If (BibleGuiVisible!=1)
-           CreateBibleGUI(generateDateTimeTxt(0, 1) "-")
+           CreateBibleGUI(generateDateTimeTxt(0, 1) "-", 0, 0, 1)
 
         GuiControl, BibleGui:, BibleGuiTXT, % generateDateTimeTxt(0, 1)
         SetTimer, DestroyBibleGui, Delete
@@ -402,44 +402,50 @@ analogClockStarter() {
   }
 }
 
-VerifyFiles() {
-  countFiles := 0
-  Loop, Files, sounds\*.mp3
-        countFiles++
+decideSysTrayTooltip() {
+    Static lastInvoked := 1
+    If (A_TickCount - lastInvoked<450)
+       Return
 
-  If (countFiles>=16)
-     Return
+    RunType := A_IsCompiled ? "" : " [script]"
+    If A_IsSuspended
+       RunType := " [DEACTIVATED]"
+    If (userMustDoTimer=1 && userTimerExpire)
+       timerInfos := "`nTimer set to expire at: " userTimerExpire
+    If (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours))
+       alarmInfos := "`nAlarm set at: " userAlarmHours ":" userAlarmMins
+    If (stopWatchRealStartZeit || stopWatchBeginZeit)
+       stopwInfos := "`nStopwatch is running"
+    If (userMuteAllSounds=1)
+       soundsInfos := "`nAll sounds are muted"
 
-  Sleep, 10
-  FileCreateDir, sounds
-  ; FileInstall, bell-image.png, bell-image.png
-  ; FileInstall, bells-tower-change-log.txt, bells-tower-change-log.txt
-  ; FileInstall, bible-quotes-eng.txt, bible-quotes-eng.txt
-  ; FileInstall, bible-quotes-fra.txt, bible-quotes-fra.txt
-  ; FileInstall, bible-quotes-esp.txt, bible-quotes-esp.txt
-  ; FileInstall, paypal.png, paypal.png
-  ; FileInstall, sounds\auxilliary-bell.mp3, sounds\auxilliary-bell.mp3
-  ; FileInstall, sounds\christmas.mp3, sounds\christmas.mp3
-  ; FileInstall, sounds\evening.mp3, sounds\evening.mp3
-  ; FileInstall, sounds\hours.mp3, sounds\hours.mp3
-  ; FileInstall, sounds\japanese-bell.mp3, sounds\japanese-bell.mp3
-  ; FileInstall, sounds\midnight.mp3, sounds\midnight.mp3
-  ; FileInstall, sounds\morning.mp3, sounds\morning.mp3
-  ; FileInstall, sounds\noon1.mp3, sounds\noon1.mp3
-  ; FileInstall, sounds\noon2.mp3, sounds\noon2.mp3
-  ; FileInstall, sounds\noon3.mp3, sounds\noon3.mp3
-  ; FileInstall, sounds\noon4.mp3, sounds\noon4.mp3
-  ; FileInstall, sounds\orthodox-chimes1.mp3, sounds\orthodox-chimes1.mp3
-  ; FileInstall, sounds\orthodox-chimes2.mp3, sounds\orthodox-chimes2.mp3
-  ; FileInstall, sounds\quarters.mp3, sounds\quarters.mp3
-  ; FileInstall, sounds\semantron1.mp3, sounds\semantron1.mp3
-  ; FileInstall, sounds\semantron2.mp3, sounds\semantron2.mp3
-  ; FileInstall, sounds\ticktock.wav, sounds\ticktock.wav
-  Sleep, 300
+    thisHoli := (StrLen(PersonalDay)>2) ? "personal" : "religious"
+    If (TypeHolidayOccured=2) ; secular
+       thisHoli := "secular"
+
+    thisHoli := "`nToday a " thisHoli " celebration is observed"
+
+    testu := compareYearDays(78, A_YDay) ; 03 / 20
+    If InStr(testu, "now")
+       resu := "`nSpring equinox"
+    testu := compareYearDays(170, A_YDay) ; 06 / 21
+    If InStr(testu, "now")
+       resu := "`nSummer solstice"
+    testu := compareYearDays(263, A_YDay) ; 09 / 22
+    If InStr(testu, "now")
+       resu := "`nAutumn equinox"
+    testu := compareYearDays(354, A_YDay) ; 12 / 21
+    If InStr(testu, "now")
+       resu := "`nWinter solstice"
+
+    Menu, Tray, Tip, % appName " v" Version RunType timerInfos alarmInfos stopwInfos  thisHoli resu soundsInfos
+    lastInvoked := A_TickCount
+    Return timerInfos alarmInfos stopwInfos  thisHoli resu soundsInfos
 }
 
 AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
-  If (PrefOpen=1 || A_IsSuspended) || (A_TickCount - scriptStartZeit < 950)
+  extras := decideSysTrayTooltip()
+  If (PrefOpen=1 || A_IsSuspended) || (A_TickCount - scriptStartZeit < 1550)
      Return
 
   Static LastInvoked := 1, LastInvoked2 := 1
@@ -450,7 +456,7 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
      DoGuiFader := 0
      ; If (ClockVisibility=0 || defAnalogClockPosChanged=1 && ClockVisibility=1) && (lParam=0x201 && ScriptInitialized=1)         ; left click
      If (ScriptInitialized=1)
-        CreateBibleGUI(generateDateTimeTxt())
+        CreateBibleGUI(generateDateTimeTxt() extras, 0, 0, 1)
      DoGuiFader := 1
      LastInvoked2 := A_TickCount
   } Else If (lParam = 0x207) && (strikingBellsNow=0)   ; middle click
@@ -462,7 +468,7 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
      DoGuiFader := 0
      ; If (ClockVisibility=0 || defAnalogClockPosChanged=1 && ClockVisibility=1)
      If (ScriptInitialized=1)
-        CreateBibleGUI(generateDateTimeTxt())
+        CreateBibleGUI(generateDateTimeTxt() extras, 0, 0, 1)
      If (tollQuarters=1)
         strikeQuarters(1)
      If (tollHours=1 || tollHoursAmount=1)
@@ -1227,6 +1233,9 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
     lastOSDredraw := A_TickCount
     bibleQuoteVisible := (isBibleQuote=1) ? 1 : 0
     FontSizeMin := (isBibleQuote=1) ? FontSizeQuotes : FontSize
+    If (isBibleQuote!=1 && noAdds=1 && InStr(msg2Display, "`n"))
+       FontSizeMin := Round(FontSize*0.7)
+
     GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
     Sleep, 2
     Gui, BibleGui: Destroy
@@ -1263,7 +1272,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
     WinSet, Transparent, 1, ChurchTowerBibleWin
     WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
 
-    If (isBibleQuote=0 && InStr(msg2Display, ":"))
+    If (isBibleQuote=0 && InStr(msg2Display, ":") && !InStr(msg2Display, "`n"))
     {
        percentileDay := Round(getPercentOfToday() * 100) "%"
        hu := Ceil(mainHeig*0.04 + 1)
@@ -1431,9 +1440,10 @@ ResetAnalogClickPosition() {
 WM_MouseMove(wP, lP, msg, hwnd) {
 ; Function by Drugwash
   Global
+  MouseGetPos, , , OutputVarWin
   Local A
   SetFormat, Integer, H
-  hwnd+=0, A := WinExist("A"), hwnd .= "", A .= ""
+  hwnd+=0, A := OutputVarWin, hwnd .= "", A .= ""
   SetFormat, Integer, D
   HideDelay := (PrefOpen=1) ? 600 : 2050
   If (A_TickCount - LastBibleQuoteDisplay<HideDelay+100) || (A_TickCount - lastOSDredraw<1000)
@@ -1663,7 +1673,6 @@ InitializeTray() {
        Menu, Tray, Check, Large UI &fonts
 
     Menu, Tray, Add
-    RunType := A_IsCompiled ? "" : " [script]"
     If FileExist(tickTockSound)
     {
        Menu, Tray, Add, Tick/Toc&k sound, ToggleTickTock
@@ -1695,9 +1704,10 @@ InitializeTray() {
     Menu, Tray, Add, Abou&t, PanelAboutWindow
     Menu, Tray, Add
     Menu, Tray, Add, E&xit, KillScript, P50
-    Menu, Tray, Tip, %appName% v%Version%%RunType%
+    
     Menu, Tray, Default, Abou&t
     Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display
+    decideSysTrayTooltip()
 }
 
 ToggleLargeFonts() {
@@ -1733,6 +1743,14 @@ ToggleLargeFonts() {
 }
 
 ToggleAllMuteSounds() {
+    If (A_IsSuspended || PrefOpen=1)
+    {
+       SoundBeep, 300, 900
+       If (PrefOpen=1)
+          WinActivate, ahk_id %hSetWinGui%
+       Return
+    }
+
     userMuteAllSounds := !userMuteAllSounds
     INIaction(1, "userMuteAllSounds", "SavedSettings")
     Menu, Tray, % (userMuteAllSounds=0 ? "Uncheck" : "Check"), &Mute all sounds
@@ -1956,6 +1974,7 @@ verifySettingsWindowSize(noCheckLargeUI:=0) {
     ActiveMon := MWAGetMonitorMouseIsIn()
     If !ActiveMon
        Return
+
     SysGet, mCoord, MonitorWorkArea, %ActiveMon%
     ResolutionWidth := Abs(max(mCoordRight, mCoordLeft) - min(mCoordRight, mCoordLeft))
     ResolutionHeight := Abs(max(mCoordTop, mCoordBottom) - min(mCoordTop, mCoordBottom))
@@ -2301,8 +2320,9 @@ ShowSettings() {
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38, %strikeEveryMin%
     Gui, Add, UpDown, gVerifyTheOptions vstrikeEveryMin Range1-720, %strikeEveryMin%
     Gui, Add, Text, xs y+10, Interval between tower strikes (in miliseconds):
-    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
+    Gui, Add, Edit, x+5 w70 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
     Gui, Add, UpDown, gVerifyTheOptions vstrikeInterval Range900-5500, %strikeInterval%
+    Gui, Add, Checkbox, xs y+5 gVerifyTheOptions Checked%userMuteAllSounds% vuserMuteAllSounds, Mute all sounds
 
     wu := (PrefsLargeFonts=1) ? 125:95
     vu := (PrefsLargeFonts=1) ? 55:45
@@ -2423,6 +2443,7 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControlGet, showTimeWhenIdle
     GuiControlGet, userBibleStartPoint
     GuiControlGet, orderedBibleQuotes
+    GuiControlGet, userMuteAllSounds
 
     GuiControl, % (EnableApply=0 ? "Disable" : "Enable"), ApplySettingsBTN
     GuiControl, % (AdditionalStrikes=0 ? "Disable" : "Enable"), editF38
@@ -2445,6 +2466,8 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt1
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt2
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt3
+    GuiControl, % (userMuteAllSounds=1 ? "Disable" : "Enable"), BeepsVolume
+    GuiControl, % (userMuteAllSounds=1 ? "Disable" : "Enable"), volLevel
     GuiControl, % (tollHours=0 ? "Disable" : "Enable"), tollHoursAmount
     GuiControl, % (tollQuarters=0 ? "Disable" : "Enable"), tollQuartersException
     GuiControl, % (ShowPreview=0 || analogDisplay=1) ? "Disable" : "Enable", ShowPreviewDate
@@ -2951,7 +2974,7 @@ coretestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         OSDprefix := "▣ "
 
      ; ToolTip, % OSDprefix "== lol" , , , 2
-     If (AnyWindowOpen!=1)
+     If (AnyWindowOpen!=1 && windowManageCeleb!=1)
      {
         Gui, ShareBtnGui: Destroy
         CreateBibleGUI(generateDateTimeTxt() " || " aisHolidayToday, 1, 1)
@@ -3650,7 +3673,9 @@ PanelSetAlarm() {
     INIaction(0, "userTimerMins", "SavedSettings")
     INIaction(0, "userTimerHours", "SavedSettings")
     INIaction(0, "userTimerMsg", "SavedSettings")
- 
+    MinMaxVar(userTimerMins, 0, 59, 2)
+    MinMaxVar(userTimerHours, 0, 12, 0)
+
     GenericPanelGUI(0)
     AnyWindowOpen := 4
     btnWid := 100
@@ -3672,6 +3697,7 @@ PanelSetAlarm() {
     Gui, Add, Edit, x+5 w70 number -multi limit2 veditF2, % userTimerMins
     Gui, Add, UpDown, vuserTimerMins Range0-59, % userTimerMins
     Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserTimerMsg, % userTimerMsg
+    Gui, Add, Text, xs+15 y+10 wp, Current timer expires at: %userTimerExpire%
 
     Gui, Add, Checkbox, xs y+20 gupdateUIalarmsPanel Checked%userMustDoAlarm% vuserMustDoAlarm, Set alarm at (hours`, minutes):
     Gui, Add, Edit, xs+15 y+10 w70 number -multi limit2 veditF3, % userAlarmHours
@@ -3899,10 +3925,16 @@ BtnApplyAlarms() {
   If (userMustDoTimer=1 && (userTimerHours || userTimerMins))
   {
      delayu := MCI_ToMilliseconds(userTimerHours, userTimerMins, 0)
+     Timea := A_Now
+     Timea += userTimerHours, Hours
+     Timea += userTimerMins, Minutes
+     userTimerExpire := SubStr(timea, 9, 4)
+     userTimerExpire := ST_Insert(":", userTimerExpire, 3)
+     ; ToolTip, % userTimerExpire
      SetTimer, doUserTimerAlert, % -delayu
   } Else 
   {
-     userMustDoTimer := 0
+     userTimerExpire := userMustDoTimer := 0
      SetTimer, doUserTimerAlert, Off
   }
 
@@ -3937,8 +3969,13 @@ doUserTimerAlert() {
   {
      userMustDoTimer := 1
      delayu := MCI_ToMilliseconds(userTimerHours, userTimerMins, 0)
+     Timea := A_Now
+     Timea += userTimerHours, Hours
+     Timea += userTimerMins, Minutes
+     userTimerExpire := SubStr(timea, 9, 4)
+     userTimerExpire := ST_Insert(":", userTimerExpire, 3)
      SetTimer, doUserTimerAlert, % -delayu
-  }
+  } Else userTimerExpire := 0
   SetTimer, PlayAlarmedBell, Off
 }
 
@@ -4359,11 +4396,12 @@ CheckSettings() {
     BinaryVar(PreferSecularDays, 0)
     BinaryVar(showTimeWhenIdle, 0)
     BinaryVar(OSDroundCorners, 1)
-    BinaryVar(userMuteAllSounds, 1)
-    BinaryVar(userMustDoAlarm, 1)
-    BinaryVar(userMustDoTimer, 1)
-    BinaryVar(userBibleStartPoint, 1)
+    BinaryVar(userMuteAllSounds, 0)
+    BinaryVar(userMustDoAlarm, 0)
+    BinaryVar(userMustDoTimer, 0)
+    BinaryVar(orderedBibleQuotes, 0)
     BinaryVar(AlarmersDarkScreen, 1)
+    BinaryVar(analogMoonPhases, 1)
 
 ; verify numeric values: min, max and default values
     If (InStr(analogDisplayScale, "err") || !analogDisplayScale)
@@ -4398,6 +4436,11 @@ CheckSettings() {
     MinMaxVar(noTollingBgrSounds, 1, 3, 1)
     MinMaxVar(OSDalpha, 75, 252, 230)
     MinMaxVar(userAlarmSound, 1, 5, 4)
+    MinMaxVar(userAlarmMins, 0, 59, 30)
+    MinMaxVar(userAlarmHours, 0, 23, 12)
+    MinMaxVar(userTimerMins, 0, 59, 2)
+    MinMaxVar(userTimerHours, 0, 12, 0)
+
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
     If (ObserveHolidays=0)
@@ -5147,3 +5190,17 @@ SettingsToolTips() {
    Return msg2show
 }
 
+#If, (WinActive( "ahk_id " hFaceClock) && constantAnalogClock=1 && hFaceClock)
+    Escape::
+      hideAnalogClock()
+      SetTimer, showAnalogClock, -150
+    Return
+
+    AppsKey::
+      ClockGuiGuiContextMenu(34788, 0, 238990, 1, 32, 90)
+    Return 
+
+    Space::
+      toggleMoonPhasesAnalog()
+    Return
+#If
