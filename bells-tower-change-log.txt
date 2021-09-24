@@ -1,9 +1,19 @@
 ; Church Bells Tower - version history
 ; site: https://github.com/marius-sucan/ChurchBellsTower
+; forum: https://www.autohotkey.com/boards/viewtopic.php?f=6&t=55833
 ; by Marius Șucan - http://marius.sucan.ro/
+; Work began on this project in late August 2018.
 ; ======================================================
 
-Work began on this project in late August 2018.
+v3.1.0 - 2021 / 09 / 24
+  - [new] alarms can be restricted to certain days of the week
+  - [new] the alarm can be snoozed now, at a user defined interval
+  - [new] added preset timers in the «Alarm / timer» panel
+  - double clicking on the system tray icon will now open the last panel
+  - improved the layout of «About» panel
+  - improved the layout of the «Alarm / timer» panel
+  - improved the layout of the Stopwatch panel
+  - bug fixes
 
 v3.0.1 - 2021 / 09 / 21
   - minor bug fixes and improvements

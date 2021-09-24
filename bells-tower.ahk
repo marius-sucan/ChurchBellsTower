@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.0.1
+;@Ahk2Exe-SetVersion 3.1.0
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -36,7 +36,6 @@
  #SingleInstance Force
  #NoEnv
  #MaxMem 256
- #Include, Lib\Class_ImageButton.ahk
  #Include, Lib\va.ahk                   ; vista audio APIs wrapper by Lexikos
  #Include, Lib\mci.ahk
  #Include, Lib\gdip_all.ahk
@@ -125,6 +124,10 @@ Global displayTimeFormat  := 1
  , userAlarmMins      := 30
  , AlarmersDarkScreen := 1
  , userAlarmSound     := 1
+ , userAlarmSnooze    := 5
+ , userAlarmRepeated  := 0
+ , userAlarmWeekDays  := 1234567
+ , stopWatchDoBeeps   := 0
 
 ; Analog clock stuff
  , faceBgrColor  := "eeEEee"
@@ -141,11 +144,11 @@ Global displayTimeFormat  := 1
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "3.0.1"
- , ReleaseDate            := "2021 / 09 / 21"
+ , Version                := "3.1.0"
+ , ReleaseDate            := "2021 / 09 / 24"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
- , QuotesAlreadySeen := ""
+ , QuotesAlreadySeen := "", LastWinOpened
  , LastNoonAudio := 0, appName := "Church Bells Tower"
  , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-1"
 
@@ -197,10 +200,10 @@ Global CSthin      := "░"   ; light gray
  , LastBibleQuoteDisplay2 := 1
  , LastBibleMsg := ""
  , CurrentPrefWindow := 0
- , celebYear := A_Year
- , isHolidayToday := 0
+ , celebYear := A_Year, userAlarmIsSnoozed := 0
+ , isHolidayToday := 0, stopWatchRecordsInterval := []
  , TypeHolidayOccured := 0, userTimerExpire := 0
- , hMain := A_ScriptHwnd, stopWatchIntervalRecords := []
+ , hMain := A_ScriptHwnd, stopWatchIntervalInfos := []
  , lastOSDredraw := 1, stopWatchHumanStartTime := 0
  , semtr2play := 0, stopWatchRealStartZeit := 0
  , stopWatchBeginZeit := 0, stopWatchLapBeginZeit := 0
@@ -215,7 +218,7 @@ Global CSthin      := "░"   ; light gray
  , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
  , SNDmedia_ticktok, quartersTotalTime := 0, hoursTotalTime := 0
  , SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas
- , SNDmedia_evening, SNDmedia_midnight, SNDmedia_morning
+ , SNDmedia_evening, SNDmedia_midnight, SNDmedia_morning, SNDmedia_beep
  , SNDmedia_noon1, SNDmedia_noon2, SNDmedia_noon3, SNDmedia_noon4
  , SNDmedia_orthodox_chimes1, SNDmedia_orthodox_chimes2
  , SNDmedia_semantron1, SNDmedia_semantron2, SNDmedia_hours12, SNDmedia_hours11
@@ -253,7 +256,7 @@ ScriptInitialized := 1      ; the end of the autoexec section and INIT
 If (tickTockNoise=1)
    SoundLoop(tickTockSound)
 
-If !isHolidayToday
+If StrLen(isHolidayToday)<3
    CreateBibleGUI(generateDateTimeTxt())
 
 If (AdditionalStrikes=1)
@@ -271,9 +274,7 @@ If (constantAnalogClock=1)
 If (NoWelcomePopupInfo!=1)
    ShowWelcomeWindow()
 
-If (userMustDoAlarm=1)
-   startAlarmTimer()
-
+startAlarmTimer()
 If (showTimeWhenIdle=1)
    SetTimer, TimerShowOSDidle, 1500
 
@@ -297,6 +298,7 @@ InitSoundChannels() {
   SNDfile_semantron1 := A_ScriptDir "\sounds\semantron1.mp3"
   SNDfile_semantron2 := A_ScriptDir "\sounds\semantron2.mp3"
   SNDfile_ticktok := A_ScriptDir "\sounds\ticktock.wav"
+  SNDfile_beep := A_ScriptDir "\sounds\beep.wav"
 
   Loop, 12
     SNDmedia_hours%A_Index% := MCI_Open(SNDfile_hours)
@@ -305,6 +307,7 @@ InitSoundChannels() {
 
   SNDmedia_auxil_bell := MCI_Open(SNDfile_auxil_bell)
   SNDmedia_christmas := MCI_Open(SNDfile_christmas)
+  SNDmedia_beep := MCI_Open(SNDfile_beep)
   SNDmedia_evening := MCI_Open(SNDfile_evening)
   SNDmedia_japan_bell := MCI_Open(SNDfile_japan_bell)
   SNDmedia_midnight := MCI_Open(SNDfile_midnight)
@@ -403,27 +406,44 @@ analogClockStarter() {
 }
 
 decideSysTrayTooltip() {
-    Static lastInvoked := 1
+    Static lastInvoked := 1, lastMsg
     If (A_TickCount - lastInvoked<450)
-       Return
+       Return lastMsg
 
     RunType := A_IsCompiled ? "" : " [script]"
     If A_IsSuspended
        RunType := " [DEACTIVATED]"
     If (userMustDoTimer=1 && userTimerExpire)
        timerInfos := "`nTimer set to expire at: " userTimerExpire
+
     If (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours))
-       alarmInfos := "`nAlarm set at: " userAlarmHours ":" userAlarmMins
+    {
+       timeu := Format("{:02}:{:02}", userAlarmHours, userAlarmMins)
+       If (userAlarmIsSnoozed=1)
+       {
+          alarmInfos := "`nAlarm is set at: " timeu " (snoozed for " userAlarmSnooze " min.)"
+       } Else If (userAlarmRepeated=1)
+       {
+          canDo := InStr(userAlarmWeekDays, A_WDay) ? 1 : 0
+          ; ToolTip, % canDo "=" ObserveHolidays "=" isHolidayToday , , , 2
+          If (canDo && ObserveHolidays=1 && StrLen(isHolidayToday)>2)
+             canDo := (InStr(userAlarmWeekDays, "p") && TypeHolidayOccured=3) || (InStr(userAlarmWeekDays, "s") && TypeHolidayOccured=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && TypeHolidayOccured=1 && ObserveReligiousDays=1) ? 0 : 1
+
+          alarmInfos := canDo ? "`nDaily alarm set at: " timeu : "`nDaily alarm set: exception rule applies"
+       } Else
+          alarmInfos := "`nAlarm set at: " timeu
+    }
+
     If (stopWatchRealStartZeit || stopWatchBeginZeit)
        stopwInfos := "`nStopwatch is running"
-    If (userMuteAllSounds=1)
+    If (userMuteAllSounds=1 || BeepsVolume<2)
        soundsInfos := "`nAll sounds are muted"
 
-    thisHoli := (StrLen(PersonalDay)>2) ? "personal" : "religious"
+    thisHoli := (TypeHolidayOccured=3) ? "personal" : "religious"
     If (TypeHolidayOccured=2) ; secular
        thisHoli := "secular"
 
-    thisHoli := "`nToday a " thisHoli " celebration is observed"
+    thisHoli := (StrLen(isHolidayToday)>2) ? "`nToday a " thisHoli " event is observed" : ""
 
     testu := compareYearDays(78, A_YDay) ; 03 / 20
     If InStr(testu, "now")
@@ -440,16 +460,38 @@ decideSysTrayTooltip() {
 
     Menu, Tray, Tip, % appName " v" Version RunType timerInfos alarmInfos stopwInfos  thisHoli resu soundsInfos
     lastInvoked := A_TickCount
-    Return timerInfos alarmInfos stopwInfos  thisHoli resu soundsInfos
+    lastMsg :=  timerInfos alarmInfos stopwInfos  thisHoli resu soundsInfos
+    Return lastMsg
 }
 
 AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
+; lParam 
+  ; WM_LBUTTONDOWN = 0x201
+  ; WM_LBUTTONUP = 0x202
+  ; WM_LBUTTONDBLCLK = 0x203
+  ; WM_RBUTTONDOWN = 0x204
+  ; WM_RBUTTONUP = 0x205
+  ; WM_MBUTTONDOWN = 0x207
+  ; WM_MBUTTONUP = 0x208
+
+  Static lastLClick := 1, LastInvoked := 1, LastInvoked2 := 1
   extras := decideSysTrayTooltip()
   If (PrefOpen=1 || A_IsSuspended) || (A_TickCount - scriptStartZeit < 1550)
+  {
+     If (PrefOpen=1) && ((lParam = 0x203) || (lParam = 0x202))
+        WinActivate, ahk_id %hSetWinGui%
      Return
+  }
 
-  Static LastInvoked := 1, LastInvoked2 := 1
-  If (lParam = 0x201) || (lParam = 0x204) ; /rl-click
+  If (lParam = 0x203) ; double-click
+  {
+     stopStrikesNow := 1
+     strikingBellsNow := 0
+     If IsFunc(LastWinOpened)
+        %LastWinOpened%()
+     Else
+        PanelAboutWindow()
+  } Else If (lParam = 0x202) ; l-click
   {
      stopStrikesNow := 1
      strikingBellsNow := 0
@@ -459,7 +501,7 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
         CreateBibleGUI(generateDateTimeTxt() extras, 0, 0, 1)
      DoGuiFader := 1
      LastInvoked2 := A_TickCount
-  } Else If (lParam = 0x207) && (strikingBellsNow=0)   ; middle click
+  } Else If (lParam = 0x208) && (strikingBellsNow=0)   ; middle click
   {
      LastInvoked2 := A_TickCount
      If (AnyWindowOpen=1)
@@ -665,7 +707,7 @@ SetMyVolume(noRestore:=0) {
   If (A_TickCount - LastNoonZeitSound<150000) && (PrefOpen=0 && noTollingBgrSounds=2)
      Return
 
-  If (ScriptInitialized=1 && AutoUnmute=1 && BeepsVolume>3
+  If (ScriptInitialized=1 && AutoUnmute=1 && BeepsVolume>3 && userMuteAllSounds=0
   && (A_TickCount - LastInvoked > 290100) && noRestore=0)
   {
      mustRestoreVol := 0
@@ -808,12 +850,12 @@ tollGivenNoon(snd, delayu) {
      INIaction(1, "LastNoonAudio", "SavedSettings")
   } Else choice := snd
 
-  ToolTip, % "Noon audio playing: " choice
+  ; ToolTip, % "Noon audio playing: " choice
   sleepDelay := RandomNumberCalc()
   fn := Func("MCXI_Play").Bind(SNDmedia_noon%choice%)
   SetTimer, % fn, % -(strikeInterval//2 + sleepDelay//2 + delayu)
   Global LastNoonZeitSound := A_TickCount
-  SetTimer, removeTooltip, -1000
+  ; SetTimer, removeTooltip, -1000
 }
 
 
@@ -895,11 +937,14 @@ PlayAlarmedBell() {
       bu := !bu
       If bu
          MCXI_Play(SNDmedia_japan_bell)
+   } Else If (userAlarmSound=5)
+   {
+      MCXI_Play(SNDmedia_beep)
    }
 }
 
 MCXI_Play(hSND) {
-    If (stopAdditionalStrikes=1 || stopStrikesNow=1 || userMuteAllSounds=1)
+    If (stopAdditionalStrikes=1 || stopStrikesNow=1 || userMuteAllSounds=1 || BeepsVolume<2)
        Return
 
     MCI_SendString("seek " hSND " to 1 wait")
@@ -956,6 +1001,7 @@ theChimer() {
   SoundGet, master_vol
   DoGuiFader := 1
   stopStrikesNow := stopAdditionalStrikes := 0
+  startAlarmTimer()
   strikingBellsNow := 1
   Random, delayRandNoon, 950, 5050
   NoonTollQuartersDelay := 0
@@ -973,7 +1019,7 @@ theChimer() {
      If (BeepsVolume>1)
         MCXI_Play(SNDmedia_evening)
 
-     If (StrLen(isHolidayToday)>3 && SemantronHoliday=0 && TypeHolidayOccured>1)
+     If (StrLen(isHolidayToday)>2 && SemantronHoliday=0 && TypeHolidayOccured>1)
         tollGivenNoon(0, 51000 + delayRandNoon + NoonTollQuartersDelay)
   } Else If (InStr(exactTime, "00:00") && tollNoon=1)
   {
@@ -1045,7 +1091,7 @@ theChimer() {
               tollGivenNoon(0, delayRand2 + newDelay + hoursTotalTime)
               Random, newDelay, 2500, 5000
               tollGivenNoon(0, delayRand2 + newDelay + hoursTotalTime)
-           } Else If (A_WDay=1 || StrLen(isHolidayToday)>3)  ; on Sundays or holidays
+           } Else If (A_WDay=1 || StrLen(isHolidayToday)>2)  ; on Sundays or holidays
            {
               Random, newDelay, 49000, 99000
               tollGivenNoon(0, delayRand2 + newDelay + hoursTotalTime)
@@ -1054,7 +1100,7 @@ theChimer() {
      }
   }
 
-  If (stopStrikesNow=0 && SemantronHoliday=1 && StrLen(isHolidayToday)>3 && InStr(exactTime, ":45"))
+  If (stopStrikesNow=0 && SemantronHoliday=1 && StrLen(isHolidayToday)>2 && InStr(exactTime, ":45"))
   {
      If InStr(exactTime, "09:45")
         playSemantron(1, quartersTotalTime)
@@ -1068,7 +1114,7 @@ theChimer() {
         playSemantron(4, quartersTotalTime)
         playSemantron(1, quartersTotalTime + newDelay)
      }
-  } Else If (StrLen(isHolidayToday)>3 && SemantronHoliday=0 && TypeHolidayOccured=1) && (tollNoon=1 || tollQuarters=1)
+  } Else If (StrLen(isHolidayToday)>2 && SemantronHoliday=0 && TypeHolidayOccured=1) && (tollNoon=1 || tollQuarters=1)
   {
      Random, newDelay, 39000, 89000
      If (InStr(exactTime, "09:45") || InStr(exactTime, "17:45"))
@@ -1419,11 +1465,11 @@ CreateShareButton() {
 CopyLastQuote() {
   Try Clipboard := LastBibleMsg
   ToolTip, Text sent to clipboard.
-  Sleep, 500
+  Sleep, 100
   GuiFader("BibleShareBtn","hide", OSDalpha)
-  Sleep, 150
+  Sleep, 100
   Gui, ShareBtnGui: Destroy
-  ToolTip
+  SetTimer, removeTooltip, -950
 }
 
 ResetAnalogClickPosition() {
@@ -1705,7 +1751,7 @@ InitializeTray() {
     Menu, Tray, Add
     Menu, Tray, Add, E&xit, KillScript, P50
     
-    Menu, Tray, Default, Abou&t
+    ; Menu, Tray, Default, Abou&t
     Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display
     decideSysTrayTooltip()
 }
@@ -1821,6 +1867,8 @@ toggleAnalogClock() {
    If (constantAnalogClock=1 && moduleAnalogClockInit!=1)
       InitClockFace()
 
+   LastWinOpened := A_ThisFunc
+   INIaction(1, "LastWinOpened", "SavedSettings")
    INIaction(1, "constantAnalogClock", "OSDprefs")
    Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display
    If (constantAnalogClock=1)
@@ -2303,14 +2351,19 @@ ShowSettings() {
        editFieldWid := editFieldWid + 65
        columnBpos1 := columnBpos2 := columnBpos2 + 90
     }
+
     columnBpos1b := columnBpos1 + 20
     Gui, Add, Tab3, -Background +hwndhTabs, Bells|Extras|Restrictions|OSD options
+    LastWinOpened := A_ThisFunc
+    INIaction(1, "LastWinOpened", "SavedSettings")
+
 
     Gui, Tab, 1 ; general
     Gui, Add, Text, x+15 y+15 Section +0x200 vvolLevel, % "Audio volume: " BeepsVolume " % "
     Gui, Add, Slider, x+5 hp ToolTip NoTicks gVolSlider w200 vBeepsVolume Range0-99, %BeepsVolume%
     Gui, Add, Checkbox, gVerifyTheOptions xs y+7 Checked%DynamicVolume% vDynamicVolume, Dynamic volume (adjusted relative to the master volume)
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%AutoUnmute% vAutoUnmute, Automatically unmute master volume [when required]
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%userMuteAllSounds% vuserMuteAllSounds, Mute all sounds
     Gui, Add, Checkbox, y+20 gVerifyTheOptions Checked%tollNoon% vtollNoon, Toll distinctively every six hours [eg., noon, midnight]
     Gui, Add, Checkbox, y+10 gcheckBoxStrikeQuarter Checked%tollQuarters% vtollQuarters, Strike quarter-hours
     Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%tollQuartersException% vtollQuartersException, ... except on the hour
@@ -2322,7 +2375,6 @@ ShowSettings() {
     Gui, Add, Text, xs y+10, Interval between tower strikes (in miliseconds):
     Gui, Add, Edit, x+5 w70 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
     Gui, Add, UpDown, gVerifyTheOptions vstrikeInterval Range900-5500, %strikeInterval%
-    Gui, Add, Checkbox, xs y+5 gVerifyTheOptions Checked%userMuteAllSounds% vuserMuteAllSounds, Mute all sounds
 
     wu := (PrefsLargeFonts=1) ? 125:95
     vu := (PrefsLargeFonts=1) ? 55:45
@@ -2467,6 +2519,8 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt2
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt3
     GuiControl, % (userMuteAllSounds=1 ? "Disable" : "Enable"), BeepsVolume
+    GuiControl, % (userMuteAllSounds=1 ? "Disable" : "Enable"), AutoUnmute
+    GuiControl, % (userMuteAllSounds=1 ? "Disable" : "Enable"), dynamicVolume
     GuiControl, % (userMuteAllSounds=1 ? "Disable" : "Enable"), volLevel
     GuiControl, % (tollHours=0 ? "Disable" : "Enable"), tollHoursAmount
     GuiControl, % (tollQuarters=0 ? "Disable" : "Enable"), tollQuartersException
@@ -2535,9 +2589,9 @@ MWAGetMonitorMouseIsIn(coordX:=0,coordY:=0) {
   Return ActiveMon
 }
 
-ScreenBlocker(killNow:=0, darkner:=0) {
+ScreenBlocker(killNow:=0, darkner:=0, doOnTop:=1, forceIT:=0) {
     Static
-    If (killNow=1) || (darkner=1 && makeScreenDark=0)
+    If (killNow=1) || (darkner=1 && makeScreenDark=0 && forceIT=0)
     {
        Gui, ScreenBl: Destroy
        Return
@@ -2564,7 +2618,9 @@ ScreenBlocker(killNow:=0, darkner:=0) {
     Gui, ScreenBl: Show, NoActivate Hide x%mCoordLeft% y%mCoordTop% w%ResolutionWidth% h%ResolutionHeight%, ScreenShader
     WinSet, Transparent, % (darkner=1) ? 1 : 30, ScreenShader
     Gui, ScreenBl: Show, NoActivate, ScreenShader
-    WinSet, AlwaysOnTop, On, ScreenShader
+    If (doOnTop=1)
+       WinSet, AlwaysOnTop, On, ScreenShader
+
     If (darkner=1)
     {
        Gui, ScreenBl: +E0x20
@@ -2835,11 +2891,11 @@ testCelebrations() {
    isHolidayToday := obju[2]
 }
 
-coretestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
+coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
   Critical, On
   testEquiSols()
   If (ObserveHolidays=0 && SemantronHoliday=0)
-     Return
+     Return [0, 0]
 
   aTypeHolidayOccured := aisHolidayToday := 0
   testFeast := thisMon "." thisMDay
@@ -2969,7 +3025,7 @@ coretestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
 
   If (StrLen(aisHolidayToday)>2 && ObserveHolidays=1 && isListMode=0)
   {
-     OSDprefix := (StrLen(PersonalDay)>2) ? "▦ " : "✝ "
+     OSDprefix := (aTypeHolidayOccured=3) ? "▦ " : "✝ "
      If (aTypeHolidayOccured=2) ; secular
         OSDprefix := "▣ "
 
@@ -3257,6 +3313,7 @@ updateHolidaysLVs() {
         FormatTime, PersonalDate, %PersonalDate%, LongDate
         If (StrLen(PersonalDate)<3) || InStr(PersonalDay, "default disabled")
            Continue
+
         LV_Add(A_Index, testFeast, PersonalDate, PersonalDay)
         loopsOccured++
      }
@@ -3351,11 +3408,13 @@ processHolidaysList(theList) {
       miniDate := lineArr[2]
       If (StrLen(miniDate)>5)
          miniDate := SubStr(miniDate, 5,2) "." SubStr(miniDate, 7,2)
+
       StringReplace, rawDate, miniDate, .
       rawDate := celebYear rawDate "010101"
       FormatTime, LongaData, %rawDate%, LongDate
       If (StrLen(LongaData)<3)
          Continue
+
       PersonalDay := INIactionNonGlobal(0, miniDate, 0, "Celebrations")
       byeFlag := (StrLen(PersonalDay)>2) ? "(*) " : ""
       LV_Add(A_Index, miniDate, byeFlag LongaData, lineArr[1])
@@ -3506,9 +3565,12 @@ CloseCelebListWin() {
    If (windowManageCeleb=2)
       mustReopen := 1
 
+   
    windowManageCeleb := 0
    If (mustReopen=1)
       PanelManageCelebrations()
+   Else
+      startAlarmTimer()
 }
 
 CancelNewEntryBtn() {
@@ -3584,8 +3646,10 @@ PanelIncomingCelebrations() {
     If reactWinOpened(A_ThisFunc, 3)
        Return
 
-    GenericPanelGUI(1)
+    GenericPanelGUI(0)
+    LastWinOpened := A_ThisFunc
     AnyWindowOpen := 3
+    INIaction(1, "LastWinOpened", "SavedSettings")
     btnWid := 100
     txtWid := 360
     Global btn1
@@ -3595,7 +3659,7 @@ PanelIncomingCelebrations() {
     Gui, Font, c%GUIAtxtColor% s12 Bold, Arial, -wrap
     Gui, Add, Text, y+4, Celebrations in the next 30 days.
     Gui, Font
-    Gui, Font, c%GUIAtxtColor%
+    ; Gui, Font, c%GUIAtxtColor%
     If (PrefsLargeFonts=1)
     {
        btnWid := btnWid + 50
@@ -3632,17 +3696,11 @@ PanelIncomingCelebrations() {
     Gui, Add, Button, xs+1 y+15 w1 h1, L
     Gui, Add, Edit, xp+1 yp+1 ReadOnly r15 w%txtWid%, % listu
     Gui, Font, Normal
-    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn hwndhBtn1, Manage
-    Gui, Add, Button, x+5 hp wp+15 gShowSettings hwndhBtn2, Settings
-    Gui, Add, Button, x+5 hp wp-15 gCloseWindow hwndhBtn3, Close
+    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn hwndhBtn1, &Manage
+    Gui, Add, Button, x+5 hp wp+15 gShowSettings hwndhBtn2, &Settings
+    Gui, Add, Button, x+5 hp wp-15 gCloseWindow hwndhBtn3, &Close
 
     Gui, Show, AutoSize, Celebrations list: %appName%
-    Opt1 := [0, "0xff" AboutTitleColor, , "0xff" BtnTxtColor, 15, "0x" GUIAbgrColor, , 0]
-    Opt2 := [ , "0xef" hoverBtnColor]
-    Opt3 := [ , "0xff" BtnTxtColor, , "0xff" hoverBtnColor]
-    ImageButton.Create(hBtn1, Opt1, Opt2, Opt3)
-    ImageButton.Create(hBtn2, Opt1, Opt2, Opt3)
-    ImageButton.Create(hBtn3, Opt1, Opt2, Opt3)
 }
 
 reactWinOpened(funcu, idu) {
@@ -3666,6 +3724,25 @@ reactWinOpened(funcu, idu) {
     ;    %funcu%()
 }
 
+SetPresetTimers(a, b, c) {
+   Static lastInvoked := 1, prevu := 0
+   ControlGetText, info, , ahk_id %a%
+   info := StrReplace(info, "&")
+   info := info := Trim(StrReplace(info, "m"))
+   If (A_TickCount - lastInvoked<450) && (prevu=info)
+      info := info*3
+
+   Gui, SettingsGUIA: Default
+   GuiControl, SettingsGUIA: , userMustDoTimer, 1
+   GuiControl, SettingsGUIA: , userTimerHours, 0
+   GuiControl, SettingsGUIA: , userTimerMins, % info
+   prevu := info
+   updateUIalarmsPanel()
+   lastInvoked := A_TickCount
+   ; ToolTip, % a "=" b "=" c "=" info , , , 2
+
+}
+
 PanelSetAlarm() {
     If reactWinOpened(A_ThisFunc, 4)
        Return
@@ -3677,10 +3754,16 @@ PanelSetAlarm() {
     MinMaxVar(userTimerHours, 0, 12, 0)
 
     GenericPanelGUI(0)
+    LastWinOpened := A_ThisFunc
     AnyWindowOpen := 4
+    INIaction(1, "LastWinOpened", "SavedSettings")
     btnWid := 100
     txtWid := 360
-    Global btn1, editF1, editF2, editF4
+    Global btn1, editF1, editF2, editF4, editF5, userTimerInfos, UItimerInfoz
+         , userAlarmWday1, userAlarmWday2, userAlarmWday3, userAlarmWday4
+         , userAlarmWday5, userAlarmWday6, userAlarmWday7, txt1
+         , userAlarmExceptPerso, userAlarmExceptRelu, userAlarmExceptSeculu
+
     If (PrefsLargeFonts=1)
     {
        btnWid := btnWid + 50
@@ -3690,25 +3773,76 @@ PanelSetAlarm() {
 
     btnW1 := (PrefsLargeFonts=1) ? 105 : 80
     btnH := (PrefsLargeFonts=1) ? 35 : 28
-    Gui, Add, Text, x15 y15 Section, Alarm and timer options
+    nW := (PrefsLargeFonts=1) ? 65 : 60
+    nH := (PrefsLargeFonts=1) ? 35 : 30
+    userAlarmWday1 := InStr(userAlarmWeekDays, "1") ? 1 : 0
+    userAlarmWday2 := InStr(userAlarmWeekDays, "2") ? 1 : 0
+    userAlarmWday3 := InStr(userAlarmWeekDays, "3") ? 1 : 0
+    userAlarmWday4 := InStr(userAlarmWeekDays, "4") ? 1 : 0
+    userAlarmWday5 := InStr(userAlarmWeekDays, "5") ? 1 : 0
+    userAlarmWday6 := InStr(userAlarmWeekDays, "6") ? 1 : 0
+    userAlarmWday7 := InStr(userAlarmWeekDays, "7") ? 1 : 0
+    userAlarmExceptPerso := InStr(userAlarmWeekDays, "p") ? 1 : 0
+    userAlarmExceptRelu := InStr(userAlarmWeekDays, "r") ? 1 : 0
+    userAlarmExceptSeculu := InStr(userAlarmWeekDays, "s") ? 1 : 0
+    If !userAlarmWeekDays
+       userAlarmWday7 := userAlarmWday1 := 1
+
+    Gui, Add, Tab3,, Timer|Alarm
+    Gui, Tab, 1
+    Gui, Add, Button, x+15 y+15 Section gSetPresetTimers, &1m
+    Gui, Add, Button, x+2 wp+2 gSetPresetTimers, &2m
+    Gui, Add, Button, x+2 wp+2 gSetPresetTimers, &3m
+    Gui, Add, Button, x+2 wp+2 gSetPresetTimers, &5m
+    Gui, Add, Button, x+2 wp+3 gSetPresetTimers, &10m
+    Gui, Add, Button, x+2 wp+3 gSetPresetTimers, &15m
+    Gui, Add, Button, x+2 wp+3 gSetPresetTimers, &30m
     Gui, Add, Checkbox, xs y+10 Section gupdateUIalarmsPanel Checked%userMustDoTimer% vuserMustDoTimer, Set timer duration (in hours`, mins):
-    Gui, Add, Edit, xs+15 y+10 w70 number -multi limit2 veditF1, % userTimerHours
-    Gui, Add, UpDown, vuserTimerHours Range0-12, % userTimerHours
-    Gui, Add, Edit, x+5 w70 number -multi limit2 veditF2, % userTimerMins
-    Gui, Add, UpDown, vuserTimerMins Range0-59, % userTimerMins
+    Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
+    Gui, Add, Edit, xs+15 y+10 w%nW% h%nH% Center number -multi limit2 gupdateUIalarmsPanel veditF1, % userTimerHours
+    Gui, Add, UpDown, vuserTimerHours Range0-12 gupdateUIalarmsPanel, % userTimerHours
+    Gui, Add, Edit, x+5 w%nW% h%nH% Center number -multi limit2 veditF2 gupdateUIalarmsPanel, % userTimerMins
+    Gui, Add, UpDown, vuserTimerMins Range0-59 gupdateUIalarmsPanel, % userTimerMins
+    Gui, Add, Text, x+10 hp +0x200 vuserTimerInfos, 00:00.
+    Gui, Font
+    If (PrefsLargeFonts=1)
+       Gui, Font, s%LargeUIfontValue%
     Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserTimerMsg, % userTimerMsg
-    Gui, Add, Text, xs+15 y+10 wp, Current timer expires at: %userTimerExpire%
+    timerDetails := (userTimerExpire && userMustDoTimer=1) ? "Current timer expires at: " userTimerExpire "." : "Press Apply to start the timer."
+    Gui, Add, Text, xs+15 y+10 wp vUItimerInfoz, % timerDetails
 
-    Gui, Add, Checkbox, xs y+20 gupdateUIalarmsPanel Checked%userMustDoAlarm% vuserMustDoAlarm, Set alarm at (hours`, minutes):
-    Gui, Add, Edit, xs+15 y+10 w70 number -multi limit2 veditF3, % userAlarmHours
+    Gui, Tab, 2
+    Gui, Add, Checkbox, x+15 y+15 Section gupdateUIalarmsPanel Checked%userMustDoAlarm% vuserMustDoAlarm, Set alarm at (hours`, mins`, snooze mins.):
+    Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
+    Gui, Add, Edit, xs+15 y+10 w%nW% h%nH% Center number -multi limit2 veditF3 hwndhEdit, % userAlarmHours
     Gui, Add, UpDown, vuserAlarmHours Range0-23, % userAlarmHours
-    Gui, Add, Edit, x+5 w70 number -multi limit2 veditF4, % userAlarmMins
+    Gui, Add, Edit, x+5 w%nW% h%nH% Center number -multi limit2 veditF4, % userAlarmMins
     Gui, Add, UpDown, vuserAlarmMins Range0-59, % userAlarmMins
-    Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserAlarmMsg, % userAlarmMsg
+    Gui, Add, Edit, x+35 w%nW% h%nH% Center number -multi limit2 veditF5, % userAlarmSnooze
+    Gui, Add, UpDown, vuserAlarmSnooze Range1-59, % userAlarmSnooze
+    Gui, Font
+    If (PrefsLargeFonts=1)
+       Gui, Font, s%LargeUIfontValue%
 
-    Gui, Add, Checkbox, xs y+20 gupdateUIalarmsPanel Checked%AlarmersDarkScreen% vAlarmersDarkScreen, Flash dark screen on alerts
-    Gui, Add, DropDownList, xs y+7 wp AltSubmit Choose%userAlarmSound% vuserAlarmSound, Auxilliary bell|Quarters bell|Hours bell|Gong|No sound alert
-    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gBtnApplyAlarms, &Apply
+    Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserAlarmMsg, % userAlarmMsg
+    Gui, Add, Checkbox, xs y+10 gupdateUIalarmsPanel Checked%userAlarmRepeated% vuserAlarmRepeated, &Repeat alarm on...
+    Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 Checked%userAlarmWday1% vuserAlarmWday1, Sun
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday2% vuserAlarmWday2, Mon
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday3% vuserAlarmWday3, Tue
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday4% vuserAlarmWday4, Wed
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday5% vuserAlarmWday5, Thu
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday6% vuserAlarmWday6, Fri
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday7% vuserAlarmWday7, Sat
+
+    Gui, Add, Text, xs+15 y+10 vtxt1, Except on the days when the event observed is...
+    Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 Checked%userAlarmExceptRelu% vuserAlarmExceptRelu, Religious
+    Gui, Add, Checkbox, x+1 hp +0x1000 Checked%userAlarmExceptSeculu% vuserAlarmExceptSeculu, Secular
+    Gui, Add, Checkbox, x+1 hp +0x1000 Checked%userAlarmExceptPerso% vuserAlarmExceptPerso, Personal
+
+    Gui, Tab
+    Gui, Add, Checkbox, xm y+10 Section gupdateUIalarmsPanel Checked%AlarmersDarkScreen% vAlarmersDarkScreen, Flash dark screen on alerts
+    Gui, Add, DropDownList, x+10 wp-55 AltSubmit Choose%userAlarmSound% vuserAlarmSound, Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert
+    Gui, Add, Button, xs+0 y+10 h%btnH% w%btnW1% Default gBtnApplyAlarms, &Apply
     Gui, Add, Button, x+5 hp wp-15 gCloseWindow , &Cancel
 
     Gui, Show, AutoSize, Alarm and timer: %appName%
@@ -3720,10 +3854,18 @@ PanelStopWatch() {
        Return
 
     GenericPanelGUI(0)
+    LastWinOpened := A_ThisFunc
     AnyWindowOpen := 5
+    INIaction(1, "LastWinOpened", "SavedSettings")
     btnWid := 100
     txtWid := 360
-    Global btn1, editF1, editF2, editF4, UIstopWatchLabel, UserStopWatchListZeits, UIstopWatchInfos, setAlwaysOnTop, UIstopWatchInterval
+    Global btn1, editF1, editF2, editF4, UIstopWatchLabel, UserStopWatchListZeits, UIstopWatchAvgInterval
+         , UIstopWatchInfos, setAlwaysOnTop, UIstopWatchInterval, LViewStopWatch, UIstopWatchDetailsInterval
+
+    stopWatchIntervalInfos[1] := 9876543210
+    stopWatchIntervalInfos[2] := 0
+    stopWatchIntervalInfos[3] := 0
+    stopWatchRecordsInterval := []
     setAlwaysOnTop := 0
     If (PrefsLargeFonts=1)
     {
@@ -3739,17 +3881,36 @@ PanelStopWatch() {
     stopWatchRealStartZeit := 0
     btnW1 := (PrefsLargeFonts=1) ? 105 : 80
     btnH := (PrefsLargeFonts=1) ? 35 : 28
-    Gui, Add, Text, x15 y15 Section, Time is here and there...
+    Gui, Add, Tab3,, Main|Records
+
+    Gui, Tab, 1 ; general
+    Gui, Add, Text, x+15 y+15 Section, Time is here and there...
+    Gui, Add, Text, y+5 vUIstopWatchInfos gstartStopWatchCounter, 00:00:00 - 00:00:00
+    Gui, Add, Text, x+5 gstartStopWatchCounter, (total time)
     Gui, Font, s22
-    Gui, Add, Text, y+10 vUIstopWatchLabel gstartStopWatchCounter, 00:00:00.00
+    Gui, Add, Text, xs y+10 vUIstopWatchLabel gstartStopWatchCounter, 00:00:00.00
     Gui, Font
     If (PrefsLargeFonts=1)
        Gui, Font, s%LargeUIfontValue%
-    Gui, Add, Text, y+5 vUIstopWatchInfos gstartStopWatchCounter, 00:00:00 - 00:00:00
-    Gui, Add, ComboBox, xs y+10 wp+55 vUserStopWatchListZeits, No records||
-    Gui, Add, Text, x+5 wp-80 hp vUIstopWatchInterval gRecordStopWatchInterval, 00:00:00.00
-    Gui, Add, Checkbox, xs y+15 wp+25 gToggleAlwaysOnTopSettingsWindow  Checked%setAlwaysOnTop% vsetAlwaysOnTop, Always on top
-    Gui, Add, Button, xs+0 y+5 h30 wp Default gstartStopWatchCounter, &Start / Pause
+    Gui, Add, Text, x+5 hp +0x200 gstartStopWatchCounter, (laps total time)
+    Gui, Font, s18
+    Gui, Add, Text, xs y+5 vUIstopWatchInterval gRecordStopWatchInterval, 00:00:00.00
+    Gui, Font
+    If (PrefsLargeFonts=1)
+       Gui, Font, s%LargeUIfontValue%
+    Gui, Add, Text, x+5 hp +0x200 vUIstopWatchDetailsInterval gRecordStopWatchInterval, (current lap details)
+    Gui, Add, Text, xs y+5 vUIstopWatchAvgInterval gRecordStopWatchInterval, 00:00:00.00
+    Gui, Add, Text, x+5 gRecordStopWatchInterval, (average time per lap)
+    Gui, Add, Checkbox, xs y+15 Checked%stopWatchDoBeeps% vstopWatchDoBeeps, Beep when the current lap`nis the longest
+    ; Gui, Add, ComboBox, xs y+10 w250 vUserStopWatchListZeits, No records||
+    
+    Gui, Tab, 2
+    nW := (PrefsLargeFonts=1) ? 265 : 240
+    Gui, Add, ListView, x+15 y+15 Section w%nW% r8 Grid vLViewStopWatch, Index|Lap|Laps total|Total
+
+    Gui, Tab
+    Gui, Add, Checkbox, xm+0 y+15 gToggleAlwaysOnTopSettingsWindow  Checked%setAlwaysOnTop% vsetAlwaysOnTop, Always on top
+    Gui, Add, Button, xm+0 y+5 h30 wp Section Default gstartStopWatchCounter, &Start / Pause
     Gui, Add, Button, x+5 h30 wp gRecordStopWatchInterval, &Record interval
     Gui, Add, Button, xs+0 y+5 hp wp gResetStopWatchCounter, &Reset
     Gui, Add, Button, x+5 hp wp gCloseWindow, &Cancel
@@ -3769,6 +3930,8 @@ ToggleAlwaysOnTopSettingsWindow() {
 RecordStopWatchInterval() {
   If (AnyWindowOpen=5 && stopWatchBeginZeit && stopWatchPauseZeit)
   {
+     Gui, SettingsGUIA: Default
+     GuiControlGet, stopWatchDoBeeps
      GuiControl, SettingsGUIA:, UIstopWatchInterval, 00:00:00.0
      coreSecToHHMMSS((A_TickCount - stopWatchBeginZeit)/1000 + stopWatchPauseZeit/1000, hrs, mins, sec)
      Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
@@ -3776,22 +3939,47 @@ RecordStopWatchInterval() {
  
      coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec)
      HrzA := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Round(Sec))
- 
-     coreSecToHHMMSS((A_TickCount - stopWatchLapBeginZeit)/1000 + stopWatchLapPauseZeit/1000, hrs, mins, sec)
+     valuePushable := (A_TickCount - stopWatchLapBeginZeit)/1000 + stopWatchLapPauseZeit/1000
+     coreSecToHHMMSS(valuePushable, hrs, mins, sec)
      HrzB := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
      SecC := SubStr(Sec, InStr(Sec, ".") + 1)
      finalu := HrzB "." SecC " / " Hrz "." SecB " / " HrzA
-     stopWatchIntervalRecords.Push(finalu)
-     Loop, % stopWatchIntervalRecords.Count()
-         listu .= stopWatchIntervalRecords[A_Index] "|"
-     listu := "|" Trim(listu, "|") "||"
-     GuiControl, SettingsGUIA:, UserStopWatchListZeits, % listu
+     If (stopWatchIntervalInfos[3]=0)
+        stopWatchIntervalInfos[1] := (A_TickCount - stopWatchRealStartZeit)/1000 + 1
+
+     countu := stopWatchIntervalInfos[3] + 1
+     stopWatchRecordsInterval[countu] := valuePushable
+     Gui, ListView, LViewStopWatch
+     LV_Add(1, countu, HrzB "." SecC, Hrz "." SecB, HrzA)
+     If (countu=1)
+     {
+        Loop, 4
+           LV_ModifyCol(A_Index, "AutoHdr Center")
+     }
+
+     stopWatchIntervalInfos[1] := min(valuePushable, stopWatchIntervalInfos[1])
+     stopWatchIntervalInfos[2] := max(valuePushable, stopWatchIntervalInfos[2])
+     stopWatchIntervalInfos[3] := countu
+     stopWatchIntervalInfos.Push(valuePushable)
      stopWatchLapPauseZeit := 0.001
      stopWatchLapBeginZeit := A_TickCount
   }
 }
 
 ResetStopWatchCounter() {
+   stopWatchIntervalInfos[1] := 9876543210
+   stopWatchIntervalInfos[2] := 0
+   stopWatchIntervalInfos[3] := 0
+   stopWatchRecordsInterval := []
+   If (AnyWindowOpen=5)
+   {
+      Gui, SettingsGUIA: Default
+      GuiControlGet, stopWatchDoBeeps
+      Gui, ListView, LViewStopWatch
+      LV_Delete()
+      ; GuiControl, SettingsGUIA:, UserStopWatchListZeits, |No records||
+   }
+
    stopWatchBeginZeit := 0
    stopWatchPauseZeit := 0.001
    stopWatchLapBeginZeit := 0
@@ -3804,10 +3992,17 @@ ResetStopWatchCounter() {
       GuiControl, SettingsGUIA:, UIstopWatchInfos, 00:00:00 - 00:00:00
       GuiControl, SettingsGUIA:, UIstopWatchLabel, 00:00:00.0
       GuiControl, SettingsGUIA:, UIstopWatchInterval, 00:00:00.0
+      GuiControl, SettingsGUIA:, UIstopWatchAvgInterval, 00:00:00.0
    }
 }
 
 startStopWatchCounter() {
+   If (AnyWindowOpen-5)
+   {
+      Gui, SettingsGUIA: Default
+      GuiControlGet, stopWatchDoBeeps
+   }
+
    If stopWatchBeginZeit
    {
       SetTimer, uiStopWatchUpdater, Off
@@ -3833,12 +4028,15 @@ startStopWatchCounter() {
 }
 
 uiStopWatchUpdater() {
+  Static lastBeeped := 1
   If (AnyWindowOpen!=5)
   {
      ResetStopWatchCounter()
      Return
   }
 
+  Gui, SettingsGUIA: Default
+  GuiControlGet, stopWatchDoBeeps
   coreSecToHHMMSS((A_TickCount - stopWatchBeginZeit)/1000 + stopWatchPauseZeit/1000, hrs, mins, sec)
   Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
   SecB := SubStr(Sec, InStr(Sec, ".") + 1)
@@ -3850,10 +4048,45 @@ uiStopWatchUpdater() {
   GuiControl, SettingsGUIA:, UIstopWatchInfos, %stopWatchHumanStartTime% - %hrz% ; :%mins%:%sec%
   
   ; ToolTip, % stopWatchLapBeginZeit "`n" stopWatchLapPauseZeit , , , 2
-  coreSecToHHMMSS((A_TickCount - stopWatchLapBeginZeit)/1000 + stopWatchLapPauseZeit/1000, hrs, mins, sec)
+  thisLap := (A_TickCount - stopWatchLapBeginZeit)/1000 + stopWatchLapPauseZeit/1000
+
+  coreSecToHHMMSS(thisLap, hrs, mins, sec)
   Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
   SecB := SubStr(Sec, InStr(Sec, ".") + 1)
-  GuiControl, SettingsGUIA:, UIstopWatchInterval, %hrz%.%SecB% ; :%mins%:%sec%
+  If !isInRange(thisLap, stopWatchIntervalInfos[1], stopWatchIntervalInfos[2])
+     labelu := (thisLap<stopWatchIntervalInfos[1]) ? "shortest" : "longest"
+  Else
+     labelu := "current"
+
+  If (labelu="longest" && stopWatchDoBeeps=1 && stopWatchIntervalInfos[3]>0 && (A_TickCount - lastBeeped>950))
+  {
+     stopAdditionalStrikes := stopStrikesNow := 0
+     MCXI_Play(SNDmedia_beep)
+     lastBeeped := A_TickCount
+  }
+
+  GuiControl, SettingsGUIA:, UIstopWatchInterval, %hrz%.%SecB%
+  GuiControl, SettingsGUIA:, UIstopWatchDetailsInterval, (%labelu% lap)
+
+  If (stopWatchIntervalInfos[3]>0)
+  {
+     allLapsZeit := thisLap
+     Loop, % stopWatchIntervalInfos[3]
+         allLapsZeit += stopWatchRecordsInterval[A_Index]
+
+     allLapsZeit := allLapsZeit/(stopWatchIntervalInfos[3] + 1)
+     coreSecToHHMMSS(allLapsZeit, hrs, mins, sec)
+     Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
+     SecB := SubStr(Sec, InStr(Sec, ".") + 1)
+     GuiControl, SettingsGUIA:, UIstopWatchAvgInterval, %hrz%.%SecB%
+  }
+}
+
+isInRange(value, inputA, inputB) {
+    If (value=inputA || value=inputB)
+       Return 1
+
+    Return (value>=min(inputA, inputB) && value<=max(inputA, inputB)) ? 1 : 0
 }
 
 uiStopWatchPausedUpdater() {
@@ -3863,6 +4096,8 @@ uiStopWatchPausedUpdater() {
      Return
   }
 
+  Gui, SettingsGUIA: Default
+  GuiControlGet, stopWatchDoBeeps
   coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec)
   Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Round(Sec))
   ; Mins := Format("{:02}", Mins)
@@ -3882,19 +4117,52 @@ updateUIalarmsPanel() {
   Gui, SettingsGUIA: Default
   GuiControlGet, OutputVarA, SettingsGUIA:, userMustDoTimer
   GuiControlGet, OutputVarB, SettingsGUIA:, userMustDoAlarm
+  GuiControlGet, doRepeat, SettingsGUIA:, userAlarmRepeated
+  GuiControlGet, doTimer, SettingsGUIA:, userMustDoTimer
+  GuiControlGet, TimerH, SettingsGUIA:, userTimerHours
+  GuiControlGet, TimerM, SettingsGUIA:, userTimerMins
+
+  If (doTimer=1 && (TimerH || TimerM))
+  {
+     Timea := A_Now
+     Timea += TimerH, Hours
+     Timea += TimerM, Minutes
+     expire := SubStr(timea, 9, 4)
+     expire := ST_Insert(":", expire, 3)
+     GuiControl, SettingsGUIA:, userTimerInfos, % expire
+  } Else
+     GuiControl, SettingsGUIA:, userTimerInfos, --:--
+
   act := (OutputVarB=1) ? "Enable" : "Disable"
   GuiControl, SettingsGUIA: %act%, userAlarmHours
   GuiControl, SettingsGUIA: %act%, userAlarmMins
   GuiControl, SettingsGUIA: %act%, userAlarmMsg
+  GuiControl, SettingsGUIA: %act%, userAlarmSnooze
   GuiControl, SettingsGUIA: %act%, editF3
   GuiControl, SettingsGUIA: %act%, editF4
+  GuiControl, SettingsGUIA: %act%, editF5
+  GuiControl, SettingsGUIA: %act%, userAlarmRepeated
+  act := (OutputVarB=1 && doRepeat=1) ? "Enable" : "Disable"
+  GuiControl, SettingsGUIA: %act%, txt1
+  GuiControl, SettingsGUIA: %act%, userAlarmExceptSeculu
+  GuiControl, SettingsGUIA: %act%, userAlarmExceptPerso
+  GuiControl, SettingsGUIA: %act%, userAlarmExceptRelu
+  GuiControl, SettingsGUIA: %act%, userAlarmWday1
+  GuiControl, SettingsGUIA: %act%, userAlarmWday2
+  GuiControl, SettingsGUIA: %act%, userAlarmWday3
+  GuiControl, SettingsGUIA: %act%, userAlarmWday4
+  GuiControl, SettingsGUIA: %act%, userAlarmWday5
+  GuiControl, SettingsGUIA: %act%, userAlarmWday6
+  GuiControl, SettingsGUIA: %act%, userAlarmWday7
 
   act := (OutputVarA=1) ? "Enable" : "Disable"
   GuiControl, SettingsGUIA: %act%, userTimerHours
   GuiControl, SettingsGUIA: %act%, userTimerMins
   GuiControl, SettingsGUIA: %act%, userTimerMsg
+  GuiControl, SettingsGUIA: %act%, userTimerInfos
   GuiControl, SettingsGUIA: %act%, editF1
   GuiControl, SettingsGUIA: %act%, editF2
+  GuiControl, SettingsGUIA: %act%, UItimerInfoz
 }
 
 BtnApplyAlarms() {
@@ -3909,9 +4177,41 @@ BtnApplyAlarms() {
   GuiControlGet, userAlarmMins
   GuiControlGet, userAlarmMsg
   GuiControlGet, userAlarmSound
+  GuiControlGet, userAlarmRepeated
+  GuiControlGet, userAlarmSnooze
+  GuiControlGet, userAlarmExceptRelu
+  GuiControlGet, userAlarmExceptSeculu
+  GuiControlGet, userAlarmExceptPerso
+  GuiControlGet, userAlarmWday7
+  GuiControlGet, userAlarmWday6
+  GuiControlGet, userAlarmWday5
+  GuiControlGet, userAlarmWday4
+  GuiControlGet, userAlarmWday2
+  GuiControlGet, userAlarmWday1
 
   userTimerMsg := Trim(userTimerMsg)
   userAlarmMsg := Trim(userAlarmMsg)
+  userAlarmWeekDays := ""
+  If userAlarmExceptRelu
+     userAlarmWeekDays .= "r"
+  If userAlarmExceptSeculu
+     userAlarmWeekDays .= "s"
+  If userAlarmExceptPerso
+     userAlarmWeekDays .= "p"
+  If userAlarmWday1
+     userAlarmWeekDays .= 1
+  If userAlarmWday2
+     userAlarmWeekDays .= 2
+  If userAlarmWday3
+     userAlarmWeekDays .= 3
+  If userAlarmWday4
+     userAlarmWeekDays .= 4
+  If userAlarmWday5
+     userAlarmWeekDays .= 5
+  If userAlarmWday6
+     userAlarmWeekDays .= 6
+  If userAlarmWday7
+     userAlarmWeekDays .= 7
 
   INIaction(1, "userMustDoAlarm", "SavedSettings")
   INIaction(1, "AlarmersDarkScreen", "SavedSettings")
@@ -3919,6 +4219,12 @@ BtnApplyAlarms() {
   INIaction(1, "userAlarmMsg", "SavedSettings")
   INIaction(1, "userAlarmHours", "SavedSettings")
   INIaction(1, "userAlarmMins", "SavedSettings")
+  INIaction(1, "userAlarmRepeated", "SavedSettings")
+  INIaction(1, "userAlarmSnooze", "SavedSettings")
+  ; INIaction(1, "userAlarmExceptPerso", "SavedSettings")
+  ; INIaction(1, "userAlarmExceptSeculu", "SavedSettings")
+  ; INIaction(1, "userAlarmExceptRelu", "SavedSettings")
+  INIaction(1, "userAlarmWeekDays", "SavedSettings")
   INIaction(1, "userTimerMins", "SavedSettings")
   INIaction(1, "userTimerHours", "SavedSettings")
   INIaction(1, "userTimerMsg", "SavedSettings")
@@ -3943,8 +4249,10 @@ BtnApplyAlarms() {
      startAlarmTimer()
   } Else
   {
-     userMustDoAlarm := 0
+     userAlarmIsSnoozed := userMustDoAlarm := 0
      INIaction(1, "userMustDoAlarm", "SavedSettings")
+     SetTimer, doUserAlarmAlert, Off
+     SetTimer, PlayAlarmedBell, Off
   }
 
   CloseWindow()
@@ -3957,11 +4265,11 @@ doUserTimerAlert() {
      strikeJapanBell()
   thisMsg := Trim(userTimerMsg) ? "`n" Trim(userTimerMsg) : "NONE"
   If (AlarmersDarkScreen=1)
-     ScreenBlocker(0,1)
+     ScreenBlocker(0, 1, 0, 1)
 
   WinSet, AlwaysOnTop, Off, ScreenShader
   showTimeNow()
-  If (userAlarmSound<5)
+  If (userAlarmSound!=6)
      SetTimer, PlayAlarmedBell, 1500
 
   MsgBox, 4, Timer: %appName%, % "Timer message: "  thisMsg "`n`nPress Yes to repeat timer."
@@ -3982,30 +4290,57 @@ doUserTimerAlert() {
 doUserAlarmAlert() {
   stopStrikesNow := stopAdditionalStrikes := 0
   If (userAlarmSound!=4)
-  {
      strikeJapanBell()
-     SetTimer, strikeJapanBell, -1500
-  }
+
   thisMsg := Trim(userAlarmMsg) ? "`n" Trim(userAlarmMsg) : "NONE"
   If (AlarmersDarkScreen=1)
-     ScreenBlocker(0,1)
+     ScreenBlocker(0, 1, 0, 1)
 
   showTimeNow()
-  If (userAlarmSound<5)
+  If (userAlarmSound!=6)
      SetTimer, PlayAlarmedBell, 1500
 
-  MsgBox, 4, Alarm: %appName%, % "Alarm message: " thisMsg "`n`nPress Yes to repeat the alarm next day."
+  friendly := (userAlarmIsSnoozed=1) ? " (snoozed)" : ""
+  friendly2 := (userAlarmIsSnoozed=1) ? "again" : ""
+  MsgBox, 4, Alarm%friendly%: %appName%, % "Alarm message: " thisMsg "`n`nPress Yes to snooze " friendly2 " for " userAlarmSnooze " minutes."
   IfMsgBox, Yes
   {
      userMustDoAlarm := 1
+     userAlarmIsSnoozed := 1
+     SetTimer, doUserAlarmAlert, % -(userAlarmSnooze*60000)
+  } Else If (userAlarmRepeated=1)
+  {
+     userAlarmIsSnoozed := 0
+     userMustDoAlarm := 1
      startAlarmTimer()
-  } Else userMustDoAlarm := 0
-
+     SetTimer, doUserAlarmAlert, Off
+  } Else
+  {
+     userAlarmIsSnoozed := 0
+     userMustDoAlarm := 0
+     SetTimer, doUserAlarmAlert, Off
+  }
   SetTimer, PlayAlarmedBell, Off
   INIaction(1, "userMustDoAlarm", "SavedSettings")
 }
 
 startAlarmTimer() {
+  If (userAlarmIsSnoozed=1)
+     Return
+
+  canDo := (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours)) ? 1 : 0
+  If (canDo && userAlarmRepeated=1)
+     canDo := InStr(userAlarmWeekDays, A_WDay) ? 1 : 0
+
+  If (canDo && userAlarmRepeated=1 && ObserveHolidays=1 && StrLen(isHolidayToday)>2)
+     canDo := (InStr(userAlarmWeekDays, "p") && TypeHolidayOccured=3) || (InStr(userAlarmWeekDays, "s") && TypeHolidayOccured=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && TypeHolidayOccured=1 && ObserveReligiousDays=1) ? 0 : 1
+
+  If !canDo
+  {
+     SetTimer, doUserAlarmAlert, Off
+     Return
+  }
+
   nowu := SubStr(A_Now, 1, 12)
   tH := StrLen(userAlarmHours)!=2 ? "0" . userAlarmHours : userAlarmHours
   tM := StrLen(userAlarmMins)!=2 ? "0" . userAlarmMins : userAlarmMins
@@ -4031,8 +4366,10 @@ PanelAboutWindow() {
     If reactWinOpened(A_ThisFunc, 1)
        Return
 
-    GenericPanelGUI(1)
+    GenericPanelGUI(0)
+    LastWinOpened := A_ThisFunc
     AnyWindowOpen := 1
+    INIaction(1, "LastWinOpened", "SavedSettings")
     btnWid := 100
     txtWid := 360
     Global btn1
@@ -4042,7 +4379,7 @@ PanelAboutWindow() {
     Gui, Font, c%GUIAtxtColor% s12 Bold, Arial, -wrap
     Gui, Add, Link, y+4 hwndhLink0, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a>.
     Gui, Font
-    Gui, Font, c%GUIAtxtColor%
+    ; Gui, Font, c%GUIAtxtColor%
     If (PrefsLargeFonts=1)
     {
        btnWid := btnWid + 50
@@ -4053,6 +4390,25 @@ PanelAboutWindow() {
     If (tickTockNoise!=1)
        SoundLoop(tickTockSound)
 
+    btnW1 := (PrefsLargeFonts=1) ? 105 : 80
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    nW := (PrefsLargeFonts=1) ? 65 : 60
+    nH := (PrefsLargeFonts=1) ? 35 : 30
+    userAlarmWday1 := InStr(userAlarmWeekDays, "1") ? 1 : 0
+    userAlarmWday2 := InStr(userAlarmWeekDays, "2") ? 1 : 0
+    userAlarmWday3 := InStr(userAlarmWeekDays, "3") ? 1 : 0
+    userAlarmWday4 := InStr(userAlarmWeekDays, "4") ? 1 : 0
+    userAlarmWday5 := InStr(userAlarmWeekDays, "5") ? 1 : 0
+    userAlarmWday6 := InStr(userAlarmWeekDays, "6") ? 1 : 0
+    userAlarmWday7 := InStr(userAlarmWeekDays, "7") ? 1 : 0
+    userAlarmExceptPerso := InStr(userAlarmWeekDays, "p") ? 1 : 0
+    userAlarmExceptRelu := InStr(userAlarmWeekDays, "r") ? 1 : 0
+    userAlarmExceptSeculu := InStr(userAlarmWeekDays, "s") ? 1 : 0
+    If !userAlarmWeekDays
+       userAlarmWday7 := userAlarmWday1 := 1
+
+    Gui, Add, Tab3,xm+1, Today|Application details
+    Gui, Tab, 1
     testCelebrations()
     MarchEquinox := compareYearDays(78, A_YDay) "March equinox."   ; 03 / 20
     If InStr(MarchEquinox, "now")
@@ -4072,7 +4428,7 @@ PanelAboutWindow() {
     NextYear := CurrentYear + 1
 
     percentileDay := Round(getPercentOfToday(minsPassed) * 100) "%"
-    Gui, Add, Text, x15 y+10 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
+    Gui, Add, Text, x+15 y+7 w1 h1 Section, .
     If (MarchEquinox ~= "until|here")
        Gui, Font, Bold
     If !InStr(MarchEquinox, "hide")
@@ -4093,6 +4449,10 @@ PanelAboutWindow() {
     If !InStr(DecSolstice, "hide")
        Gui, Add, Text, y+7 w%txtWid%, %DecSolstice%
     Gui, Font, Normal
+
+    extras := decideSysTrayTooltip()
+    If extras
+       Gui, Add, Text, y+7 w%txtWid%, % Trim(extras, "`n")
 
     weeksPassed := Floor(A_YDay/7)
     weeksPlural := (weeksPassed>1) ? "weeks" : "week"
@@ -4162,8 +4522,14 @@ PanelAboutWindow() {
        If (PrefsLargeFonts=1)
           Gui, Font, s%LargeUIfontValue% c%GUIAtxtColor%
     }
-    newLine := (PrefsLargeFonts=1) ? " " : "`n"
-    Gui, Add, Text, xs-30 y+15 Section w%txtWid%, This application contains code and sounds from various entities.%newLine%You can find more details in the source code.
+
+    Gui, Tab, 2
+    Gui, Add, Text, x+15 y+15 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
+    Gui, Add, Text, xs y+15 Section w%txtWid%, This application contains code and sounds from various entities.%newLine%You can find more details in the source code.
+    compiled := (A_IsCompiled=1) ? "Compiled. " : "Uncompiled. "
+    compiled .= (A_PtrSize=8) ? "x64. " : "x32. "
+    Gui, Add, Text, xs y+15 w%txtWid%, Current version: v%version% from %ReleaseDate%. Internal AHK version: %A_AhkVersion%. %compiled%OS: %A_OSVersion%.
+    Gui, Add, Text, y+15 gOpenChangeLog, Click here to view the change log / version history.
     If (storeSettingsREG=1)
        Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
     Else      
@@ -4171,34 +4537,19 @@ PanelAboutWindow() {
     Gui, Font, Bold
     Gui, Add, Link, xp+30 y+10 hwndhLink1, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
     Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, paypal.png
-
     Gui, Font, Normal
+
+    Gui, Tab
     btnW1 := (PrefsLargeFonts=1) ? 110 : 80
     btnW2 := (PrefsLargeFonts=1) ? 80 : 55
     btnW3 := (PrefsLargeFonts=1) ? 110 : 80
     btnH := (PrefsLargeFonts=1) ? 35 : 28
-    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gCloseWindowAbout hwndhBtn1, Deus lux est
-    Gui, Add, Button, x+5 hp w%btnW2% gShowSettings hwndhBtn2, Settings
+    Gui, Add, Button, xm+0 y+10 Section h%btnH% w%btnW1% Default gCloseWindowAbout hwndhBtn1, &Deus lux est
+    Gui, Add, Button, x+5 hp w%btnW2% gShowSettings hwndhBtn2, &Settings
     If (ObserveHolidays=1)
-      Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations hwndhBtn3, Celebrations
+      Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations hwndhBtn3, &Celebrations
 
-    Gui, Add, Text, x+8 hp +0x200 gOpenChangeLog hwndhBtnLog, v%Version% (%ReleaseDate%)
-    Gui, Show, AutoSize, About %appName% v%Version%
-    ColorPickerHandles := hDonateBTN "," hBellIcon "," hBtnLog
-    Sleep, 25
-
-    Opt1 := [0, "0xff" AboutTitleColor, , "0xff" BtnTxtColor, 15, "0x" GUIAbgrColor, , 0]
-    Opt2 := [ , "0xef" hoverBtnColor]
-    Opt3 := [ , "0xff" BtnTxtColor, , "0xff" hoverBtnColor]
-    ImageButton.Create(hBtn1, Opt1, Opt2, Opt3)
-    ImageButton.Create(hBtn2, Opt1, Opt2, Opt3)
-    ImageButton.Create(hBtn3, Opt1, Opt2, Opt3)
-    LinkUseDefaultColor(hLink0)
-    LinkUseDefaultColor(hLink1)
-    LinkUseDefaultColor(hLink2)
-    verifySettingsWindowSize()
-    If InStr(isHolidayToday, "Christmas") && (stopAdditionalStrikes=0)
-       MCXI_Play(SNDmedia_christmas)
+    Gui, Show, AutoSize, About: %appName%
 }
 
 CloseWindowAbout() {
@@ -4272,6 +4623,7 @@ INIsettings(a) {
      INIaction(1, "Version", "SavedSettings")
   }
   INIaction(a, "PrefsLargeFonts", "SavedSettings")
+  INIaction(a, "LastWinOpened", "SavedSettings")
   INIaction(a, "LargeUIfontValue", "SavedSettings")
   INIaction(a, "tollQuarters", "SavedSettings")
   INIaction(a, "tollQuartersException", "SavedSettings")
@@ -4316,7 +4668,13 @@ INIsettings(a) {
   INIaction(a, "userAlarmMsg", "SavedSettings")
   INIaction(a, "userAlarmHours", "SavedSettings")
   INIaction(a, "userAlarmMins", "SavedSettings")
+  INIaction(a, "userAlarmSnooze", "SavedSettings")
   INIaction(a, "AlarmersDarkScreen", "SavedSettings")
+  INIaction(a, "userAlarmRepeated", "SavedSettings")
+  INIaction(a, "userAlarmWeekDays", "SavedSettings")
+  ; INIaction(a, "userAlarmExceptPerso", "SavedSettings")
+  ; INIaction(a, "userAlarmExceptRelu", "SavedSettings")
+  ; INIaction(a, "userAlarmExceptSeculu", "SavedSettings")
 
 ; OSD settings
   INIaction(a, "DisplayTimeUser", "OSDprefs")
@@ -4380,6 +4738,10 @@ CheckSettings() {
     BinaryVar(tollNoon, 1)
     BinaryVar(tollHours, 1)
     BinaryVar(tollHoursAmount, 1)
+    BinaryVar(userAlarmRepeated, 0)
+    BinaryVar(userAlarmExceptSeculu, 0)
+    BinaryVar(userAlarmExceptRelu, 0)
+    BinaryVar(userAlarmExceptPerso, 0)
     BinaryVar(displayClock, 1)
     BinaryVar(AutoUnmute, 1)
     BinaryVar(tickTockNoise, 0)
@@ -4435,7 +4797,8 @@ CheckSettings() {
     MinMaxVar(maxBibleLength, 20, 130, 55)
     MinMaxVar(noTollingBgrSounds, 1, 3, 1)
     MinMaxVar(OSDalpha, 75, 252, 230)
-    MinMaxVar(userAlarmSound, 1, 5, 4)
+    MinMaxVar(userAlarmSnooze, 1, 59, 5)
+    MinMaxVar(userAlarmSound, 1, 6, 5)
     MinMaxVar(userAlarmMins, 0, 59, 30)
     MinMaxVar(userAlarmHours, 0, 23, 12)
     MinMaxVar(userTimerMins, 0, 59, 2)
@@ -4923,7 +5286,6 @@ decideFadeColor() {
   OSDfadedColor := SubStr(newColor, 5)
 }
 
-
 GetWindowBounds(hWnd) {
    ; function by GeekDude: https://gist.github.com/G33kDude/5b7ba418e685e52c3e6507e5c6972959
    ; W10 compatible function to find a window's visible boundaries
@@ -5084,7 +5446,7 @@ WM_RBUTTONUP() {
     thisWin := WinActive("A")
     If (mouseToolTipWinCreated=1)
        mouseTurnOFFtooltip()
-    Else If (AnyWindowOpen && !InStr(A_GuiControl, "lview")) || (MsgBox2hwnd && A_IsSuspended)
+    Else If ((AnyWindowOpen || PrefOpen=1) && !InStr(A_GuiControl, "lview"))
        SettingsToolTips()
 }
 
