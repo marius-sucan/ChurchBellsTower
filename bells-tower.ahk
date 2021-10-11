@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.1.0
+;@Ahk2Exe-SetVersion 3.1.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -144,8 +144,8 @@ Global displayTimeFormat  := 1
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "3.1.0"
- , ReleaseDate            := "2021 / 09 / 24"
+ , Version                := "3.1.1"
+ , ReleaseDate            := "2021 / 10 / 11"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := "", LastWinOpened
@@ -3802,7 +3802,7 @@ PanelSetAlarm() {
     Gui, Add, Edit, xs+15 y+10 w%nW% h%nH% Center number -multi limit2 gupdateUIalarmsPanel veditF1, % userTimerHours
     Gui, Add, UpDown, vuserTimerHours Range0-12 gupdateUIalarmsPanel, % userTimerHours
     Gui, Add, Edit, x+5 w%nW% h%nH% Center number -multi limit2 veditF2 gupdateUIalarmsPanel, % userTimerMins
-    Gui, Add, UpDown, vuserTimerMins Range0-59 gupdateUIalarmsPanel, % userTimerMins
+    Gui, Add, UpDown, vuserTimerMins Range-1-60 gupdateUIalarmsPanel, % userTimerMins
     Gui, Add, Text, x+10 hp +0x200 vuserTimerInfos, 00:00.
     Gui, Font
     If (PrefsLargeFonts=1)
@@ -3816,8 +3816,8 @@ PanelSetAlarm() {
     Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
     Gui, Add, Edit, xs+15 y+10 w%nW% h%nH% Center number -multi limit2 veditF3 hwndhEdit, % userAlarmHours
     Gui, Add, UpDown, vuserAlarmHours Range0-23, % userAlarmHours
-    Gui, Add, Edit, x+5 w%nW% h%nH% Center number -multi limit2 veditF4, % userAlarmMins
-    Gui, Add, UpDown, vuserAlarmMins Range0-59, % userAlarmMins
+    Gui, Add, Edit, x+5 w%nW% h%nH% gupdateUIalarmsPanel Center number -multi limit2 veditF4, % userAlarmMins
+    Gui, Add, UpDown, vuserAlarmMins gupdateUIalarmsPanel Range-1-60, % userAlarmMins
     Gui, Add, Edit, x+35 w%nW% h%nH% Center number -multi limit2 veditF5, % userAlarmSnooze
     Gui, Add, UpDown, vuserAlarmSnooze Range1-59, % userAlarmSnooze
     Gui, Font
@@ -4121,6 +4121,36 @@ updateUIalarmsPanel() {
   GuiControlGet, doTimer, SettingsGUIA:, userMustDoTimer
   GuiControlGet, TimerH, SettingsGUIA:, userTimerHours
   GuiControlGet, TimerM, SettingsGUIA:, userTimerMins
+  GuiControlGet, TimerAlH, SettingsGUIA:, userAlarmHours
+  GuiControlGet, TimerAlM, SettingsGUIA:, userAlarmMins
+
+  If (TimerM=60)
+  {
+     timerM := 0
+     TimerH := clampInRange(TimerH + 1, 0, 12)
+     GuiControl, SettingsGUIA:, userTimerMins, 0
+     GuiControl, SettingsGUIA:, userTimerHours, % TimerH
+  } Else If (TimerM=-1)
+  {
+     timerM := 59
+     TimerH := clampInRange(TimerH - 1, 0, 12)
+     GuiControl, SettingsGUIA:, userTimerMins, 59
+     GuiControl, SettingsGUIA:, userTimerHours, % ȚimerH
+  }
+
+  If (TimerAlM=60)
+  { 
+     timerAlM := 0
+     TimerAlH := clampInRange(TimerAlH + 1, 0, 23)
+     GuiControl, SettingsGUIA:, userAlarmMins, 0
+     GuiControl, SettingsGUIA:, userAlarmHours, % TimerAlH
+  } Else If (TimerAlM=-1)
+  {
+     timerAlM := 59
+     TimerAlH := clampInRange(TimerAlH - 1, 0, 29)
+     GuiControl, SettingsGUIA:, userAlarmMins, 59
+     GuiControl, SettingsGUIA:, userAlarmHours, % TimerAlH
+  }
 
   If (doTimer=1 && (TimerH || TimerM))
   {
@@ -4186,6 +4216,7 @@ BtnApplyAlarms() {
   GuiControlGet, userAlarmWday6
   GuiControlGet, userAlarmWday5
   GuiControlGet, userAlarmWday4
+  GuiControlGet, userAlarmWday3
   GuiControlGet, userAlarmWday2
   GuiControlGet, userAlarmWday1
 

@@ -5,6 +5,9 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.1.1 - 2021 / 10 / 11
+  - bug fixes
+
 v3.1.0 - 2021 / 09 / 24
   - [new] alarms can be restricted to certain days of the week
   - [new] the alarm can be snoozed now, at a user defined interval
