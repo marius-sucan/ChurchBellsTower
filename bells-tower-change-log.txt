@@ -5,6 +5,12 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.1.5 - 2022 / 02 / 28
+  - [new] dark mode user interface 
+  - [new] ability to set audio frequency for the audio played during an alarm and timer
+  - [new] ability to choose distinctive audio for alarms vs. timer
+  - bug fixes
+
 v3.1.1 - 2021 / 10 / 11
   - bug fixes
 

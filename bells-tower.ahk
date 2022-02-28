@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.1.1
+;@Ahk2Exe-SetVersion 3.1.5
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -40,6 +40,7 @@
  #Include, Lib\mci.ahk
  #Include, Lib\gdip_all.ahk
  #Include, Lib\analog-clock-display.ahk
+ #Include, Lib\Class_CtlColors.ahk
 
  DetectHiddenWindows, On
  ComObjError(false)
@@ -53,6 +54,7 @@
 ; Default Settings
  Global IniFile         := "bells-tower.ini"
  , LargeUIfontValue     := 13
+ , uiDarkMode           := 0
  , tollQuarters         := 1 
  , tollQuartersException := 0 
  , tollHours            := 1
@@ -123,7 +125,10 @@ Global displayTimeFormat  := 1
  , userAlarmHours     := 12
  , userAlarmMins      := 30
  , AlarmersDarkScreen := 1
+ , userTimerSound     := 2
+ , userTimerFreq      := 1
  , userAlarmSound     := 1
+ , userAlarmFreq      := 1
  , userAlarmSnooze    := 5
  , userAlarmRepeated  := 0
  , userAlarmWeekDays  := 1234567
@@ -144,8 +149,8 @@ Global displayTimeFormat  := 1
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "3.1.1"
- , ReleaseDate            := "2021 / 10 / 11"
+ , Version                := "3.1.5"
+ , ReleaseDate            := "2022 / 02 / 28"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := "", LastWinOpened
@@ -198,7 +203,7 @@ Global CSthin      := "░"   ; light gray
  , AnyWindowOpen := 0
  , LastBibleQuoteDisplay := 1
  , LastBibleQuoteDisplay2 := 1
- , LastBibleMsg := ""
+ , LastBibleMsg := "", AllowDarkModeForWindow := ""
  , CurrentPrefWindow := 0
  , celebYear := A_Year, userAlarmIsSnoozed := 0
  , isHolidayToday := 0, stopWatchRecordsInterval := []
@@ -227,7 +232,7 @@ Global CSthin      := "░"   ; light gray
  , SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
  , hFaceClock, lastShowTime := 1, pToken, scriptStartZeit := A_TickCount
  , globalG, globalhbm, globalhdc, globalobm
- , moduleAnalogClockInit := 0
+ , moduleAnalogClockInit := 0, darkWindowColor := 0x202020, darkControlColor := 0xEDedED
 
 If (roundCornerSize<20)
    roundCornerSize := 20
@@ -236,6 +241,12 @@ If (roundCornerSize<20)
 
 ; If (A_IsCompiled && storeSettingsREG=0)
 ;    VerifyFiles()
+
+If (uiDarkMode=1)
+{
+   setMenusTheme(1)
+   setDarkWinAttribs(A_ScriptHwnd, 1)
+}
 
 Sleep, 1
 SetMyVolume(1)
@@ -376,6 +387,7 @@ ShowWelcomeWindow() {
     Gui, Add, Button, xs y+10 w%btnWid% hp gPanelAboutWindow, &About today
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleAnalogClock Checked%constantAnalogClock% vconstantAnalogClock, &Analog clock display
     Gui, Add, Checkbox, xs y+10 hp gToggleWelcomeInfos Checked%NoWelcomePopupInfo% vNoWelcomePopupInfo, &Never show this window
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Welcome to %appName% v%Version%
 }
 
@@ -938,6 +950,33 @@ PlayAlarmedBell() {
       If bu
          MCXI_Play(SNDmedia_japan_bell)
    } Else If (userAlarmSound=5)
+   {
+      MCXI_Play(SNDmedia_beep)
+   }
+}
+
+PlayTimerBell() {
+   Static indexu := 0, bu := 0
+   SetMyVolume(1)
+   If (userTimerSound=1)
+   {
+      bu := !bu
+      If bu
+         MCXI_Play(SNDmedia_auxil_bell)
+   } Else If (userTimerSound=2)
+   {
+      indexu := clampInRange(indexu + 1, 1, 4, 1)
+      MCXI_Play(SNDmedia_quarters%indexu%)
+   } Else If (userTimerSound=3)
+   {
+      indexu := clampInRange(indexu + 1, 1, 4, 1)
+      MCXI_Play(SNDmedia_hours%indexu%)
+   } Else If (userTimerSound=4)
+   {
+      bu := !bu
+      If bu
+         MCXI_Play(SNDmedia_japan_bell)
+   } Else If (userTimerSound=5)
    {
       MCXI_Play(SNDmedia_beep)
    }
@@ -1711,6 +1750,10 @@ InitializeTray() {
     If (storeSettingsREG=0)
        Menu, Tray, Add, Start at boot, SetStartUp
 
+    Menu, Tray, Add, Dar&k mode UI, ToggleDarkMode
+    If (uiDarkMode=1)
+       Menu, Tray, Check, Dar&k mode UI
+
     RegRead, currentReg, %StartRegPath%, %appName%
     If (StrLen(currentReg)>5 && storeSettingsREG=0)
        Menu, Tray, Check, Start at boot
@@ -1754,6 +1797,18 @@ InitializeTray() {
     ; Menu, Tray, Default, Abou&t
     Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display
     decideSysTrayTooltip()
+}
+
+ToggleDarkMode() {
+    IF (PrefOpen=1)
+    {
+       SoundBeep , 300, 100
+       Return
+    }
+
+    uiDarkMode := !uiDarkMode
+    INIaction(1, "uiDarkMode", "SavedSettings")
+    ReloadScript()
 }
 
 ToggleLargeFonts() {
@@ -1970,15 +2025,37 @@ KillScript(showMSG:=1) {
 
 GenericPanelGUI(themed:=0) {
    Global
-   If (themed=1)
-      determineUIcolors()
    Gui, SettingsGUIA: Destroy
    Sleep, 15
    Gui, SettingsGUIA: Default
-   Gui, SettingsGUIA: -MaximizeBox -MinimizeBox hwndhSetWinGui
+   Gui, SettingsGUIA: -MaximizeBox -MinimizeBox +hwndhSetWinGui
    Gui, SettingsGUIA: Margin, 15, 15
-   If (themed=1)
-      Gui, SettingsGUIA: Color, %GUIAbgrColor%
+   applyDarkMode2guiPre(hSetWinGui)
+}
+
+applyDarkMode2guiPre(hThisWin) {
+   If (uiDarkMode=1)
+   {
+      Gui, Color, % darkWindowColor, % darkWindowColor
+      Gui, Font, c%darkControlColor%
+      AboutTitleColor := "eebb22"
+      setDarkWinAttribs(hThisWin)
+   } Else AboutTitleColor := "1166AA"
+}
+
+doResetGuiFont() {
+   If (uiDarkMode=1)
+   {
+      Gui, Font
+      Gui, Color, % darkWindowColor, % darkWindowColor
+      Gui, Font, c%darkControlColor%
+   } Else
+   {
+      Gui, Font
+   }
+
+   If (PrefsLargeFonts=1)
+      Gui, Font, s%LargeUIfontValue%
 }
 
 determineUIcolors() {
@@ -2016,53 +2093,61 @@ initSettingsWindow() {
     GenericPanelGUI()
 }
 
-verifySettingsWindowSize(noCheckLargeUI:=0) {
-    Static lastAsked := 1
-    SysGet, MonitorCount, 80
-    ActiveMon := MWAGetMonitorMouseIsIn()
-    If !ActiveMon
-       Return
+LinkUseDefaultColor(hLink, Use, whichGui) {
+   VarSetCapacity(LITEM, 4278, 0)            ; 16 + (MAX_LINKID_TEXT * 2) + (L_MAX_URL_LENGTH * 2)
+   NumPut(0x03, LITEM, "UInt")               ; LIF_ITEMINDEX (0x01) | LIF_STATE (0x02)
+   NumPut(Use ? 0x10 : 0, LITEM, 8, "UInt")  ; ? LIS_DEFAULTCOLORS : 0
+   NumPut(0x10, LITEM, 12, "UInt")           ; LIS_DEFAULTCOLORS
+   While DllCall("SendMessage", "Ptr", hLink, "UInt", 0x0702, "Ptr", 0, "Ptr", &LITEM, "UInt") ; LM_SETITEM
+         NumPut(A_Index, LITEM, 4, "Int")
+   GuiControl, %whichGUI%: +Redraw, %hLink%
+}
 
-    SysGet, mCoord, MonitorWorkArea, %ActiveMon%
-    ResolutionWidth := Abs(max(mCoordRight, mCoordLeft) - min(mCoordRight, mCoordLeft))
-    ResolutionHeight := Abs(max(mCoordTop, mCoordBottom) - min(mCoordTop, mCoordBottom))
-    If (MonitorCount>1)
+applyDarkMode2winPost(whichGui, hwndGUI) {
+    Static BS_CHECKBOX := 0x2, BS_RADIOBUTTON := 0x8
+    If (uiDarkMode=1)
     {
-       semiFinal_x := semiFinal_y := mCoordLeft + 20
-       Gui, SettingsGUIA: Show, Hide AutoSize x%semiFinal_x% y%semiFinal_y%
-       Sleep, 25
-       WinGetPos,,, setWid, setHeig, ahk_id %hSetWinGui%
-       dummyA := min(mCoordRight, mCoordLeft) + max(mCoordRight, mCoordLeft)
-       dummyB := min(mCoordTop, mCoordBottom) + max(mCoordTop, mCoordBottom)
-       mGuiX := Round(dummyA/2 - setWid/2)
-       mGuiY := Round(dummyB/2 - setHeig/2)
-       Final_x := max(mCoordLeft, min(mGuiX, mCoordRight - setWid))
-       Final_y := max(mCoordTop, min(mGuiY, mCoordBottom - setHeig))
-       Gui, SettingsGUIA: Show, x%Final_x% y%Final_y%
-    } Else
-    {
-       WinGetPos,,, setWid, setHeig, ahk_id %hSetWinGui%
-    }
+       if !whichGui
+          whichGui := "SettingsGUIA"
+       if !hwndGUI
+          hwndGUI := hSetWinGui
 
-    If (setHeig>ResolutionHeight*0.95) || (setWid>ResolutionWidth*0.95)
-    {
-       If (LargeUIfontValue>11)
+       setDarkWinAttribs(hwndGUI)
+       WinGet,strControlList, ControlList, ahk_id %hwndGUI%
+       Gui, %whichGUI%: Color, %intWindowColor%, %intControlColor%
+       for strKey, strControl in StrSplit(strControlList,"`n","`r`n")
        {
-          LargeUIfontValue := LargeUIfontValue - 1
-          INIaction(1, "LargeUIfontValue", "SavedSettings")
+         ControlGet, strControlHwnd, HWND, , %strControl%, ahk_id %hwndGUI%
+         WinGetClass, CtrlClass, ahk_id %strControlhwnd%
+         ControlGet, CtrlStyle, Style, , , ahk_id %strControlhwnd%
+         doAttachCtlColor := 0
+         ; MsgBox, % CtrlClass
+         If InStr(CtrlClass, "systab")
+         {
+            GuiControl, %whichGUI%:-Border +Buttons cFFFFaa, %strControl%
+            doAttachCtlColor := -2
+         } Else If InStr(CtrlClass, "Button")
+         {
+            IF (CtrlStyle & BS_RADIOBUTTON) || (CtrlStyle & BS_CHECKBOX)
+               doAttachCtlColor := 2
+            IF (CtrlStyle & 0x1000)
+               doAttachCtlColor := 1
+         } Else If InStr(CtrlClass, "ComboBox")
+            doAttachCtlColor := 1
+         Else If InStr(CtrlClass, "Edit")
+            doAttachCtlColor := -1
+         Else If (InStr(CtrlClass, "Static") || InStr(CtrlClass, "syslink"))
+            doAttachCtlColor := -2 
+
+         If InStr(CtrlClass, "syslink")
+            LinkUseDefaultColor(strControlHwnd, 1, whichGui)
+
+         If (doAttachCtlColor=1)
+            CtlColors.Attach(strControlHwnd, SubStr(darkWindowColor, 3), SubStr(darkControlColor, 3))
+
+         If (doAttachCtlColor!=2 && doAttachCtlColor!=-2)
+            DllCall("uxtheme\SetWindowTheme", "ptr", strControlHwnd, "str", "DarkMode_Explorer", "ptr", 0)
        }
-    }
-
-    If (PrefsLargeFonts=0) || (A_TickCount-lastAsked<30000) || (noCheckLargeUI=1)
-       Return
-
-    If (setHeig>ResolutionHeight-2) || (setWid>ResolutionWidth-2)
-    {
-       SoundBeep, 300, 900
-       lastAsked := A_TickCount
-       MsgBox, 52, %appName%: warning, The option "Large UI fonts" is enabled. The window seems to exceed your screen resolution. `n`nDo you want to disable Large UI fonts?
-       IfMsgBox, Yes
-         ToggleLargeFonts()
     }
 }
 
@@ -2129,6 +2214,34 @@ SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
     }
 
     Menu, ContextMenu, Add, L&arge UI fonts, ToggleLargeFonts
+    If (PrefOpen=0)
+    {
+       Menu, ContextMenu, Add, Dar&k mode UI, ToggleDarkMode
+       If (uiDarkMode=1)
+          Menu, ContextMenu, Check, Dar&k mode UI
+
+       Menu, ContextMenu, Add, &Mute all sounds, ToggleAllMuteSounds
+       If FileExist(tickTockSound)
+       {
+          Menu, ContextMenu, Add, Tick/Toc&k sound, ToggleTickTock
+          If (tickTockNoise=1)
+             Menu, ContextMenu, Check, Tick/Toc&k sound
+       }
+       Menu, ContextMenu, Add, Analo&g clock display, toggleAnalogClock
+       If (constantAnalogClock=1)
+          Menu, ContextMenu, Check, Analo&g clock display
+
+       If (userMuteAllSounds=1)
+          Menu, ContextMenu, Check, &Mute all sounds
+
+       Menu, ContextMenu, Add
+       If (ObserveHolidays=1)
+          Menu, ContextMenu, Add, Celebrations / &holidays, PanelIncomingCelebrations
+       Menu, ContextMenu, Add, Set &alarm or timer, PanelSetAlarm
+       Menu, ContextMenu, Add, Stop&watch, PanelStopWatch
+       Menu, ContextMenu, Add, Abou&t, PanelAboutWindow
+    }
+
     Menu, ContextMenu, Add, 
     If (PrefsLargeFonts=1)
        Menu, ContextMenu, Check, L&arge UI fonts
@@ -2343,20 +2456,18 @@ ShowSettings() {
     columnBpos1 := columnBpos2 := 160
     editFieldWid := 220
     btnWid := 90
-
+    doResetGuiFont()
     If (PrefsLargeFonts=1)
     {
-       Gui, Font, s%LargeUIfontValue%
        btnWid := btnWid + 45
        editFieldWid := editFieldWid + 65
        columnBpos1 := columnBpos2 := columnBpos2 + 90
     }
 
     columnBpos1b := columnBpos1 + 20
-    Gui, Add, Tab3, -Background +hwndhTabs, Bells|Extras|Restrictions|OSD options
+    Gui, Add, Tab3, +hwndhTabs, Bells|Extras|Restrictions|OSD options
     LastWinOpened := A_ThisFunc
     INIaction(1, "LastWinOpened", "SavedSettings")
-
 
     Gui, Tab, 1 ; general
     Gui, Add, Text, x+15 y+15 Section +0x200 vvolLevel, % "Audio volume: " BeepsVolume " % "
@@ -2470,8 +2581,8 @@ ShowSettings() {
     Gui, Add, Button, xm+0 y+10 w70 h30 Default gApplySettings vApplySettingsBTN, A&pply
     Gui, Add, Button, x+8 wp hp gCloseSettings, C&ancel
     Gui, Add, Button, x+8 w%btnWid% hp gDeleteSettings, R&estore defaults
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Customize: %appName%
-    verifySettingsWindowSize()
     VerifyTheOptions(0)
     ColorPickerHandles := hLV1 "," hLV2 "," hLV3 "," hLV5 "," hTXT
 }
@@ -3064,8 +3175,9 @@ PanelManageCelebrations(tabChoice:=1) {
   Gui, CelebrationsGuia: Destroy
   Sleep, 15
   Gui, CelebrationsGuia: Default
-  Gui, CelebrationsGuia: -MaximizeBox -MinimizeBox
+  Gui, CelebrationsGuia: -MaximizeBox -MinimizeBox +hwndhThisWin
   Gui, CelebrationsGuia: Margin, 15, 15
+  applyDarkMode2guiPre(hThisWin)
   relName := (UserReligion=1) ? "Catholic" : "Orthodox"
   lstWid := 435
   If (PrefsLargeFonts=1)
@@ -3100,6 +3212,7 @@ PanelManageCelebrations(tabChoice:=1) {
   Gui, Add, Button, x+1 w55 hp gResetYearList vResetYearBTN, %celebYear%
   Gui, Add, Button, x+1 w%btnWid% hp gNextYearList , &Next year
   Gui, Add, Button, x+20 wp-25 hp gCloseCelebListWin, &Close list
+  applyDarkMode2winPost("CelebrationsGuia", hThisWin)
   Gui, Show, AutoSize, Celebrations list: %appName%
   updateOptionsLVsGui()
   If (PrefOpen=1 && hSetWinGui)
@@ -3656,15 +3769,13 @@ PanelIncomingCelebrations() {
     Gui, Font, c%AboutTitleColor% s20 Bold, Arial, -wrap
     Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, bell-image.png
     Gui, Add, Text, x+7 y10, %appName%
-    Gui, Font, c%GUIAtxtColor% s12 Bold, Arial, -wrap
+    Gui, Font, s12 Bold, Arial, -wrap
     Gui, Add, Text, y+4, Celebrations in the next 30 days.
-    Gui, Font
-    ; Gui, Font, c%GUIAtxtColor%
+    doResetGuiFont()
     If (PrefsLargeFonts=1)
     {
        btnWid := btnWid + 50
        txtWid := txtWid + 105
-       Gui, Font, s%LargeUIfontValue%
     }
 
     If (tickTockNoise!=1)
@@ -3699,7 +3810,7 @@ PanelIncomingCelebrations() {
     Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn hwndhBtn1, &Manage
     Gui, Add, Button, x+5 hp wp+15 gShowSettings hwndhBtn2, &Settings
     Gui, Add, Button, x+5 hp wp-15 gCloseWindow hwndhBtn3, &Close
-
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Celebrations list: %appName%
 }
 
@@ -3740,7 +3851,6 @@ SetPresetTimers(a, b, c) {
    updateUIalarmsPanel()
    lastInvoked := A_TickCount
    ; ToolTip, % a "=" b "=" c "=" info , , , 2
-
 }
 
 PanelSetAlarm() {
@@ -3804,12 +3914,16 @@ PanelSetAlarm() {
     Gui, Add, Edit, x+5 w%nW% h%nH% Center number -multi limit2 veditF2 gupdateUIalarmsPanel, % userTimerMins
     Gui, Add, UpDown, vuserTimerMins Range-1-60 gupdateUIalarmsPanel, % userTimerMins
     Gui, Add, Text, x+10 hp +0x200 vuserTimerInfos, 00:00.
-    Gui, Font
-    If (PrefsLargeFonts=1)
-       Gui, Font, s%LargeUIfontValue%
+    doResetGuiFont()
     Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserTimerMsg, % userTimerMsg
     timerDetails := (userTimerExpire && userMustDoTimer=1) ? "Current timer expires at: " userTimerExpire "." : "Press Apply to start the timer."
     Gui, Add, Text, xs+15 y+10 wp vUItimerInfoz, % timerDetails
+    ml := (PrefsLargeFonts=1) ? 180 : 95
+    zl := (PrefsLargeFonts=1) ? 55 : 45
+    Gui, Add, DropDownList, xs+15 y+10 w%ml% AltSubmit Choose%userTimerSound% vuserTimerSound, Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert
+    Gui, Add, Edit, x+5 w%zl% hp Center number -multi limit2 veditF10 gupdateUIalarmsPanel, % userTimerFreq
+    Gui, Add, UpDown, vuserTimerFreq Range1-99 gupdateUIalarmsPanel, % userTimerFreq
+    Gui, Add, Button, x+5 hp gBtnTestTimerAudio vbtn1, Test
 
     Gui, Tab, 2
     Gui, Add, Checkbox, x+15 y+15 Section gupdateUIalarmsPanel Checked%userMustDoAlarm% vuserMustDoAlarm, Set alarm at (hours`, mins`, snooze mins.):
@@ -3820,9 +3934,7 @@ PanelSetAlarm() {
     Gui, Add, UpDown, vuserAlarmMins gupdateUIalarmsPanel Range-1-60, % userAlarmMins
     Gui, Add, Edit, x+35 w%nW% h%nH% Center number -multi limit2 veditF5, % userAlarmSnooze
     Gui, Add, UpDown, vuserAlarmSnooze Range1-59, % userAlarmSnooze
-    Gui, Font
-    If (PrefsLargeFonts=1)
-       Gui, Font, s%LargeUIfontValue%
+    doResetGuiFont()
 
     Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserAlarmMsg, % userAlarmMsg
     Gui, Add, Checkbox, xs y+10 gupdateUIalarmsPanel Checked%userAlarmRepeated% vuserAlarmRepeated, &Repeat alarm on...
@@ -3838,15 +3950,31 @@ PanelSetAlarm() {
     Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 Checked%userAlarmExceptRelu% vuserAlarmExceptRelu, Religious
     Gui, Add, Checkbox, x+1 hp +0x1000 Checked%userAlarmExceptSeculu% vuserAlarmExceptSeculu, Secular
     Gui, Add, Checkbox, x+1 hp +0x1000 Checked%userAlarmExceptPerso% vuserAlarmExceptPerso, Personal
+    Gui, Add, DropDownList, xs+15 y+10 w%ml% AltSubmit Choose%userAlarmSound% vuserAlarmSound, Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert
+    Gui, Add, Edit, x+5 w%zl% hp Center number -multi limit2 veditF6 gupdateUIalarmsPanel, % userAlarmFreq
+    Gui, Add, UpDown, vuserAlarmFreq Range1-99 gupdateUIalarmsPanel, % userAlarmFreq
+    Gui, Add, Button, x+5 hp gBtnTestAlarmAudio vBtn2, Test
 
     Gui, Tab
     Gui, Add, Checkbox, xm y+10 Section gupdateUIalarmsPanel Checked%AlarmersDarkScreen% vAlarmersDarkScreen, Flash dark screen on alerts
-    Gui, Add, DropDownList, x+10 wp-55 AltSubmit Choose%userAlarmSound% vuserAlarmSound, Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert
     Gui, Add, Button, xs+0 y+10 h%btnH% w%btnW1% Default gBtnApplyAlarms, &Apply
     Gui, Add, Button, x+5 hp wp-15 gCloseWindow , &Cancel
 
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Alarm and timer: %appName%
     SetTimer, updateUIalarmsPanel, -150
+}
+
+BtnTestTimerAudio() {
+    GuiControlGet, userTimerSound
+    stopStrikesNow := 0
+    PlayTimerBell()
+}
+
+BtnTestAlarmAudio() {
+    GuiControlGet, userAlarmSound
+    stopStrikesNow := 0
+    PlayAlarmedBell()
 }
 
 PanelStopWatch() {
@@ -3871,9 +3999,9 @@ PanelStopWatch() {
     {
        btnWid := btnWid + 50
        txtWid := txtWid + 105
-       Gui, Font, s%LargeUIfontValue%
     }
 
+    doResetGuiFont()
     stopWatchBeginZeit := 0
     stopWatchPauseZeit := 0.001
     stopWatchLapBeginZeit := 0
@@ -3889,15 +4017,11 @@ PanelStopWatch() {
     Gui, Add, Text, x+5 gstartStopWatchCounter, (total time)
     Gui, Font, s22
     Gui, Add, Text, xs y+10 vUIstopWatchLabel gstartStopWatchCounter, 00:00:00.00
-    Gui, Font
-    If (PrefsLargeFonts=1)
-       Gui, Font, s%LargeUIfontValue%
+    doResetGuiFont()
     Gui, Add, Text, x+5 hp +0x200 gstartStopWatchCounter, (laps total time)
     Gui, Font, s18
     Gui, Add, Text, xs y+5 vUIstopWatchInterval gRecordStopWatchInterval, 00:00:00.00
-    Gui, Font
-    If (PrefsLargeFonts=1)
-       Gui, Font, s%LargeUIfontValue%
+    doResetGuiFont()
     Gui, Add, Text, x+5 hp +0x200 vUIstopWatchDetailsInterval gRecordStopWatchInterval, (current lap details)
     Gui, Add, Text, xs y+5 vUIstopWatchAvgInterval gRecordStopWatchInterval, 00:00:00.00
     Gui, Add, Text, x+5 gRecordStopWatchInterval, (average time per lap)
@@ -3915,6 +4039,7 @@ PanelStopWatch() {
     Gui, Add, Button, xs+0 y+5 hp wp gResetStopWatchCounter, &Reset
     Gui, Add, Button, x+5 hp wp gCloseWindow, &Cancel
 
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Stopwatch: %appName%
 }
 
@@ -4164,62 +4289,50 @@ updateUIalarmsPanel() {
      GuiControl, SettingsGUIA:, userTimerInfos, --:--
 
   act := (OutputVarB=1) ? "Enable" : "Disable"
-  GuiControl, SettingsGUIA: %act%, userAlarmHours
-  GuiControl, SettingsGUIA: %act%, userAlarmMins
-  GuiControl, SettingsGUIA: %act%, userAlarmMsg
-  GuiControl, SettingsGUIA: %act%, userAlarmSnooze
-  GuiControl, SettingsGUIA: %act%, editF3
-  GuiControl, SettingsGUIA: %act%, editF4
-  GuiControl, SettingsGUIA: %act%, editF5
-  GuiControl, SettingsGUIA: %act%, userAlarmRepeated
-  act := (OutputVarB=1 && doRepeat=1) ? "Enable" : "Disable"
-  GuiControl, SettingsGUIA: %act%, txt1
-  GuiControl, SettingsGUIA: %act%, userAlarmExceptSeculu
-  GuiControl, SettingsGUIA: %act%, userAlarmExceptPerso
-  GuiControl, SettingsGUIA: %act%, userAlarmExceptRelu
-  GuiControl, SettingsGUIA: %act%, userAlarmWday1
-  GuiControl, SettingsGUIA: %act%, userAlarmWday2
-  GuiControl, SettingsGUIA: %act%, userAlarmWday3
-  GuiControl, SettingsGUIA: %act%, userAlarmWday4
-  GuiControl, SettingsGUIA: %act%, userAlarmWday5
-  GuiControl, SettingsGUIA: %act%, userAlarmWday6
-  GuiControl, SettingsGUIA: %act%, userAlarmWday7
+  GuiControl, % act, userAlarmHours
+  GuiControl, % act, userAlarmMins
+  GuiControl, % act, userAlarmMsg
+  GuiControl, % act, userAlarmSound
+  GuiControl, % act, userAlarmSnooze
+  GuiControl, % act, editF3
+  GuiControl, % act, editF4
+  GuiControl, % act, editF5
+  GuiControl, % act, userAlarmRepeated
+  GuiControl, % act, userAlarmFreq
+  GuiControl, % act, editF6
+  GuiControl, % act, btn2
 
-  act := (OutputVarA=1) ? "Enable" : "Disable"
-  GuiControl, SettingsGUIA: %act%, userTimerHours
-  GuiControl, SettingsGUIA: %act%, userTimerMins
-  GuiControl, SettingsGUIA: %act%, userTimerMsg
-  GuiControl, SettingsGUIA: %act%, userTimerInfos
-  GuiControl, SettingsGUIA: %act%, editF1
-  GuiControl, SettingsGUIA: %act%, editF2
-  GuiControl, SettingsGUIA: %act%, UItimerInfoz
+  act := (OutputVarB=1 && doRepeat=1) ? "SettingsGUIA: Enable" : "SettingsGUIA: Disable"
+  GuiControl, % act, txt1
+  GuiControl, % act, userAlarmExceptSeculu
+  GuiControl, % act, userAlarmExceptPerso
+  GuiControl, % act, userAlarmExceptRelu
+  GuiControl, % act, userAlarmWday1
+  GuiControl, % act, userAlarmWday2
+  GuiControl, % act, userAlarmWday3
+  GuiControl, % act, userAlarmWday4
+  GuiControl, % act, userAlarmWday5
+  GuiControl, % act, userAlarmWday6
+  GuiControl, % act, userAlarmWday7
+  GuiControl, % act, userAlarmWday7
+
+  act := (OutputVarA=1) ? "SettingsGUIA: Enable" : "SettingsGUIA: Disable"
+  GuiControl, % act, userTimerHours
+  GuiControl, % act, userTimerMins
+  GuiControl, % act, userTimerMsg
+  GuiControl, % act, userTimerSound
+  GuiControl, % act, userTimerInfos
+  GuiControl, % act, userTimerFreq
+  GuiControl, % act, btn1
+  GuiControl, % act, editF10
+  GuiControl, % act, editF1
+  GuiControl, % act, editF2
+  GuiControl, % act, UItimerInfoz
 }
 
 BtnApplyAlarms() {
   Gui, SettingsGUIA: Default
-  GuiControlGet, AlarmersDarkScreen
-  GuiControlGet, userMustDoTimer
-  GuiControlGet, userTimerHours
-  GuiControlGet, userTimerMins
-  GuiControlGet, userTimerMsg
-  GuiControlGet, userMustDoAlarm
-  GuiControlGet, userAlarmHours
-  GuiControlGet, userAlarmMins
-  GuiControlGet, userAlarmMsg
-  GuiControlGet, userAlarmSound
-  GuiControlGet, userAlarmRepeated
-  GuiControlGet, userAlarmSnooze
-  GuiControlGet, userAlarmExceptRelu
-  GuiControlGet, userAlarmExceptSeculu
-  GuiControlGet, userAlarmExceptPerso
-  GuiControlGet, userAlarmWday7
-  GuiControlGet, userAlarmWday6
-  GuiControlGet, userAlarmWday5
-  GuiControlGet, userAlarmWday4
-  GuiControlGet, userAlarmWday3
-  GuiControlGet, userAlarmWday2
-  GuiControlGet, userAlarmWday1
-
+  Gui, SettingsGUIA: Submit, NoHide
   userTimerMsg := Trim(userTimerMsg)
   userAlarmMsg := Trim(userAlarmMsg)
   userAlarmWeekDays := ""
@@ -4246,15 +4359,15 @@ BtnApplyAlarms() {
 
   INIaction(1, "userMustDoAlarm", "SavedSettings")
   INIaction(1, "AlarmersDarkScreen", "SavedSettings")
+  INIaction(1, "userTimerSound", "SavedSettings")
   INIaction(1, "userAlarmSound", "SavedSettings")
   INIaction(1, "userAlarmMsg", "SavedSettings")
   INIaction(1, "userAlarmHours", "SavedSettings")
   INIaction(1, "userAlarmMins", "SavedSettings")
   INIaction(1, "userAlarmRepeated", "SavedSettings")
   INIaction(1, "userAlarmSnooze", "SavedSettings")
-  ; INIaction(1, "userAlarmExceptPerso", "SavedSettings")
-  ; INIaction(1, "userAlarmExceptSeculu", "SavedSettings")
-  ; INIaction(1, "userAlarmExceptRelu", "SavedSettings")
+  INIaction(1, "userAlarmFreq", "SavedSettings")
+  INIaction(1, "userTimerFreq", "SavedSettings")
   INIaction(1, "userAlarmWeekDays", "SavedSettings")
   INIaction(1, "userTimerMins", "SavedSettings")
   INIaction(1, "userTimerHours", "SavedSettings")
@@ -4292,18 +4405,19 @@ BtnApplyAlarms() {
 doUserTimerAlert() {
   userMustDoTimer := 0
   stopStrikesNow := stopAdditionalStrikes := 0
-  If (userAlarmSound!=4)
-     strikeJapanBell()
   thisMsg := Trim(userTimerMsg) ? "`n" Trim(userTimerMsg) : "NONE"
   If (AlarmersDarkScreen=1)
      ScreenBlocker(0, 1, 0, 1)
 
   WinSet, AlwaysOnTop, Off, ScreenShader
+  PlayTimerBell()
   showTimeNow()
   If (userAlarmSound!=6)
-     SetTimer, PlayAlarmedBell, 1500
+     SetTimer, PlayTimerBell, % userTimerFreq * 1000
 
-  MsgBox, 4, Timer: %appName%, % "Timer message: "  thisMsg "`n`nPress Yes to repeat timer."
+  th := (userTimerHours<10) ? "0" . userTimerHours : userTimerHours
+  tm := (userTimerMins<10) ? "0" . userTimerMins : userTimerMins
+  MsgBox, 4, Timer: %appName%, % "Timer message: " thisMsg "`n`nPress Yes to repeat the timer for " th ":" tm "."
   IfMsgBox, Yes
   {
      userMustDoTimer := 1
@@ -4315,30 +4429,28 @@ doUserTimerAlert() {
      userTimerExpire := ST_Insert(":", userTimerExpire, 3)
      SetTimer, doUserTimerAlert, % -delayu
   } Else userTimerExpire := 0
-  SetTimer, PlayAlarmedBell, Off
+  SetTimer, PlayTimerBell, Off
 }
 
 doUserAlarmAlert() {
   stopStrikesNow := stopAdditionalStrikes := 0
-  If (userAlarmSound!=4)
-     strikeJapanBell()
-
   thisMsg := Trim(userAlarmMsg) ? "`n" Trim(userAlarmMsg) : "NONE"
   If (AlarmersDarkScreen=1)
      ScreenBlocker(0, 1, 0, 1)
 
   showTimeNow()
+  PlayAlarmedBell()
   If (userAlarmSound!=6)
-     SetTimer, PlayAlarmedBell, 1500
+     SetTimer, PlayAlarmedBell, % userAlarmFreq * 1000
 
   friendly := (userAlarmIsSnoozed=1) ? " (snoozed)" : ""
-  friendly2 := (userAlarmIsSnoozed=1) ? "again" : ""
-  MsgBox, 4, Alarm%friendly%: %appName%, % "Alarm message: " thisMsg "`n`nPress Yes to snooze " friendly2 " for " userAlarmSnooze " minutes."
+  friendly2 := (userAlarmIsSnoozed=1) ? " again" : ""
+  MsgBox, 4, Alarm%friendly%: %appName%, % "Alarm message: " thisMsg "`n`nPress Yes to snooze" friendly2 " for " userAlarmSnooze " minutes."
   IfMsgBox, Yes
   {
      userMustDoAlarm := 1
      userAlarmIsSnoozed := 1
-     SetTimer, doUserAlarmAlert, % -(userAlarmSnooze*60000)
+     SetTimer, doUserAlarmAlert, % -(userAlarmSnooze * 60000)
   } Else If (userAlarmRepeated=1)
   {
      userAlarmIsSnoozed := 0
@@ -4407,15 +4519,13 @@ PanelAboutWindow() {
     Gui, Font, c%AboutTitleColor% s20 Bold, Arial, -wrap
     Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, bell-image.png
     Gui, Add, Text, x+7 y10, %appName%
-    Gui, Font, c%GUIAtxtColor% s12 Bold, Arial, -wrap
+    Gui, Font, s12 Bold, Arial, -wrap
     Gui, Add, Link, y+4 hwndhLink0, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a>.
-    Gui, Font
-    ; Gui, Font, c%GUIAtxtColor%
+    doResetGuiFont()
     If (PrefsLargeFonts=1)
     {
        btnWid := btnWid + 50
        txtWid := txtWid + 105
-       Gui, Font, s%LargeUIfontValue%
     }
 
     If (tickTockNoise!=1)
@@ -4548,11 +4658,7 @@ PanelAboutWindow() {
     Gui, Add, Text, xs y+10, % "0h {" CalcTextHorizPrev(minsPassed, 1440, 0, 22) "} 24h "
     Gui, Add, Text, xp+15 y+5, %minsPassed% minutes (%percentileDay%) of today have elapsed.
     If (A_OSVersion="WIN_XP")
-    {
-       Gui, Font,
-       If (PrefsLargeFonts=1)
-          Gui, Font, s%LargeUIfontValue% c%GUIAtxtColor%
-    }
+       doResetGuiFont()
 
     Gui, Tab, 2
     Gui, Add, Text, x+15 y+15 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
@@ -4568,7 +4674,7 @@ PanelAboutWindow() {
     Gui, Font, Bold
     Gui, Add, Link, xp+30 y+10 hwndhLink1, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
     Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, paypal.png
-    Gui, Font, Normal
+    doResetGuiFont()
 
     Gui, Tab
     btnW1 := (PrefsLargeFonts=1) ? 110 : 80
@@ -4580,6 +4686,7 @@ PanelAboutWindow() {
     If (ObserveHolidays=1)
       Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations hwndhBtn3, &Celebrations
 
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, About: %appName%
 }
 
@@ -4593,14 +4700,26 @@ removeTooltip() {
   ToolTip
 }
 
-LinkUseDefaultColor(hLink, Use := True) {
-   VarSetCapacity(LITEM, 4278, 0)            ; 16 + (MAX_LINKID_TEXT * 2) + (L_MAX_URL_LENGTH * 2)
-   NumPut(0x03, LITEM, "UInt")               ; LIF_ITEMINDEX (0x01) | LIF_STATE (0x02)
-   NumPut(Use ? 0x10 : 0, LITEM, 8, "UInt")  ; ? LIS_DEFAULTCOLORS : 0
-   NumPut(0x10, LITEM, 12, "UInt")           ; LIS_DEFAULTCOLORS
-   While DllCall("SendMessage", "Ptr", hLink, "UInt", 0x0702, "Ptr", 0, "Ptr", &LITEM, "UInt") ; LM_SETITEM
-      NumPut(A_Index, LITEM, 4, "Int")
-   GuiControl, SettingsGUIA: +Redraw, %hLink%
+setMenusTheme(modus) {
+   uxtheme := DllCall("GetModuleHandle", "str", "uxtheme", "ptr")
+   SetPreferredAppMode := DllCall("GetProcAddress", "ptr", uxtheme, "ptr", 135, "ptr")
+   global AllowDarkModeForWindow := DllCall("GetProcAddress", "ptr", uxtheme, "ptr", 133, "ptr")
+   FlushMenuThemes := DllCall("GetProcAddress", "ptr", uxtheme, "ptr", 136, "ptr")
+   DllCall(SetPreferredAppMode, "int", modus) ; Dark
+   DllCall(FlushMenuThemes)
+   interfaceThread.ahkPostFunction("setMenusTheme", modus)
+}
+
+setDarkWinAttribs(hwndGUI, modus:=1) {
+   if (A_OSVersion >= "10.0.17763" && SubStr(A_OSVersion, 1, 3) = "10.")
+   {
+       attr := 19
+       if (A_OSVersion >= "10.0.18985") {
+           attr := 20
+       }
+       DllCall("dwmapi\DwmSetWindowAttribute", "ptr", hwndGUI, "int", attr, "int*", modus, "int", 4)
+   }
+   DllCall(AllowDarkModeForWindow, "UPtr", hwndGUI, "int", modus) ; Dark
 }
 
 OpenChangeLog() {
@@ -4656,6 +4775,7 @@ INIsettings(a) {
   INIaction(a, "PrefsLargeFonts", "SavedSettings")
   INIaction(a, "LastWinOpened", "SavedSettings")
   INIaction(a, "LargeUIfontValue", "SavedSettings")
+  INIaction(a, "uiDarkMode", "SavedSettings")
   INIaction(a, "tollQuarters", "SavedSettings")
   INIaction(a, "tollQuartersException", "SavedSettings")
   INIaction(a, "tollNoon", "SavedSettings")
@@ -4673,6 +4793,7 @@ INIsettings(a) {
   INIaction(a, "DynamicVolume", "SavedSettings")
   INIaction(a, "AutoUnmute", "SavedSettings")
   INIaction(a, "userAlarmSound", "SavedSettings")
+  INIaction(a, "userTimerSound", "SavedSettings")
   INIaction(a, "userMuteAllSounds", "SavedSettings")
   INIaction(a, "tickTockNoise", "SavedSettings")
   INIaction(a, "strikeInterval", "SavedSettings")
@@ -4703,6 +4824,8 @@ INIsettings(a) {
   INIaction(a, "AlarmersDarkScreen", "SavedSettings")
   INIaction(a, "userAlarmRepeated", "SavedSettings")
   INIaction(a, "userAlarmWeekDays", "SavedSettings")
+  INIaction(a, "userAlarmFreq", "SavedSettings")
+  INIaction(a, "userTimerFreq", "SavedSettings")
   ; INIaction(a, "userAlarmExceptPerso", "SavedSettings")
   ; INIaction(a, "userAlarmExceptRelu", "SavedSettings")
   ; INIaction(a, "userAlarmExceptSeculu", "SavedSettings")
@@ -4830,10 +4953,12 @@ CheckSettings() {
     MinMaxVar(OSDalpha, 75, 252, 230)
     MinMaxVar(userAlarmSnooze, 1, 59, 5)
     MinMaxVar(userAlarmSound, 1, 6, 5)
+    MinMaxVar(userTimerSound, 1, 6, 5)
     MinMaxVar(userAlarmMins, 0, 59, 30)
     MinMaxVar(userAlarmHours, 0, 23, 12)
     MinMaxVar(userTimerMins, 0, 59, 2)
-    MinMaxVar(userTimerHours, 0, 12, 0)
+    MinMaxVar(userTimerFreq, 1, 99, 2)
+    MinMaxVar(userAlarmFreq, 1, 99, 4)
 
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
