@@ -4417,7 +4417,7 @@ doUserTimerAlert() {
 
   th := (userTimerHours<10) ? "0" . userTimerHours : userTimerHours
   tm := (userTimerMins<10) ? "0" . userTimerMins : userTimerMins
-  MsgBox, 4, Timer: %appName%, % "Timer message: " thisMsg "`n`nPress Yes to repeat the timer for " th ":" tm "."
+  MsgBox, 4, Timer: %appName%, % "Timer message: " thisMsg "`n`nPress Yes to repeat this alert in " th ":" tm "."
   IfMsgBox, Yes
   {
      userMustDoTimer := 1
