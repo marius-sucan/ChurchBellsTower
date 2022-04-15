@@ -2803,7 +2803,7 @@ calcEasterDate(ByRef aisHolidayToday, thisYDay) {
   If (lola=thisYDay)
   {
      aisHolidayToday := (UserReligion=1) ? "Catholic Easter" : "Orthodox Easter"
-     aisHolidayToday .= " - the resurrection of Jesus"
+     aisHolidayToday .= " - the resurrection of the Lord Jesus Christ"
   }
   Return Result
 }
@@ -2880,7 +2880,7 @@ goodFriday(ByRef aisHolidayToday, thisYDay) {
   If (lola=thisYDay)
   {
      aisHolidayToday := (UserReligion=1) ? "Good Friday" : "The Great and Holy Friday"
-     aisHolidayToday .= " - the crucifixion of Jesus and His death"
+     aisHolidayToday .= " - the crucifixion and death of Jesus Christ"
   }
 
   return result
@@ -2892,7 +2892,7 @@ MaundyT(ByRef aisHolidayToday, thisYDay) {
 
   FormatTime, lola, %result%, yday
   If (lola=thisYDay)
-     aisHolidayToday := "Maundy Thursday - the foot washing and Last Supper of Jesus Christ"
+     aisHolidayToday := "Maundy Thursday - the washing of the disciples' feet and Last Supper of Jesus Christ"
 
   return result
 }
@@ -2936,7 +2936,7 @@ ascensionday(ByRef aisHolidayToday, thisYDay) {
 
   FormatTime, lola, %result%, yday
   If (lola=thisYDay)
-     aisHolidayToday := "Ascension of Jesus"
+     aisHolidayToday := "Ascension of the Lord Jesus Christ into Heaven"
 
   return result
 }
@@ -2980,7 +2980,7 @@ corpuschristi(ByRef aisHolidayToday, thisYDay) {
 
   FormatTime, lola, %result%, yday
   If (lola=thisYDay && UserReligion=1)
-     aisHolidayToday := "Corpus Cristi - the real presence of the body and blood of Jesus"
+     aisHolidayToday := "Corpus Cristi - the real presence of the Body and Blood of Jesus"
 
   return result
 }
@@ -3030,49 +3030,49 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      If (testFeast="01.06")
         q := (UserReligion=1) ? "Epiphany - the revelation of God incarnate as Jesus Christ" : "Theophany - the baptism of Jesus in the Jordan River"
      Else If (testFeast="01.07" && UserReligion=2)
-        q := "The Synaxis of Saint John the Baptist - a Jewish itinerant preacher, and a prophet"
+        q := "Synaxis of Saint John the Baptist - a Jewish itinerant preacher, and a prophet"
      Else If (testFeast="01.30" && UserReligion=2)
         q := "The Three Holy Hierarchs - Basil the Great, John Chrysostom and Gregory the Theologian"
      Else If (testFeast="02.02")
-        q := "The Presentation of Lord Jesus - at the Temple in Jerusalem to induct Him into Judaism, episode described in the 2nd chapter of the Gospel of Luke"
+        q := "Presentation of the Lord Jesus Christ - at the Temple in Jerusalem to induct Him into Judaism, episode described in the 2nd chapter of the Gospel of Luke"
      Else If (testFeast="03.25" && !aisHolidayToday)
-        q := "The Annunciation of the Lord - when the Blessed Virgin Mary was told she would conceive and become the mother of Jesus of Nazareth"
+        q := "Annunciation of the Lord Jesus Christ - when the Blessed Virgin Mary was told she would conceive and become the mother of Jesus of Nazareth"
      Else If (testFeast="04.23" && !aisHolidayToday)
         q := "Saint George - a Roman soldier of Greek origin under the Roman emperor Diocletian, sentenced to death for refusing to recant his Christian faith, venerated as a military saint since the Crusades."
      Else If (testFeast="06.24")
-        q := "Birth of John the Baptist - a Jewish itinerant preacher, and a prophet known for having anticipated a messianic figure greater than himself"
+        q := "Birth of Saint John the Baptist - a Jewish itinerant preacher, and a prophet known for having anticipated a messianic figure greater than himself"
      Else If (testFeast="08.06")
-        aisHolidayToday := "The Feast of the Transfiguration of Jesus - when He becomes radiant in glory upon a mountain"
+        aisHolidayToday := "Feast of the Transfiguration of the Lord Jesus Christ - when He becomes radiant in glory upon Mount Tabor"
      Else If (testFeast="08.15")
-        q := (UserReligion=1) ? "Assumption of Virgin Mary - her body and soul assumed into heavenly glory after her death" : "Falling Asleep of the Blessed Virgin Mary"
+        q := (UserReligion=1) ? "Assumption of the Blessed Virgin Mary - her body and soul assumed into heavenly glory after her death" : "Dormition of the Blessed Virgin Mary"
      Else If (testFeast="08.29")
-        q := "The Beheading of Saint John the Baptist - killed on the orders of Herod Antipas through the vengeful request of his step-daughter Salomé and her mother Herodias"
+        q := "Beheading of Saint John the Baptist - killed on the orders of Herod Antipas through the vengeful request of his step-daughter Salomé and her mother Herodias"
      Else If (testFeast="09.08")
-        q := "The Birth of the Virgin Mary - according to an apocryphal writing, her parents are known as Saint Anne and Saint Joachim"
+        q := "Birth of the Blessed Virgin Mary - according to an apocryphal writing, her parents are known as Saint Anne and Saint Joachim"
      Else If (testFeast="09.14")
-        q := "The Exaltation of the Holy Cross - the recovery of the cross on which Jesus Christ was crucified by the Roman government on the order of Pontius Pilate"
+        q := "Exaltation of the Holy Cross - the recovery of the cross on which Jesus Christ was crucified by the Roman government on the order of Pontius Pilate"
      Else If (testFeast="10.04" && UserReligion=1)
-        q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of different orders within the Catholic church who lived between 1182 and 1226"
+        q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of the Friar Minors (OFM) within the Catholic church who lived between 1182 and 1226"
      Else If (testFeast="10.14" && UserReligion=2)
         q := "Saint Paraskeva of the Balkans - an ascetic female saint of the 10th century of half Serbian and half Greek origins"
      Else If (testFeast="10.31" && UserReligion=1)
         q := "All Hallows' Eve - the eve of the Solemnity of All Saints"
      Else If (testFeast="11.01" && UserReligion=1)
-        q := "All saints' day- a commemoration day for all Christian saints"
+        q := "All Saints' day- a commemoration day for all Christian saints"
      Else If (testFeast="11.02" && UserReligion=1)
         q := "All souls' day - a commemoration day of all the faithful departed"
      Else If (testFeast="11.21")
-        q := "The Presentation of the Blessed Virgin Mary - when she was brought, as a child, to the Temple in Jerusalem to be consecrated to God"
+        q := "Presentation of the Blessed Virgin Mary - when she was brought, as a child, to the Temple in Jerusalem to be consecrated to God"
      Else If (testFeast="12.06")
         q := "Saint Nicholas' Day - an early Christian bishop of Greek origins from 270 - 342 AD, known as the bringer of gifts for the poor"
      Else If (testFeast="12.08" && UserReligion=1)
-        q := "The Solemnity of Immaculate Conception of the Virgin Mary"
+        q := "Immaculate Conception of the Blessed Virgin Mary"
      Else If (testFeast="12.24")
         q := "Christmas Eve"
      Else If (testFeast="12.25")
         q := "Christmas day - the birth of Jesus Christ in Nazareth"
      Else If (testFeast="12.26")
-        q := "Christmas 2nd day - the birth of Jesus Christ also known as Jesus of Nazareth"
+        q := "Saint Stephen's Day - a deacon honoured as the first Christian martyr who was stoned to death in 36 AD (Acts 7:55-60). Second day of Christmastide"
      Else If (testFeast="12.28" && UserReligion=1)
         q := "Feast of the Holy Innocents - in remembrance of the young children killed in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus of Nazareth"
 
@@ -3300,25 +3300,25 @@ updateHolidaysLVs() {
      processHolidaysList(theList)
 
      Static theList2 := "Epiphany|" Epiphany "`n"
-        . "The Presentation of Lord Jesus|" PresentationLord "`n"
-        . "The Annunciation of the Virgin Mary|" AnnunciationLord "`n"
+        . "Presentation of the Lord Jesus Christ|" PresentationLord "`n"
+        . "Annunciation of the Blessed Virgin Mary|" AnnunciationLord "`n"
         . "Saint George|" SaintGeorge "`n"
-        . "Birth of John the Baptist|" BirthJohnBaptist "`n"
-        . "Feast of Transfiguration|" FeastTransfiguration "`n"
-        . "Assumption of Virgin Mary|" AssumptionVirginMary "`n"
-        . "The Beheading of Saint John the Baptist|" BeheadingJohnBaptist "`n"
-        . "Birth of Virgin Mary|" BirthVirginMary "`n"
-        . "The Exaltation of the Holy Cross|" ExaltationHolyCross "`n"
+        . "Birth of Saint John the Baptist|" BirthJohnBaptist "`n"
+        . "Transfiguration of the Lord Jesus Christ|" FeastTransfiguration "`n"
+        . "Assumption of the Blessed Virgin Mary|" AssumptionVirginMary "`n"
+        . "Beheading of Saint John the Baptist|" BeheadingJohnBaptist "`n"
+        . "Birth of the Blessed Virgin Mary|" BirthVirginMary "`n"
+        . "Exaltation of the Holy Cross|" ExaltationHolyCross "`n"
         . "Saint Francis of Assisi|" SaintFrancisAssisi "`n"
         . "All Hallows' Eve [Hallowe'en]|" HalloweenDay "`n"
-        . "All saints day|" Allsaintsday "`n"
+        . "All Saints' day|" Allsaintsday "`n"
         . "All souls' day|" Allsoulsday "`n"
-        . "The Presentation of the Virgin Mary|" PresentationVirginMary "`n"
-        . "The Solemnity of Immaculate Conception|" ImmaculateConception "`n"
+        . "Presentation of the Blessed Virgin Mary|" PresentationVirginMary "`n"
+        . "Immaculate Conception of the Blessed Virgin Mary|" ImmaculateConception "`n"
         . "Saint Nicholas Day|" SaintNicola "`n"
         . "Christmas Eve|" ChristmasEve "`n"
         . "Christmas|" Christmasday "`n"
-        . "Christmas - 2nd day|" Christmas2nday "`n"
+        . "Saint Stephen's Day|" Christmas2nday "`n"
         . "Feast of the Holy Innocents|" FeastHolyInnocents
 
      Gui, ListView, LViewOthers
@@ -3335,25 +3335,25 @@ updateHolidaysLVs() {
         . "Ascension of Jesus|" ascensiondaydate "`n"
         . "Pentecost|" pentecostdate "`n"
         . "Holy Trinity|" holyTrinityOrthdoxDate "`n"
-        . "All saints day|" TrinitySundaydate
+        . "All Saints' day|" TrinitySundaydate
 
      Gui, ListView, LViewEaster
      processHolidaysList(theList3)
 
      Static theList4 := "Theophany|" Epiphany "`n"
-        . "The Synaxis of Saint John the Baptist|" SynaxisSaintJohnBaptist "`n"
+        . "Synaxis of Saint John the Baptist|" SynaxisSaintJohnBaptist "`n"
         . "The Three Holy Hierarchs|" ThreeHolyHierarchs "`n"
-        . "The Presentation of Lord Jesus|" PresentationLord "`n"
-        . "The Annunciation of the Virgin Mary|" AnnunciationLord "`n"
+        . "Presentation of the Lord Jesus Christ|" PresentationLord "`n"
+        . "Annunciation of the Blessed Virgin Mary|" AnnunciationLord "`n"
         . "Saint George|" SaintGeorge "`n"
-        . "Birth of John the Baptist|" BirthJohnBaptist "`n"
-        . "Feast of Transfiguration|" FeastTransfiguration "`n"
-        . "Falling Asleep of Virgin Mary|" AssumptionVirginMary "`n"
-        . "The Beheading of Saint John the Baptist|" BeheadingJohnBaptist "`n"
-        . "Birth of Virgin Mary|" BirthVirginMary "`n"
-        . "The Exaltation of the Holy Cross|" ExaltationHolyCross "`n"
+        . "Birth of Saint John the Baptist|" BirthJohnBaptist "`n"
+        . "Transfiguration of the Lord Jesus Christ|" FeastTransfiguration "`n"
+        . "Dormition of the Blessed Virgin Mary|" AssumptionVirginMary "`n"
+        . "Beheading of Saint John the Baptist|" BeheadingJohnBaptist "`n"
+        . "Birth of the Blessed Virgin Mary|" BirthVirginMary "`n"
+        . "Exaltation of the Holy Cross|" ExaltationHolyCross "`n"
         . "Saint Paraskeva of the Balkans|" SaintParaskeva "`n"
-        . "The Presentation of the Virgin Mary|" PresentationVirginMary "`n"
+        . "Presentation of the Blessed Virgin Mary|" PresentationVirginMary "`n"
         . "Saint Nicholas Day|" SaintNicola "`n"
         . "Christmas Eve|" ChristmasEve "`n"
         . "Christmas|" Christmasday "`n"
