@@ -3028,7 +3028,9 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      lifeGivingSpring(aisHolidayToday, thisYDay)
      holyTrinityOrthdox(aisHolidayToday, thisYDay)
 
-     If (testFeast="01.06")
+     If (testFeast="01.01" && UserReligion=1)
+		q := "Commemoration of the Blessed Virgin Mary as Mother of God (Θεοτόκος) as proclaimed in the Council of Ephesus (431). Also the octave of Christmas traditionally commemorating the circumcision of the Lord Jesus Christ"
+	 Else If (testFeast="01.06")
         q := (UserReligion=1) ? "Epiphany - the revelation of God incarnate as Jesus Christ" : "Theophany - the baptism of Jesus in the Jordan River"
      Else If (testFeast="01.07" && UserReligion=2)
         q := "Synaxis of Saint John the Baptist - a Jewish itinerant preacher, and a prophet"
@@ -3036,12 +3038,16 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         q := "The Three Holy Hierarchs - Basil the Great, John Chrysostom and Gregory the Theologian"
      Else If (testFeast="02.02")
         q := "Presentation of the Lord Jesus Christ - at the Temple in Jerusalem to induct Him into Judaism, episode described in the 2nd chapter of the Gospel of Luke"
+	 Else If (testFeast="03.19" && !aisHolidayToday)
+		q := "Saint Joseph's Day - Spouse of the Blessed Virgin Mary and legal father of the Lord Jesus Christ"
      Else If (testFeast="03.25" && !aisHolidayToday)
         q := "Annunciation of the Lord Jesus Christ - when the Blessed Virgin Mary was told she would conceive and become the mother of Jesus of Nazareth"
      Else If (testFeast="04.23" && !aisHolidayToday)
         q := "Saint George - a Roman soldier of Greek origin under the Roman emperor Diocletian, sentenced to death for refusing to recant his Christian faith, venerated as a military saint since the Crusades."
      Else If (testFeast="06.24")
         q := "Birth of Saint John the Baptist - a Jewish itinerant preacher, and a prophet known for having anticipated a messianic figure greater than himself"
+	 Else If (testFeast="06.29")
+	    q := "Solemnity of the Apostles Peter and Paul - Both martyred in Rome, St. Peter, the first Pope, was crucified upsidedown and St. Paul, the apostle of the Gentiles, was beheaded"
      Else If (testFeast="08.06")
         aisHolidayToday := "Feast of the Transfiguration of the Lord Jesus Christ - when He becomes radiant in glory upon Mount Tabor"
      Else If (testFeast="08.15")
@@ -3053,11 +3059,9 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      Else If (testFeast="09.14")
         q := "Exaltation of the Holy Cross - the recovery of the cross on which Jesus Christ was crucified by the Roman government on the order of Pontius Pilate"
      Else If (testFeast="10.04" && UserReligion=1)
-        q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of the Friar Minors (OFM) within the Catholic church who lived between 1182 and 1226"
+        q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of the Friar Minors (OFM), the Poor Clares and the Third Order of Saint Francis within the Catholic church who lived between 1182 and 1226"
      Else If (testFeast="10.14" && UserReligion=2)
         q := "Saint Paraskeva of the Balkans - an ascetic female saint of the 10th century of half Serbian and half Greek origins"
-     Else If (testFeast="10.31" && UserReligion=1)
-        q := "All Hallows' Eve - the eve of the Solemnity of All Saints"
      Else If (testFeast="11.01" && UserReligion=1)
         q := "All Saints' day - a commemoration day for all Christian saints"
      Else If (testFeast="11.02" && UserReligion=1)
@@ -3102,6 +3106,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         . "International Literacy Day|09.08`n"
         . "International Day of Peace|09.21`n"
         . "International Day for the Universal Access to Information [for people with disabilities]|09.28`n"
+		  . "Halloween (All Hallows' Eve)|10.31`n"
         . "Armistice Day (also Remembrance Day or Veterans Day) - recalling the victims of World War I|11.11`n"
         . "International Day for Tolerance|11.16`n"
         . "International Day for the Elimination of Violence against Women|11.25`n"
@@ -3233,13 +3238,16 @@ updateOptionsLVsGui() {
 }
 
 updateHolidaysLVs() {
-  Static Epiphany := "01.06"
+  Static MaterDei := "01.01"
+  , Epiphany := "01.06"
   , SynaxisSaintJohnBaptist := "01.07"
   , ThreeHolyHierarchs := "01.30"
   , PresentationLord := "02.02"
+  , SaintJoseph := "03.19"
   , AnnunciationLord := "03.25"
   , SaintGeorge := "04.23"
   , BirthJohnBaptist := "06.24"
+  , SsPeterAndPaul :="06.29"
   , FeastTransfiguration := "08.06"
   , AssumptionVirginMary := "08.15"
   , BeheadingJohnBaptist := "08.29"
@@ -3247,7 +3255,6 @@ updateHolidaysLVs() {
   , ExaltationHolyCross := "09.14"
   , SaintFrancisAssisi := "10.04"
   , SaintParaskeva := "10.14"
-  , HalloweenDay := "10.31"
   , Allsaintsday := "11.01"
   , Allsoulsday := "11.02"
   , PresentationVirginMary := "11.21"
@@ -3290,7 +3297,7 @@ updateHolidaysLVs() {
         . "Good Friday|" goodFridaydate "`n"
         . "Holy Saturday|" HolySaturdaydate "`n"
         . "Catholic Easter|" easterdate "`n"
-        . "Catholic Easter - 2nd day|" 2ndeasterdate "`n"
+        . "Catholic Easter Monday|" 2ndeasterdate "`n"
         . "Divine Mercy|" divineMercyDate "`n"
         . "Ascension of Jesus|" ascensiondaydate "`n"
         . "Pentecost|" pentecostdate "`n"
@@ -3300,18 +3307,20 @@ updateHolidaysLVs() {
      Gui, ListView, LViewEaster
      processHolidaysList(theList)
 
-     Static theList2 := "Epiphany|" Epiphany "`n"
+     Static theList2 := "Divine Maternity of the Blessed Virgin Mary|" MaterDei "`n"
+		  . "Epiphany|" Epiphany "`n"
         . "Presentation of the Lord Jesus Christ|" PresentationLord "`n"
+		  . "Saint Joseph's Day|" SaintJoseph "`n"
         . "Annunciation of the Blessed Virgin Mary|" AnnunciationLord "`n"
         . "Saint George|" SaintGeorge "`n"
         . "Birth of Saint John the Baptist|" BirthJohnBaptist "`n"
+		  . "Solemnity of Saints Peter and Paul|" SsPeterAndPaul "`n"
         . "Transfiguration of the Lord Jesus Christ|" FeastTransfiguration "`n"
         . "Assumption of the Blessed Virgin Mary|" AssumptionVirginMary "`n"
         . "Beheading of Saint John the Baptist|" BeheadingJohnBaptist "`n"
         . "Birth of the Blessed Virgin Mary|" BirthVirginMary "`n"
         . "Exaltation of the Holy Cross|" ExaltationHolyCross "`n"
         . "Saint Francis of Assisi|" SaintFrancisAssisi "`n"
-        . "All Hallows' Eve [Hallowe'en]|" HalloweenDay "`n"
         . "All Saints' day|" Allsaintsday "`n"
         . "All souls' day|" Allsoulsday "`n"
         . "Presentation of the Blessed Virgin Mary|" PresentationVirginMary "`n"
@@ -3331,7 +3340,7 @@ updateHolidaysLVs() {
         . "Holy Friday|" goodFridaydate "`n"
         . "Holy Saturday|" HolySaturdaydate "`n"
         . "Orthodox Easter|" easterdate "`n"
-        . "Orthodox Easter - 2nd day|" 2ndeasterdate "`n"
+        . "Orthodox Easter Monday|" 2ndeasterdate "`n"
         . "Life-Giving Spring|" lifeSpringDate "`n"
         . "Ascension of Jesus|" ascensiondaydate "`n"
         . "Pentecost|" pentecostdate "`n"
@@ -3392,6 +3401,7 @@ updateHolidaysLVs() {
        . "Literacy Day|09.08`n"
        . "International Day of Peace|09.21`n"
        . "Day for the Universal Access to Information|09.28`n"
+	    . "Halloween|10.31`n"
        . "Armistice Day / Remembrance Day / Veterans Day|11.11`n"
        . "Tolerance Day|11.16`n"
        . "Elimination of Violence Against Women|11.25`n"
