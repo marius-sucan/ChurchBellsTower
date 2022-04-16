@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.1.5
+;@Ahk2Exe-SetVersion 3.1.6
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -149,8 +149,8 @@ Global displayTimeFormat  := 1
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "3.1.5"
- , ReleaseDate            := "2022 / 02 / 28"
+ , Version                := "3.1.6"
+ , ReleaseDate            := "2022 / 04 / 16"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
  , QuotesAlreadySeen := "", LastWinOpened
@@ -371,7 +371,7 @@ ShowWelcomeWindow() {
     Gui, Add, Text, x+7 y10, %appName%
     Gui, Font, s12 Bold, Arial, -wrap
     Gui, Add, Text, y+5, Quick start window - read me
-    Gui, Font
+    doResetGuiFont()
     btnWid := 150
     txtWid := 310
     If (PrefsLargeFonts=1)
@@ -381,8 +381,9 @@ ShowWelcomeWindow() {
        Gui, Font, s%LargeUIfontValue%
     }
 
+    sm := (PrefsLargeFonts=1) ? 40 : 28
     Gui, Add, Text, xs y+10 w%txtWid%, %appName% is currently running in background. To configure it or exit, please locate its icon in the system tray area, next to the system clock in the taskbar. To access the settings double click or right click on the bell icon.
-    Gui, Add, Button, xs y+10 w%btnWid% h30 gShowSettings, &Settings panel
+    Gui, Add, Button, xs y+15 w%btnWid% h%sm% gShowSettings, &Settings panel
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleLargeFonts Checked%PrefsLargeFonts% vPrefsLargeFonts, Large UI font sizes
     Gui, Add, Button, xs y+10 w%btnWid% hp gPanelAboutWindow, &About today
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleAnalogClock Checked%constantAnalogClock% vconstantAnalogClock, &Analog clock display
@@ -2914,7 +2915,7 @@ SecondDayEaster(ByRef aisHolidayToday, thisYDay) {
 
   FormatTime, lola, %result%, yday
   If (lola=thisYDay)
-     aisHolidayToday := (UserReligion=1) ? "Catholic Easter - 2nd day" : "Orthodox Easter - 2nd day"
+     aisHolidayToday := (UserReligion=1) ? "Catholic Easter Monday" : "Orthodox Easter Monday"
 
   return result
 }
@@ -3058,7 +3059,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      Else If (testFeast="10.31" && UserReligion=1)
         q := "All Hallows' Eve - the eve of the Solemnity of All Saints"
      Else If (testFeast="11.01" && UserReligion=1)
-        q := "All Saints' day- a commemoration day for all Christian saints"
+        q := "All Saints' day - a commemoration day for all Christian saints"
      Else If (testFeast="11.02" && UserReligion=1)
         q := "All souls' day - a commemoration day of all the faithful departed"
      Else If (testFeast="11.21")
@@ -3760,8 +3761,8 @@ PanelIncomingCelebrations() {
        Return
 
     GenericPanelGUI(0)
-    LastWinOpened := A_ThisFunc
     AnyWindowOpen := 3
+    LastWinOpened := A_ThisFunc
     INIaction(1, "LastWinOpened", "SavedSettings")
     btnWid := 100
     txtWid := 360
@@ -3783,6 +3784,16 @@ PanelIncomingCelebrations() {
 
     startDate := ""
     listu := ""
+    If (StrLen(isHolidayToday)>2 && ObserveHolidays=1)
+    {
+       relName := (UserReligion=1) ? "Catholic" : "Orthodox"
+       holidayMsg := relName " Christians celebrate today: " isHolidayToday "."
+       If (TypeHolidayOccured>1)
+          holidayMsg := "Today's event: " isHolidayToday "."
+       FormatTime, PersonalDate, , yyyy/MM/dd
+       listu .= PersonalDate " = " holidayMsg "`n `n"
+    }
+
     startYday := A_YDay
     PersonalDate := A_Year 0229010101
     FormatTime, PersonalDate, %PersonalDate%, LongDate
@@ -3802,10 +3813,11 @@ PanelIncomingCelebrations() {
            listu .= thisYear "/" thisMon "/" thisMDay " = " obju[2] "`n`n"
     }
 
+    Global holiListu
     btnW1 := (PrefsLargeFonts=1) ? 105 : 80
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     Gui, Add, Button, xs+1 y+15 w1 h1, L
-    Gui, Add, Edit, xp+1 yp+1 ReadOnly r15 w%txtWid%, % listu
+    Gui, Add, Edit, xp+1 yp+1 ReadOnly r15 w%txtWid% vholiListu, % listu
     Gui, Font, Normal
     Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn hwndhBtn1, &Manage
     Gui, Add, Button, x+5 hp wp+15 gShowSettings hwndhBtn2, &Settings
@@ -3864,8 +3876,8 @@ PanelSetAlarm() {
     MinMaxVar(userTimerHours, 0, 12, 0)
 
     GenericPanelGUI(0)
-    LastWinOpened := A_ThisFunc
     AnyWindowOpen := 4
+    LastWinOpened := A_ThisFunc
     INIaction(1, "LastWinOpened", "SavedSettings")
     btnWid := 100
     txtWid := 360
@@ -4252,27 +4264,27 @@ updateUIalarmsPanel() {
   If (TimerM=60)
   {
      timerM := 0
-     TimerH := clampInRange(TimerH + 1, 0, 12)
+     TimerH := clampInRange(TimerH + 1, 0, 12, 1)
      GuiControl, SettingsGUIA:, userTimerMins, 0
      GuiControl, SettingsGUIA:, userTimerHours, % TimerH
   } Else If (TimerM=-1)
   {
      timerM := 59
-     TimerH := clampInRange(TimerH - 1, 0, 12)
+     TimerH := clampInRange(TimerH - 1, 0, 12, 1)
      GuiControl, SettingsGUIA:, userTimerMins, 59
-     GuiControl, SettingsGUIA:, userTimerHours, % ȚimerH
+     GuiControl, SettingsGUIA:, userTimerHours, % TimerH
   }
 
   If (TimerAlM=60)
   { 
      timerAlM := 0
-     TimerAlH := clampInRange(TimerAlH + 1, 0, 23)
+     TimerAlH := clampInRange(TimerAlH + 1, 0, 23, 1)
      GuiControl, SettingsGUIA:, userAlarmMins, 0
      GuiControl, SettingsGUIA:, userAlarmHours, % TimerAlH
   } Else If (TimerAlM=-1)
   {
      timerAlM := 59
-     TimerAlH := clampInRange(TimerAlH - 1, 0, 29)
+     TimerAlH := clampInRange(TimerAlH - 1, 0, 23, 1)
      GuiControl, SettingsGUIA:, userAlarmMins, 59
      GuiControl, SettingsGUIA:, userAlarmHours, % TimerAlH
   }
@@ -4632,7 +4644,7 @@ PanelAboutWindow() {
        If (StrLen(PersonalDate)>3)
           Gui, Add, Text, y+7 w%txtWid%, %A_Year% is a leap year.
     } Else If (testFeast="02.29")
-       Gui, Add, Text, y+7 w%txtWid%, Today is 29th of February - a leap year day.
+       Gui, Add, Text, y+7 w%txtWid%, Today is the 29th of February - a leap year day.
 
     Gui, Font, Normal
     If (A_YDay>172 && A_YDay<352)
@@ -5616,6 +5628,8 @@ SettingsToolTips() {
  
    Gui, SettingsGUIA: Default
    GuiControlGet, value, , %A_GuiControl%
+   If (A_GuiControl="holiListu")
+      Return
    ; MouseGetPos, , , , hwnd, 1 ; |2|3]
    GuiControlGet, hwnd, hwnd, %A_GuiControl%
    ControlGetText, info,, ahk_id %hwnd%

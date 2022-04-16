@@ -5,6 +5,9 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.1.6 - 2022 / 04 / 16
+  - small fixes; many thanks to Fantmp
+
 v3.1.5 - 2022 / 02 / 28
   - [new] dark mode user interface 
   - [new] ability to set audio frequency for the audio played during an alarm and timer
@@ -19,9 +22,7 @@ v3.1.0 - 2021 / 09 / 24
   - [new] the alarm can be snoozed now, at a user defined interval
   - [new] added preset timers in the «Alarm / timer» panel
   - double clicking on the system tray icon will now open the last panel
-  - improved the layout of «About» panel
-  - improved the layout of the «Alarm / timer» panel
-  - improved the layout of the Stopwatch panel
+  - improved the layout of the «About», «Alarm / timer» and «Stopwatch» panels
   - bug fixes
 
 v3.0.1 - 2021 / 09 / 21
