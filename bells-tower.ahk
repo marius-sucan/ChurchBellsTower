@@ -20,10 +20,10 @@
 ; ===========================================================
 ;
 ;@Ahk2Exe-SetName Church Bells Tower
-;@Ahk2Exe-SetCopyright Marius Şucan (2017-2018)
+;@Ahk2Exe-SetCopyright Marius Şucan (2017-2022)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.1.6
+;@Ahk2Exe-SetVersion 3.1.7
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -41,6 +41,7 @@
  #Include, Lib\gdip_all.ahk
  #Include, Lib\analog-clock-display.ahk
  #Include, Lib\Class_CtlColors.ahk
+ #Include, Lib\Maths.ahk
 
  DetectHiddenWindows, On
  ComObjError(false)
@@ -56,7 +57,7 @@
  , LargeUIfontValue     := 13
  , uiDarkMode           := 0
  , tollQuarters         := 1 
- , tollQuartersException := 0 
+ , tollQuartersException:= 0 
  , tollHours            := 1
  , tollHoursAmount      := 1
  , tollNoon             := 1
@@ -89,6 +90,7 @@
  , NoWelcomePopupInfo   := 0
  , showTimeWhenIdle     := 0
  , showTimeIdleAfter    := 5 ; [in minutes]
+ , markFullMoonHowls    := 0
 
 ; OSD settings
 Global displayTimeFormat  := 1
@@ -98,6 +100,7 @@ Global displayTimeFormat  := 1
  , analogDisplayScale     := 0.3
  , analogMoonPhases       := 1
  , constantAnalogClock    := 0
+ , showOSDprogressBar     := 2
  , GuiX                   := 40
  , GuiY                   := 250
  , ClockGuiX              := 40
@@ -146,14 +149,15 @@ Global displayTimeFormat  := 1
  , ClockWinSize  := ClockDiameter + 2
  , ClockCenter   := Round(ClockWinSize/2)
  , roundedCsize  := Round(ClockDiameter/4)
+ , EquiSolsCache := 0
 
 ; Release info
  , ThisFile               := A_ScriptName
- , Version                := "3.1.6"
- , ReleaseDate            := "2022 / 04 / 16"
+ , Version                := "3.1.7"
+ , ReleaseDate            := "2022 / 09 / 08"
  , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
  , ScriptInitialized, FirstRun := 1
- , QuotesAlreadySeen := "", LastWinOpened
+ , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0
  , LastNoonAudio := 0, appName := "Church Bells Tower"
  , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-1"
 
@@ -199,12 +203,12 @@ Global CSthin      := "░"   ; light gray
  , lastFaded := 1
  , cutVolumeHalf := 0
  , defAnalogClockPosChanged := 0
- , FontChangedTimes := 0
- , AnyWindowOpen := 0
+ , FontChangedTimes := 0, AnyWindowOpen := 0, CurrentPrefWindow := 0
+ , mEquiDay := 79, jSolsDay := 172, sEquiDay := 266, dSolsDay := 356
+ , mEquiDate := A_Year "0320010203", jSolsDaTe := A_Year "0621010203", sEquiDate := A_Year "0923010203", dSolsDaTe := A_Year "1222010203"
  , LastBibleQuoteDisplay := 1
  , LastBibleQuoteDisplay2 := 1
  , LastBibleMsg := "", AllowDarkModeForWindow := ""
- , CurrentPrefWindow := 0
  , celebYear := A_Year, userAlarmIsSnoozed := 0
  , isHolidayToday := 0, stopWatchRecordsInterval := []
  , TypeHolidayOccured := 0, userTimerExpire := 0
@@ -225,7 +229,7 @@ Global CSthin      := "░"   ; light gray
  , SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas
  , SNDmedia_evening, SNDmedia_midnight, SNDmedia_morning, SNDmedia_beep
  , SNDmedia_noon1, SNDmedia_noon2, SNDmedia_noon3, SNDmedia_noon4
- , SNDmedia_orthodox_chimes1, SNDmedia_orthodox_chimes2
+ , SNDmedia_orthodox_chimes1, SNDmedia_orthodox_chimes2, SNDmedia_Howl
  , SNDmedia_semantron1, SNDmedia_semantron2, SNDmedia_hours12, SNDmedia_hours11
  , SNDmedia_quarters1, SNDmedia_quarters2, SNDmedia_quarters3, SNDmedia_quarters4
  , SNDmedia_hours1, SNDmedia_hours2, SNDmedia_hours3, SNDmedia_hours4, SNDmedia_hours5
@@ -303,6 +307,7 @@ InitSoundChannels() {
   SNDfile_noon2 := A_ScriptDir "\sounds\noon2.mp3"
   SNDfile_noon3 := A_ScriptDir "\sounds\noon3.mp3"
   SNDfile_noon4 := A_ScriptDir "\sounds\noon4.mp3"
+  SNDfile_howl := A_ScriptDir "\sounds\howling.mp3"
   SNDfile_chimes1 := A_ScriptDir "\sounds\orthodox-chimes1.mp3"
   SNDfile_chimes2 := A_ScriptDir "\sounds\orthodox-chimes2.mp3"
   SNDfile_quarters := A_ScriptDir "\sounds\quarters.mp3"
@@ -329,21 +334,35 @@ InitSoundChannels() {
   SNDmedia_noon4 := MCI_Open(SNDfile_noon4)
   SNDmedia_orthodox_chimes1 := MCI_Open(SNDfile_chimes1)
   SNDmedia_orthodox_chimes2 := MCI_Open(SNDfile_chimes2)
+  SNDmedia_Howl := MCI_Open(SNDfile_howl)
   SNDmedia_semantron1 := MCI_Open(SNDfile_semantron1)
   SNDmedia_semantron2 := MCI_Open(SNDfile_semantron2)
   SNDmedia_ticktok := MCI_Open(SNDfile_ticktok)
 }
 
 TimerShowOSDidle() {
-     Static isThisIdle := 0
+     Static isThisIdle := 0, lastFullMoonZeitTest := -9020
      If (constantAnalogClock=1) || (analogDisplay=1 && ClockVisibility=1) || (PrefOpen=1) || (A_IsSuspended)
         Return
 
      If !A_IsSuspended
         mouseHidden := checkMcursorState()
 
-     If (showTimeWhenIdle=1 && (A_TimeIdle > userIdleAfter)  && mouseHidden!=1)
+     If (showTimeWhenIdle=1 && (A_TimeIdle > userIdleAfter) && mouseHidden!=1)
      {
+        FormatTime, HoursIntervalTest,, H ; 0-23 format
+        If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest)
+        {
+           lastFullMoonZeitTest := HoursIntervalTest
+           pk := MoonPhaseCalculator()
+           If InStr(pk[1], "full moon (peak)")
+           {
+              hasHowledDay := A_YDay
+              INIaction(1, "hasHowledDay", "SavedSettings")
+              volumeAction := SetMyVolume()
+              MCXI_Play(SNDmedia_Howl)
+           }
+        }
         isThisIdle := 1
         DoGuiFader := 0
         If (BibleGuiVisible!=1)
@@ -457,19 +476,15 @@ decideSysTrayTooltip() {
        thisHoli := "secular"
 
     thisHoli := (StrLen(isHolidayToday)>2) ? "`nToday a " thisHoli " event is observed" : ""
-
-    testu := compareYearDays(78, A_YDay) ; 03 / 20
-    If InStr(testu, "now")
-       resu := "`nSpring equinox"
-    testu := compareYearDays(170, A_YDay) ; 06 / 21
-    If InStr(testu, "now")
-       resu := "`nSummer solstice"
-    testu := compareYearDays(263, A_YDay) ; 09 / 22
-    If InStr(testu, "now")
-       resu := "`nAutumn equinox"
-    testu := compareYearDays(354, A_YDay) ; 12 / 21
-    If InStr(testu, "now")
-       resu := "`nWinter solstice"
+    testu := wrapCalculateEquiSolsDates()
+    If (testu.r=1)
+       resu := "`nMarch equinox"
+    Else If (testu.r=2)
+       resu := "`nJune solstice"
+    Else If (testu.r=3)
+       resu := "`nSeptember equinox"
+    Else If (testu.r=4)
+       resu := "`nDecember solstice"
 
     Menu, Tray, Tip, % appName " v" Version RunType timerInfos alarmInfos stopwInfos  thisHoli resu soundsInfos
     lastInvoked := A_TickCount
@@ -999,7 +1014,8 @@ readjustBibleTimer() {
 
 theChimer() {
   Critical, on
-  Static lastChimed, todayTest
+  Static lastChimed, todayTest, lastFullMoonZeitTest := -9000
+
   FormatTime, CurrentTime,, hh:mm
   If (lastChimed=CurrentTime || A_IsSuspended || PrefOpen=1)
      mustEndNow := 1
@@ -1013,20 +1029,33 @@ theChimer() {
         mustEndNow := stopAdditionalStrikes := 1
   }
 
-  If (todayTest!=A_MDay) && (ScriptInitialized=1)
+  If (noTollingWhenMhidden=1)
+     mouseHidden := checkMcursorState()
+
+  If (todayTest!=A_YDay && ScriptInitialized=1)
   {
      Sleep, 10
      testCelebrations()
   }
 
-  If (noTollingWhenMhidden=1)
-     mouseHidden := checkMcursorState()
+  If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && mouseHidden!=1 && mustEndNow!=1 && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest)
+  {
+     lastFullMoonZeitTest := HoursIntervalTest
+     pk := MoonPhaseCalculator()
+     If InStr(pk[1], "full moon (peak)")
+     {
+        hasHowledDay := A_YDay
+        INIaction(1, "hasHowledDay", "SavedSettings")
+        volumeAction := SetMyVolume()
+        MCXI_Play(SNDmedia_Howl)
+     }
+  }
 
-  todayTest := A_MDay
-  If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=2)
+  todayTest := A_YDay
+  If (isInRange(HoursIntervalTest, silentHoursA, silentHoursB) && silentHours=2)
      soundBells := 1
 
-  If (HoursIntervalTest>=silentHoursA && HoursIntervalTest<=silentHoursB && silentHours=3)
+  If (isInRange(HoursIntervalTest, silentHoursA, silentHoursB) && silentHours=3)
   || (soundBells!=1 && silentHours=2) || (mustEndNow=1) || (mouseHidden=1)
   {
      If (mustEndNow!=1)
@@ -1358,11 +1387,29 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
     WinSet, Transparent, 1, ChurchTowerBibleWin
     WinGetPos,,, mainWid, mainHeig, ahk_id %hBibleOSD%
 
-    If (isBibleQuote=0 && InStr(msg2Display, ":") && !InStr(msg2Display, "`n"))
+    If (isBibleQuote=0 && InStr(msg2Display, ":") && !InStr(msg2Display, "`n") && showOSDprogressBar>1)
     {
-       percentileDay := Round(getPercentOfToday() * 100) "%"
+       If (showOSDprogressBar=2)
+       {
+          percu := Round(getPercentOfToday() * 100)
+       } Else If (showOSDprogressBar=3)
+       {
+          moonPhase := MoonPhaseCalculator()
+          percu := Round(moonPhase[3] * 100)
+       } Else If (showOSDprogressBar=4)
+       {
+          percu := Round((A_MDay/31) * 100)
+       } Else If (showOSDprogressBar=5)
+       {
+          percu := Round(getPercentOfAstroSeason() * 100)
+       } Else If (showOSDprogressBar=6)
+       {
+          percu := Round((A_YDay/366) * 100)
+       }
+
        hu := Ceil(mainHeig*0.04 + 1)
-       Gui, BibleGui: Add, Progress, x0 y0 w%mainWid% h%hu% c%OSDfadedColor% background%OSDbgrColor%, % percentileDay
+       coloru := (percu=25 || percu=49 || percu=50 || percu=51 || percu=75) ? OSDtextColor : OSDfadedColor
+       Gui, BibleGui: Add, Progress, x0 y0 w%mainWid% h%hu% c%coloru% background%OSDbgrColor%, % percu "%"
     }
 
     If (centerMsg=1)
@@ -1951,12 +1998,6 @@ ReloadScript(silent:=1) {
 
     attempts2Quit++
     DoGuiFader := 1
-    If (PrefOpen=1)
-    {
-       CloseSettings()
-       Return
-    }
-
     DestroyBibleGui(A_ThisFunc)
     If FileExist(ThisFile)
     {
@@ -1974,6 +2015,7 @@ ReloadScript(silent:=1) {
 }
 
 DeleteSettings() {
+    Gui, SettingsGUIA: +OwnDialogs
     MsgBox, 4, %appName%, Are you sure you want to delete the stored settings?
     IfMsgBox, Yes
     {
@@ -2442,6 +2484,11 @@ checkBoxStrikeAdditional() {
      MCXI_Play(SNDmedia_auxil_bell)
 }
 
+BtnHelpOrderedDisplay() {
+  Gui, SettingsGUIA: +OwnDialogs
+  MsgBox, , % "Help: " appName, Please select the option "Define start point" to set the index of the verse from which to begin displaying verses at the specified frequency. If the option is activated`, the verses will be displayed in the order they appear in the selected Bible`, otherwise the verse to be displayed will be chosen randomly.
+}
+
 ShowSettings() {
     doNotOpen := initSettingsWindow()
     If (doNotOpen=1)
@@ -2453,7 +2500,7 @@ ShowSettings() {
     Global CurrentPrefWindow := 5
     Global DoNotRepeatTimer := A_TickCount
     Global editF1, editF2, editF3, editF4, editF5, editF6, Btn1, volLevel, editF40, editF60, editF73, Btn2, txt4, Btn3, editF99, txt100
-         , editF7, editF8, editF9, editF10, editF11, editF13, editF35, editF36, editF37, editF38, txt1, txt2, txt3, txt10, Btn4
+         , editF7, editF8, editF9, editF10, editF11, editF13, editF35, editF36, editF37, editF38, txt1, txt2, txt3, txt10, Btn4, Btn5
     columnBpos1 := columnBpos2 := 160
     editFieldWid := 220
     btnWid := 90
@@ -2480,28 +2527,31 @@ ShowSettings() {
     Gui, Add, Checkbox, y+10 gcheckBoxStrikeQuarter Checked%tollQuarters% vtollQuarters, Strike quarter-hours
     Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%tollQuartersException% vtollQuartersException, ... except on the hour
     Gui, Add, Checkbox, xs y+10 gcheckBoxStrikeHours Checked%tollHours% vtollHours, Strike on the hour
-    Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%tollHoursAmount% vtollHoursAmount, ... the number of hours
+    Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%tollHoursAmount% vtollHoursAmount, ... and the number of hours
     Gui, Add, Checkbox, xs y+10 gcheckBoxStrikeAdditional Checked%AdditionalStrikes% vAdditionalStrikes, Additional strike every (in minutes)
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38, %strikeEveryMin%
     Gui, Add, UpDown, gVerifyTheOptions vstrikeEveryMin Range1-720, %strikeEveryMin%
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%markFullMoonHowls% vmarkFullMoonHowls, Mark full moon by wolves howling
     Gui, Add, Text, xs y+10, Interval between tower strikes (in miliseconds):
     Gui, Add, Edit, x+5 w70 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
     Gui, Add, UpDown, gVerifyTheOptions vstrikeInterval Range900-5500, %strikeInterval%
 
-    wu := (PrefsLargeFonts=1) ? 125:95
-    vu := (PrefsLargeFonts=1) ? 55:45
+    wu := (PrefsLargeFonts=1) ? 125 : 95
+    vu := (PrefsLargeFonts=1) ? 55 : 45
+    mf := (PrefsLargeFonts=1) ? 260 : 193
     Gui, Tab, 2 ; extras
     Gui, Add, Checkbox, x+15 y+15 Section gVerifyTheOptions Checked%showBibleQuotes% vshowBibleQuotes, Show a Bible verse every (in hours)
     Gui, Add, Edit, x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF40, %BibleQuotesInterval%
     Gui, Add, UpDown, gVerifyTheOptions vBibleQuotesInterval Range1-12, %BibleQuotesInterval%
-    Gui, Add, DropDownList, xs+15 y+7 w270 gVerifyTheOptions AltSubmit Choose%BibleQuotesLang% vBibleQuotesLang, World English Bible (2000)|Français: Louis Segond (1910)|Español: Reina Valera (1909)
+    Gui, Add, DropDownList, xs+15 y+7 w%mf% gVerifyTheOptions AltSubmit Choose%BibleQuotesLang% vBibleQuotesLang, World English Bible (2000)|Français: Louis Segond (1910)|Español: Reina Valera (1909)
+    Gui, Add, Checkbox, x+5 hp gVerifyTheOptions Checked%orderedBibleQuotes% vorderedBibleQuotes, Define the start point
     Gui, Add, Text, xs+15 y+10 vTxt10, Font size
     Gui, Add, Edit, x+10 w%vu% geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF73, %FontSizeQuotes%
     Gui, Add, UpDown, gVerifyTheOptions vFontSizeQuotes Range10-200, %FontSizeQuotes%
     Gui, Add, Button, x+10 hp w%wu% gInvokeBibleQuoteNow vBtn2, Preview verse
     Gui, Add, Edit, x+10 w%vu% r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF4, % userBibleStartPoint
     Gui, Add, UpDown, gVerifyTheOptions vuserBibleStartPoint Range1-27400, % userBibleStartPoint
-    Gui, Add, Checkbox, x+5 gVerifyTheOptions Checked%orderedBibleQuotes% vorderedBibleQuotes, Define start point
+    Gui, Add, Button, x+5 hp w40 gBtnHelpOrderedDisplay vBtn5, ?
     Gui, Add, Text, xs+15 y+10 vTxt4, Maximum line length (in characters)
     Gui, Add, Edit, x+10 w%vu% geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60, %maxBibleLength%
     Gui, Add, UpDown, vmaxBibleLength gVerifyTheOptions Range20-130, %maxBibleLength%
@@ -2552,6 +2602,7 @@ ShowSettings() {
     Gui, Add, Checkbox, xs y+15 h25 +0x1000 gVerifyTheOptions Checked%ShowPreview% vShowPreview, Show preview window
     Gui, Add, Checkbox, x+5 hp gVerifyTheOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date
 
+    mf := (PrefsLargeFonts=1) ? 170 : 143
     Gui, Add, DropDownList, xs+%columnBpos2% ys+0 section w205 gVerifyTheOptions Sort Choose1 vFontName, %FontName%
     Gui, Add, ListView, xp+0 yp+30 w55 h25 %CCLVO% Background%OSDtextColor% vOSDtextColor hwndhLV1,
     Gui, Add, ListView, x+5 yp w55 h25 %CCLVO% Background%OSDbgrColor% vOSDbgrColor hwndhLV2,
@@ -2559,12 +2610,13 @@ ShowSettings() {
     Gui, Add, UpDown, vOSDalpha gVerifyTheOptions Range75-250, %OSDalpha%
     Gui, Add, Edit, xp-120 yp+30 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5, %FontSize%
     Gui, Add, UpDown, gVerifyTheOptions vFontSize Range12-295, %FontSize%
-    Gui, Add, Edit, xp yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99, %showTimeIdleAfter%
+    Gui, Add, DropDownList, x+5 w%mf% gVerifyTheOptions AltSubmit Choose%showOSDprogressBar% vshowOSDprogressBar, No progress bar|Current day|Moon`'s synodic period|Current month|Astronomical seasons|Current year
+    Gui, Add, Edit, xp-60 yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99, %showTimeIdleAfter%
     Gui, Add, UpDown, vshowTimeIdleAfter gVerifyTheOptions Range1-950, %showTimeIdleAfter%
     Gui, Add, Text, x+5 vtxt100, idle time (in min.)
     Gui, Add, Edit,  xs yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6, %DisplayTimeUser%
     Gui, Add, UpDown, vDisplayTimeUser gVerifyTheOptions Range1-99, %DisplayTimeUser%
-    Gui, Add, Checkbox, x+10 hp gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners
+    Gui, Add, Checkbox, x+5 hp gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners
     If !FontList._NewEnum()[k, v]
     {
         Fnt_GetListOfFonts()
@@ -2591,6 +2643,7 @@ ShowSettings() {
 VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     Gui, SettingsGUIA: Default
     GuiControlGet, ShowPreview
+    GuiControlGet, markFullMoonHowls
     GuiControlGet, silentHours
     GuiControlGet, tollHours
     GuiControlGet, tollQuarters
@@ -2602,6 +2655,7 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControlGet, maxBibleLength
     GuiControlGet, BibleQuotesLang
     GuiControlGet, displayClock
+    GuiControlGet, showOSDprogressBar
     GuiControlGet, analogDisplay
     GuiControlGet, showTimeIdleAfter
     GuiControlGet, showTimeWhenIdle
@@ -2618,6 +2672,7 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Txt4
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), makeScreenDark
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), BibleQuotesLang
+    GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Btn5
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), noBibleQuoteMhidden
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), orderedBibleQuotes
     GuiControl, % (showBibleQuotes=0 || orderedBibleQuotes-1) ? "Disable" : "Enable", userBibleStartPoint
@@ -3028,9 +3083,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      lifeGivingSpring(aisHolidayToday, thisYDay)
      holyTrinityOrthdox(aisHolidayToday, thisYDay)
 
-     If (testFeast="01.01" && UserReligion=1)
-		q := "Commemoration of the Blessed Virgin Mary as Mother of God (Θεοτόκος) as proclaimed in the Council of Ephesus (431). Also the octave of Christmas traditionally commemorating the circumcision of the Lord Jesus Christ"
-	 Else If (testFeast="01.06")
+     If (testFeast="01.06")
         q := (UserReligion=1) ? "Epiphany - the revelation of God incarnate as Jesus Christ" : "Theophany - the baptism of Jesus in the Jordan River"
      Else If (testFeast="01.07" && UserReligion=2)
         q := "Synaxis of Saint John the Baptist - a Jewish itinerant preacher, and a prophet"
@@ -3038,16 +3091,12 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         q := "The Three Holy Hierarchs - Basil the Great, John Chrysostom and Gregory the Theologian"
      Else If (testFeast="02.02")
         q := "Presentation of the Lord Jesus Christ - at the Temple in Jerusalem to induct Him into Judaism, episode described in the 2nd chapter of the Gospel of Luke"
-	 Else If (testFeast="03.19" && !aisHolidayToday)
-		q := "Saint Joseph's Day - Spouse of the Blessed Virgin Mary and legal father of the Lord Jesus Christ"
      Else If (testFeast="03.25" && !aisHolidayToday)
         q := "Annunciation of the Lord Jesus Christ - when the Blessed Virgin Mary was told she would conceive and become the mother of Jesus of Nazareth"
      Else If (testFeast="04.23" && !aisHolidayToday)
         q := "Saint George - a Roman soldier of Greek origin under the Roman emperor Diocletian, sentenced to death for refusing to recant his Christian faith, venerated as a military saint since the Crusades."
      Else If (testFeast="06.24")
         q := "Birth of Saint John the Baptist - a Jewish itinerant preacher, and a prophet known for having anticipated a messianic figure greater than himself"
-	 Else If (testFeast="06.29")
-	    q := "Solemnity of the Apostles Peter and Paul - Both martyred in Rome, St. Peter, the first Pope, was crucified upsidedown and St. Paul, the apostle of the Gentiles, was beheaded"
      Else If (testFeast="08.06")
         aisHolidayToday := "Feast of the Transfiguration of the Lord Jesus Christ - when He becomes radiant in glory upon Mount Tabor"
      Else If (testFeast="08.15")
@@ -3059,9 +3108,11 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      Else If (testFeast="09.14")
         q := "Exaltation of the Holy Cross - the recovery of the cross on which Jesus Christ was crucified by the Roman government on the order of Pontius Pilate"
      Else If (testFeast="10.04" && UserReligion=1)
-        q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of the Friar Minors (OFM), the Poor Clares and the Third Order of Saint Francis within the Catholic church who lived between 1182 and 1226"
+        q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of the Friar Minors (OFM) within the Catholic church who lived between 1182 and 1226"
      Else If (testFeast="10.14" && UserReligion=2)
         q := "Saint Paraskeva of the Balkans - an ascetic female saint of the 10th century of half Serbian and half Greek origins"
+     Else If (testFeast="10.31" && UserReligion=1)
+        q := "All Hallows' Eve - the eve of the Solemnity of All Saints"
      Else If (testFeast="11.01" && UserReligion=1)
         q := "All Saints' day - a commemoration day for all Christian saints"
      Else If (testFeast="11.02" && UserReligion=1)
@@ -3106,7 +3157,6 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         . "International Literacy Day|09.08`n"
         . "International Day of Peace|09.21`n"
         . "International Day for the Universal Access to Information [for people with disabilities]|09.28`n"
-		  . "Halloween (All Hallows' Eve)|10.31`n"
         . "Armistice Day (also Remembrance Day or Veterans Day) - recalling the victims of World War I|11.11`n"
         . "International Day for Tolerance|11.16`n"
         . "International Day for the Elimination of Violence against Women|11.25`n"
@@ -3169,6 +3219,7 @@ OpenListCelebrationsBtn() {
   celebYear := A_Year
   If (PrefOpen=1 && hSetWinGui)
      VerifyTheOptions()
+
   PanelManageCelebrations()
 }
 
@@ -3238,16 +3289,13 @@ updateOptionsLVsGui() {
 }
 
 updateHolidaysLVs() {
-  Static MaterDei := "01.01"
-  , Epiphany := "01.06"
+  Static Epiphany := "01.06"
   , SynaxisSaintJohnBaptist := "01.07"
   , ThreeHolyHierarchs := "01.30"
   , PresentationLord := "02.02"
-  , SaintJoseph := "03.19"
   , AnnunciationLord := "03.25"
   , SaintGeorge := "04.23"
   , BirthJohnBaptist := "06.24"
-  , SsPeterAndPaul :="06.29"
   , FeastTransfiguration := "08.06"
   , AssumptionVirginMary := "08.15"
   , BeheadingJohnBaptist := "08.29"
@@ -3255,6 +3303,7 @@ updateHolidaysLVs() {
   , ExaltationHolyCross := "09.14"
   , SaintFrancisAssisi := "10.04"
   , SaintParaskeva := "10.14"
+  , HalloweenDay := "10.31"
   , Allsaintsday := "11.01"
   , Allsoulsday := "11.02"
   , PresentationVirginMary := "11.21"
@@ -3297,7 +3346,7 @@ updateHolidaysLVs() {
         . "Good Friday|" goodFridaydate "`n"
         . "Holy Saturday|" HolySaturdaydate "`n"
         . "Catholic Easter|" easterdate "`n"
-        . "Catholic Easter Monday|" 2ndeasterdate "`n"
+        . "Catholic Easter - 2nd day|" 2ndeasterdate "`n"
         . "Divine Mercy|" divineMercyDate "`n"
         . "Ascension of Jesus|" ascensiondaydate "`n"
         . "Pentecost|" pentecostdate "`n"
@@ -3307,20 +3356,18 @@ updateHolidaysLVs() {
      Gui, ListView, LViewEaster
      processHolidaysList(theList)
 
-     Static theList2 := "Divine Maternity of the Blessed Virgin Mary|" MaterDei "`n"
-		  . "Epiphany|" Epiphany "`n"
+     Static theList2 := "Epiphany|" Epiphany "`n"
         . "Presentation of the Lord Jesus Christ|" PresentationLord "`n"
-		  . "Saint Joseph's Day|" SaintJoseph "`n"
         . "Annunciation of the Blessed Virgin Mary|" AnnunciationLord "`n"
         . "Saint George|" SaintGeorge "`n"
         . "Birth of Saint John the Baptist|" BirthJohnBaptist "`n"
-		  . "Solemnity of Saints Peter and Paul|" SsPeterAndPaul "`n"
         . "Transfiguration of the Lord Jesus Christ|" FeastTransfiguration "`n"
         . "Assumption of the Blessed Virgin Mary|" AssumptionVirginMary "`n"
         . "Beheading of Saint John the Baptist|" BeheadingJohnBaptist "`n"
         . "Birth of the Blessed Virgin Mary|" BirthVirginMary "`n"
         . "Exaltation of the Holy Cross|" ExaltationHolyCross "`n"
         . "Saint Francis of Assisi|" SaintFrancisAssisi "`n"
+        . "All Hallows' Eve [Hallowe'en]|" HalloweenDay "`n"
         . "All Saints' day|" Allsaintsday "`n"
         . "All souls' day|" Allsoulsday "`n"
         . "Presentation of the Blessed Virgin Mary|" PresentationVirginMary "`n"
@@ -3340,7 +3387,7 @@ updateHolidaysLVs() {
         . "Holy Friday|" goodFridaydate "`n"
         . "Holy Saturday|" HolySaturdaydate "`n"
         . "Orthodox Easter|" easterdate "`n"
-        . "Orthodox Easter Monday|" 2ndeasterdate "`n"
+        . "Orthodox Easter - 2nd day|" 2ndeasterdate "`n"
         . "Life-Giving Spring|" lifeSpringDate "`n"
         . "Ascension of Jesus|" ascensiondaydate "`n"
         . "Pentecost|" pentecostdate "`n"
@@ -3401,7 +3448,6 @@ updateHolidaysLVs() {
        . "Literacy Day|09.08`n"
        . "International Day of Peace|09.21`n"
        . "Day for the Universal Access to Information|09.28`n"
-	    . "Halloween|10.31`n"
        . "Armistice Day / Remembrance Day / Veterans Day|11.11`n"
        . "Tolerance Day|11.16`n"
        . "Elimination of Violence Against Women|11.25`n"
@@ -3584,6 +3630,7 @@ ActionListViewKBDs() {
         If (A_TickCount - lastAsked>4000)
         {
            answerPositive := 0
+           Gui, CelebrationsGuia: +OwnDialogs
            MsgBox, 36, %appName%, %questionMsg%
            IfMsgBox, Yes
            {
@@ -3610,6 +3657,7 @@ ActionListViewKBDs() {
         If (A_TickCount - lastAsked>2000)
         {
            answerPositive := 0
+           Gui, CelebrationsGuia: +OwnDialogs
            MsgBox, 36, %appName%, %questionMsg%
            IfMsgBox, Yes
            {
@@ -3704,7 +3752,94 @@ CancelNewEntryBtn() {
    PanelManageCelebrations(4)
 }
 
-compareYearDays(givenDay, CurrentDay) {
+wrapCalculateEquiSolsDates() {
+  Critical, on
+  Static lastInvoked := 1, prevYear := 0, prevBias := -1, prevDay := 0, TZI := [], z := []
+
+  startZeit := A_TickCount
+  If (prevDay!=A_YDay || prevBias=-1)
+  {
+     TZI := TZI_GetTimeZoneInformation()
+     prevBias := -1 * TZI.TotalCurrentBias
+     prevDay := A_YDay
+  }
+
+  If (InStr(EquiSolsCache, "|") && prevYear!=A_Year)
+  {
+     arrayu := StrSplit(EquiSolsCache, "|", "`r")
+     mEquiDay := arrayu[1]
+     mEquiDate := arrayu[2]
+     jSolsDay := arrayu[3]
+     jSolsDate := arrayu[4]
+     sEquiDay := arrayu[5]
+     sEquiDate := arrayu[6]
+     dSolsDay := arrayu[7]
+     dSolsDate := arrayu[8]
+     prevYear := arrayu[9]
+     If (arrayu[10]!=prevBias)
+        prevYear := 0
+  }
+
+  If (prevYear!=A_Year)
+  {
+     Loop, 4
+     {
+         k := calculateEquiSols(A_Index, A_Year, 0)
+         FormatTime, OutputVar, % k, Yday
+         thisBias := isinRange(OutputVar, TZI.DaylightDateYday, TZI.StandardDateYday) ? TZI.Bias + TZI.DaylightBias + TZI.StandardBias : TZI.Bias + TZI.StandardBias
+         thisBias := -1*thisBias
+         k += thisBias, M
+         FormatTime, OutputVar, % k, Yday
+         If (A_Index=1 && OutputVar>70)
+         {
+            mEquiDay := OutputVar
+            mEquiDate := k
+         } Else If (A_Index=2 && OutputVar>165)
+         {
+            jSolsDay := OutputVar
+            jSolsDate := k
+         } Else If (A_Index=3 && OutputVar>260)
+         {
+            sEquiDay := OutputVar
+            sEquiDate := k
+         } Else If (A_Index=4 && OutputVar>350)
+         {
+            dSolsDay := OutputVar
+            dSolsDate := k
+         }
+         ; fnOutputDebug(A_Index "=" k "==" OutputVar)
+     }
+
+     EquiSolsCache := mEquiDay "|" mEquiDate "|" jSolsDay "|" jSolsDate "|" sEquiDay "|" sEquiDate "|" dSolsDay "|" dSolsDate "|" A_Year "|" prevBias
+     INIaction(1, "EquiSolsCache", "SavedSettings")
+     prevYear := A_Year
+  }
+
+  If (A_TickCount - lastInvoked<9500)
+     Return z
+
+    z := []
+    z.MarchEquinox := giveYearDayProximity(mEquiDay, A_YDay) . "March equinox."      ; 03 / 20
+    z.JuneSolstice := giveYearDayProximity(jSolsDay, A_YDay) . "June solstice."      ; 06 / 21
+    z.SepEquinox   := giveYearDayProximity(sEquiDay, A_YDay) . "September equinox."  ; 09 / 22
+    z.DecSolstice  := giveYearDayProximity(dSolsDay, A_YDay) . "December solstice."  ; 12 / 21
+    If InStr(z.MarchEquinox, "now")
+       z.r := 1
+    Else If InStr(z.JuneSolstice, "now")
+       z.r := 2
+    Else If InStr(z.SepEquinox, "now")
+       z.r := 3
+    Else If InStr(z.DecSolstice, "now")
+       z.r := 4
+
+    lastInvoked := A_TickCount
+    endZeit :=  A_TickCount - startZeit
+    ; ToolTip, % endzeit , , , 2
+    Return z
+}
+
+giveYearDayProximity(givenDay, CurrentDay) {
+
   If (CurrentDay>givenDay)
   {
       passedDays := CurrentDay - givenDay
@@ -3717,8 +3852,9 @@ compareYearDays(givenDay, CurrentDay) {
             Result := Floor(Weeksz)=1 ? "One week" : Floor(Weeksz) " weeks"
       } Else If (passedDays>2)
          Result := "Less than a week"
+
       Result .= " since the "
-      If (passedDays<=2)
+      If (passedDays<2)
          Result := "now"
   } Else
   {
@@ -3733,7 +3869,7 @@ compareYearDays(givenDay, CurrentDay) {
       } Else If (DaysUntil>2)
          Result := "Less than a week"
      Result .= " until the "
-     If (DaysUntil<=2)
+     If (DaysUntil<2)
         Result := "now"
   }
   If (Floor(Weeksz)>=4)
@@ -3744,21 +3880,14 @@ compareYearDays(givenDay, CurrentDay) {
 
 testEquiSols() {
   OSDsuffix := ""
-
-  MarchEquinox := compareYearDays(78, A_YDay)
-  If InStr(MarchEquinox, "now")
+  testu := wrapCalculateEquiSolsDates()
+  If (testu.r=1)
      OSDsuffix := " ▀"
-
-  JuneSols := compareYearDays(170, A_YDay)
-  If InStr(JuneSols, "now")
+  Else If (testu.r=2)
      OSDsuffix := " ⬤"
-
-  SepEquinox := compareYearDays(263, A_YDay)
-  If InStr(SepEquinox, "now")
+  Else If (testu.r=3)
      OSDsuffix := " ▃"
-
-  DecSols := compareYearDays(354, A_YDay)
-  If InStr(DecSols, "now")
+  Else If (testu.r=4)
      OSDsuffix := " ◯"
 
   testFeast := A_Mon "." A_MDay
@@ -3776,12 +3905,12 @@ PanelIncomingCelebrations() {
     INIaction(1, "LastWinOpened", "SavedSettings")
     btnWid := 100
     txtWid := 360
-    Global btn1
+    Global holiListu, btn1, txtLine
     Gui, Font, c%AboutTitleColor% s20 Bold, Arial, -wrap
     Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, bell-image.png
     Gui, Add, Text, x+7 y10, %appName%
     Gui, Font, s12 Bold, Arial, -wrap
-    Gui, Add, Text, y+4, Celebrations in the next 30 days.
+    Gui, Add, Text, y+4 vtxtLine, Celebrations in the next 30 days.
     doResetGuiFont()
     If (PrefsLargeFonts=1)
     {
@@ -3791,6 +3920,21 @@ PanelIncomingCelebrations() {
 
     If (tickTockNoise!=1)
        SoundLoop(tickTockSound)
+
+    btnW1 := (PrefsLargeFonts=1) ? 105 : 80
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    Gui, Add, Button, xs+1 y+15 w1 h1, L
+    Gui, Add, Edit, xp+1 yp+1 ReadOnly r15 w%txtWid% vholiListu, % listu
+    Gui, Font, Normal
+    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn hwndhBtn1, &Manage
+    Gui, Add, Button, x+5 hp wp+15 gShowSettings hwndhBtn2, &Settings
+    Gui, Add, Button, x+5 hp wp-15 gCloseWindow hwndhBtn3, &Close
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
+    Gui, Show, AutoSize, Celebrations list: %appName%
+    PopulateIncomingCelebs()
+}
+
+PopulateIncomingCelebs() {
 
     startDate := ""
     listu := ""
@@ -3805,9 +3949,7 @@ PanelIncomingCelebrations() {
     }
 
     startYday := A_YDay
-    PersonalDate := A_Year 0229010101
-    FormatTime, PersonalDate, %PersonalDate%, LongDate
-    totalYDays := StrLen(PersonalDate)>3 ? 366 : 365
+    totalYDays := isLeapYear() ? 366 : 365
     Loop, 30
     {
         startDate += 1, Days
@@ -3823,17 +3965,40 @@ PanelIncomingCelebrations() {
            listu .= thisYear "/" thisMon "/" thisMDay " = " obju[2] "`n`n"
     }
 
-    Global holiListu
-    btnW1 := (PrefsLargeFonts=1) ? 105 : 80
-    btnH := (PrefsLargeFonts=1) ? 35 : 28
-    Gui, Add, Button, xs+1 y+15 w1 h1, L
-    Gui, Add, Edit, xp+1 yp+1 ReadOnly r15 w%txtWid% vholiListu, % listu
-    Gui, Font, Normal
-    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn hwndhBtn1, &Manage
-    Gui, Add, Button, x+5 hp wp+15 gShowSettings hwndhBtn2, &Settings
-    Gui, Add, Button, x+5 hp wp-15 gCloseWindow hwndhBtn3, &Close
-    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
-    Gui, Show, AutoSize, Celebrations list: %appName%
+    listu .= "Astronomic events:`n`n"
+    FormatTime, OutputVar, % mEquiDate, yyyy/MM/dd
+    If isinRange(mEquiDay, A_YDay, A_YDay + 30)
+       listu .= OutputVar " = March Equinox`n`n"
+ 
+    FormatTime, OutputVar, % jSolsDate, yyyy/MM/dd
+    If isinRange(jSolsDay, A_YDay, A_YDay + 30)
+       listu .= OutputVar " = June Solstice`n`n"
+  
+    FormatTime, OutputVar, % sEquiDate, yyyy/MM/dd
+    If isinRange(sEquiDay, A_YDay, A_YDay + 30)
+       listu .= OutputVar " = September Equinox`n`n"
+  
+    FormatTime, OutputVar, % dSolsDate, yyyy/MM/dd
+    If isinRange(dSolsDay, A_YDay, A_YDay + 30)
+       listu .= OutputVar " = December Solstice`n`n"
+
+    startDate := A_Year A_Mon A_MDay 010101
+    ; startDate := 2022 01 01 010101
+    listuA := listuB := ""
+    Loop, 30
+    {
+        startDate += 1, Days
+        pk := MoonPhaseCalculator(startDate)
+        If (prevu!=pk[1] && !InStr(pk[1], "peak") && (InStr(pk[1], "full") || InStr(pk[1], "new")))
+        {
+           prevu := pk[1]
+           FormatTime, OutputVar, % startDate, yyyy/MM/dd
+           listu .= OutputVar " = " pk[1] "`n`n"
+           ; listu .= OutputVar " = " pk[1] "`n p=" pk[3] "; f=" pk[4] "; a=" pk[5] " `n"
+        }
+    }
+ 
+    GuiControl, SettingsGUIA:, holiListu, % listu listuB listuA
 }
 
 reactWinOpened(funcu, idu) {
@@ -4214,7 +4379,6 @@ uiStopWatchUpdater() {
 
   GuiControl, SettingsGUIA:, UIstopWatchInterval, %hrz%.%SecB%
   GuiControl, SettingsGUIA:, UIstopWatchDetailsInterval, (%labelu% lap)
-
   If (stopWatchIntervalInfos[3]>0)
   {
      allLapsZeit := thisLap
@@ -4518,13 +4682,66 @@ startAlarmTimer() {
   SetTimer, doUserAlarmAlert, % -newu*1000
 }
 
+getPercentOfAstroSeason(z:=0) {
+   ; Static t := 0
+   td := isLeapYear() ? 366 : 365
+   t := (z>0) ? z : A_YDay
+   ; t += 5
+   ; If (t>366)
+   ;    t := 0
+
+   If (t>dSolsDay)
+   {
+      c := 4
+      dayz := td - dSolsDay + mEquiDay
+      passedDayz := td - t + mEquiDay
+   } Else If (t<=mEquiDay)
+   {
+      c := 5
+      dayz := td - dSolsDay + mEquiDay
+      passedDayz := t + (td - dSolsDay)
+   } Else If (t>sEquiDay)
+   {
+      c := 3
+      dayz := dSolsDay - sEquiDay
+      passedDayz := dSolsDay - t
+   } Else If (t>jSolsDay)
+   {
+      c := 2
+      dayz := sEquiDay - jSolsDay
+      passedDayz := sEquiDay - t
+   } Else If (t>mEquiDay)
+   {
+      c := 1
+      dayz := jSolsDay - mEquiDay
+      passedDayz := jSolsDay - t
+   }
+   If (c!=5)
+      passedDayz := dayz - passedDayz
+
+   r := passedDayz / dayz
+   ; ToolTip, % "td=" td " | " t "=" c "`n" passedDayz "//" dayz "=" r , , , 2
+   Return r
+}
+
 getPercentOfToday(ByRef minsPassed:=0) {
    FormatTime, CurrentDateTime,, yyyyMMddHHmm
    FormatTime, CurrentDay,, yyyyMMdd
    FirstMinOfDay := CurrentDay "0001"
    EnvSub, CurrentDateTime, %FirstMinOfDay%, Minutes
    minsPassed := CurrentDateTime + 1
-   Return minsPassed/1450
+   Return minsPassed/1445
+}
+
+fnOutputDebug(msg) {
+   OutputDebug, % "QPV: " Trim(msg)
+}
+
+isLeapYear(thisYear:=0) {
+   PersonalDate := (thisYear>0) ? thisYear 0229010101 : A_Year 0229010101
+   FormatTime, PersonalDate, %PersonalDate%, LongDate
+   r := (StrLen(PersonalDate)>3) ? 1 : 0
+   Return r
 }
 
 PanelAboutWindow() {
@@ -4573,18 +4790,11 @@ PanelAboutWindow() {
     Gui, Add, Tab3,xm+1, Today|Application details
     Gui, Tab, 1
     testCelebrations()
-    MarchEquinox := compareYearDays(78, A_YDay) "March equinox."   ; 03 / 20
-    If InStr(MarchEquinox, "now")
-       MarchEquinox := "(" OSDsuffix " ) The March equinox is here now. Day and night times are balanced for a few days."
-    JuneSolstice := compareYearDays(170, A_YDay) "June solstice. "  ; 06 / 21
-    If InStr(JuneSolstice, "now")
-       JuneSolstice := "(" OSDsuffix " ) The June solstice is here now. Today is one of the longest days of the year."
-    SepEquinox := compareYearDays(263, A_YDay) "September equinox."  ; 09 / 22
-    If InStr(SepEquinox, "now")
-       SepEquinox := "(" OSDsuffix " ) The September equinox is here now. Day and night times are balanced for a few days."
-    DecSolstice := compareYearDays(354, A_YDay) "December solstice."  ; 12 / 21
-    If InStr(DecSolstice, "now")
-       DecSolstice := "(" OSDsuffix " ) The December solstice is here now. Today is one of the shortest days of the year."
+    zx := wrapCalculateEquiSolsDates()
+    MarchEquinox := !InStr(zx.MarchEquinox, "now") ? zx.MarchEquinox : "(" OSDsuffix " ) March equinox. The day and night are everywhere on Earth of approximately equal length."
+    JuneSolstice := !InStr(zx.JuneSolstice, "now") ? zx.JuneSolstice : "(" OSDsuffix " ) June solstice. Today is one of the longest days of the year."
+    SepEquinox := !InStr(zx.SepEquinox, "now") ? zx.SepEquinox : "(" OSDsuffix " ) September equinox. The day and night are everywhere on Earth of approximately equal length."
+    DecSolstice := !InStr(zx.DecSolstice, "now") ? zx.DecSolstice : "(" OSDsuffix " ) December solstice. Today is one of the shortest days of the year."
 
     percentileYear := Round(A_YDay/366*100) "%"
     FormatTime, CurrentYear,, yyyy
@@ -4649,18 +4859,16 @@ PanelAboutWindow() {
     testFeast := A_Mon "." A_MDay
     If (testFeast="01.01") || (testFeast="02.01")
     {
-       PersonalDate := A_Year 0229010101
-       FormatTime, PersonalDate, %PersonalDate%, LongDate
-       If (StrLen(PersonalDate)>3)
+       If isLeapYear()
           Gui, Add, Text, y+7 w%txtWid%, %A_Year% is a leap year.
     } Else If (testFeast="02.29")
        Gui, Add, Text, y+7 w%txtWid%, Today is the 29th of February - a leap year day.
 
     Gui, Font, Normal
     If (A_YDay>172 && A_YDay<352)
-       Gui, Add, Text, y+7, The days are getting shorter until the winter solstice, in December.
+       Gui, Add, Text, y+7, The days are getting shorter until the December solstice.
     Else If (A_YDay>356 || A_YDay<167)
-       Gui, Add, Text, y+7, The days are getting longer until the summer solstice, in June.
+       Gui, Add, Text, y+7, The days are getting longer until the June solstice.
 
     If (A_OSVersion="WIN_XP")
     {
@@ -4671,12 +4879,28 @@ PanelAboutWindow() {
        Gui, Font,, DejaVu LGC Sans
     }
 
-    moonPhase := MoonPhaseCalculator(A_Year, A_Mon, A_MDay)
+    ; fnOutputDebug("booooooooooooooooooooom")
+    moonPhase := MoonPhaseCalculator()
     moonPhaseN := moonPhase[1]
-    moonPhaseF := Round(moonPhase[3] * 100)
+    moonPhaseI := moonPhase[2]
+    moonPhaseC := Round(moonPhase[3] * 100)
+    moonPhaseL := Round(moonPhase[4] * 100)
+
+    ; startDate := 2022 01 01 010101
+    ; Loop, 983
+    ; {
+    ;     startDate += 1, Hours
+    ;     pk := MoonPhaseCalculator(startDate)
+    ;        FormatTime, OutputVar, % startDate, yyyy/MM/dd
+    ;        ; listu .= OutputVar " = " pk[1] "`n`n"
+    ;        ; If InStr(pk[1], "new")
+    ;        fnOutputDebug(OutputVar " = " pk[1] "; p=" pk[3] "; f=" pk[4] "; a=" pk[5])
+    ; }
+
     Gui, Add, Text, xp+30 y+15 Section, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
     Gui, Add, Text, xp+15 y+5, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
-    Gui, Add, Text, xs y+10, Moon phase: %moonPhaseN% (%moonPhaseF%`% of the cycle).
+    Gui, Add, Text, xs y+10, Moon phase: %moonPhaseN% (%moonPhaseI% / 8)
+    Gui, Add, Text, xp+15 y+10, %moonPhaseC%`% of the cycle, %moonPhaseL%`% illuminated.
     Gui, Add, Text, xs y+10, % "0h {" CalcTextHorizPrev(minsPassed, 1440, 0, 22) "} 24h "
     Gui, Add, Text, xp+15 y+5, %minsPassed% minutes (%percentileDay%) of today have elapsed.
     If (A_OSVersion="WIN_XP")
@@ -4688,7 +4912,7 @@ PanelAboutWindow() {
     compiled := (A_IsCompiled=1) ? "Compiled. " : "Uncompiled. "
     compiled .= (A_PtrSize=8) ? "x64. " : "x32. "
     Gui, Add, Text, xs y+15 w%txtWid%, Current version: v%version% from %ReleaseDate%. Internal AHK version: %A_AhkVersion%. %compiled%OS: %A_OSVersion%.
-    Gui, Add, Text, y+15 gOpenChangeLog, Click here to view the change log / version history.
+    Gui, Add, Text, y+15 +Border gOpenChangeLog, Click here to view the change log / version history.
     If (storeSettingsREG=1)
        Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
     Else      
@@ -4757,15 +4981,25 @@ INIaction(act, var, section) {
   If (storeSettingsREG=0)
   {
      If (act=1)
+     {
         IniWrite, %varValue%, %IniFile%, %section%, %var%
-     Else
-        IniRead, %var%, %IniFile%, %section%, %var%, %varValue%
+     } Else
+     {
+        IniRead, loaded, %IniFile%, %section%, %var%, %varValue%
+        If !ErrorLevel
+           %var% := loaded
+     }
   } Else
   {
      If (act=1)
+     {
         RegWrite, REG_SZ, %APPregEntry%, %var%, %varValue%
-     Else
-        RegRead, %var%, %APPregEntry%, %var%
+     } Else
+     {
+        RegRead, loaded, %APPregEntry%, %var%
+        If !ErrorLevel
+           %var% := loaded
+     }
   }
 }
 
@@ -4793,7 +5027,11 @@ INIsettings(a) {
      INIaction(1, "FirstRun", "SavedSettings")
      INIaction(1, "ReleaseDate", "SavedSettings")
      INIaction(1, "Version", "SavedSettings")
+  } Else
+  {
+     INIaction(0, "EquiSolsCache", "SavedSettings")
   }
+
   INIaction(a, "PrefsLargeFonts", "SavedSettings")
   INIaction(a, "LastWinOpened", "SavedSettings")
   INIaction(a, "LargeUIfontValue", "SavedSettings")
@@ -4811,9 +5049,11 @@ INIsettings(a) {
   INIaction(a, "showTimeIdleAfter", "SavedSettings")
   INIaction(a, "showTimeWhenIdle", "SavedSettings")
   INIaction(a, "displayTimeFormat", "SavedSettings")
+  INIaction(a, "markFullMoonHowls", "SavedSettings")
   INIaction(a, "BeepsVolume", "SavedSettings")
   INIaction(a, "DynamicVolume", "SavedSettings")
   INIaction(a, "AutoUnmute", "SavedSettings")
+  INIaction(a, "hasHowledDay", "SavedSettings")
   INIaction(a, "userAlarmSound", "SavedSettings")
   INIaction(a, "userTimerSound", "SavedSettings")
   INIaction(a, "userMuteAllSounds", "SavedSettings")
@@ -4871,6 +5111,7 @@ INIsettings(a) {
   INIaction(a, "OSDmarginBottom", "OSDprefs")
   INIaction(a, "OSDmarginSides", "OSDprefs")
   INIaction(a, "OSDroundCorners", "OSDprefs")
+  INIaction(a, "showOSDprogressBar", "OSDprefs")
   INIaction(a, "makeScreenDark", "SavedSettings")
   INIaction(a, "maxBibleLength", "OSDprefs")
 
@@ -4927,6 +5168,7 @@ CheckSettings() {
     BinaryVar(makeScreenDark, 1)
     BinaryVar(noTollingWhenMhidden, 0)
     BinaryVar(noBibleQuoteMhidden, 1)
+    BinaryVar(markFullMoonHowls, 0)
     BinaryVar(SemantronHoliday, 0)
     BinaryVar(ObserveHolidays, 0)
     BinaryVar(ObserveReligiousDays, 1)
@@ -4981,6 +5223,7 @@ CheckSettings() {
     MinMaxVar(userTimerMins, 0, 59, 2)
     MinMaxVar(userTimerFreq, 1, 99, 2)
     MinMaxVar(userAlarmFreq, 1, 99, 4)
+    MinMaxVar(showOSDprogressBar, 1, 6, 2)
 
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
@@ -4988,7 +5231,6 @@ CheckSettings() {
        SemantronHoliday := 0
 
 ; verify HEX values
-
    HexyVar(OSDbgrColor, "131209")
    HexyVar(OSDtextColor, "FFFEFA")
 
@@ -5415,33 +5657,356 @@ dummyDoLoopisSoundPlayingNow() {
    isSoundPlayingNow(1)
 }
 
-MoonPhaseCalculator(year, month, day) {
-    ; based on https://gist.github.com/endel/dfe6bb2fbe679781948c
-    ; by Endel
+calculateEquiSols(i, year, localTime:=0) {
+; Calculate and Display a single event for a single year (Either a Equiniox or Solstice)
+; Meeus Astronomical Algorithms Chapter 27
+; 4 events for param i: 1=AE, 2=SS, 3-VE, 4=WS
 
-    c := e := jd := b := 0
-    if (month<3)
+   k := i - 1
+   JDEzero := calcInitialEquiSols(k, year)           ; Initial estimate of date of event
+   ; fnOutputDebug("JDE0=" JDEzero)
+   ; T := (JDEzero - 2451545.0) / 36525
+   T := SM_Divide(JDEzero - 2451545, 36525)
+   W := SM_Add(SM_Multiply(35999.373, T), "-2.47")
+   ; W := 35999.373*T - 2.47
+   dL := SM_Add( 1,  SM_Add( SM_Multiply(0.0334, COSdeg(W)), SM_Multiply(0.0007, COSdeg(SM_Multiply(2, W) ) ) ) )
+   ; dL := 1 + 0.0334*COSdeg(W) + 0.0007*COSdeg(2*W)
+   ; fnOutputDebug("dL=" dL)
+   S := periodic24(T)
+   ; fnOutputDebug("S=" S)
+   JDE := SM_Add( JDEzero,  SM_Divide( SM_Multiply(0.00001, S), dL ) )  ; This is the answer in Julian Emphemeris Days
+   ; JDE := JDEzero + ( (0.00001*S) / dL )   ; This is the answer in Julian Emphemeris Days
+   TDT := fromJDtoUTC(JDE)                   ; Convert Julian Days to TDT in a Date Object
+   If (localTime=1)
+      Return convertUTCtoLocalTime(TDT)
+   Else
+      Return TDT
+}
+
+convertUTCtoLocalTime(givenTime) {
+  ; convert Unix date to local AHK date (based on current time zone) (alternative)
+  Static vSec := 1560516182
+  vDate := 1970
+  EnvAdd, vDate, % vSec, Seconds
+  ; MsgBox, % vDate
+
+  VarSetCapacity(SYSTEMTIME, 16, 0)
+  vDate := RegExReplace(vDate, "(....)(..)(..)(..)(..)(..)", "$1 $2 $3 $4 $5 $6")
+  Loop, Parse, vDate, % " "
+       NumPut(A_LoopField, &SYSTEMTIME, A_Index*2 - 2, "UShort")
+
+  vIntervalsUTC := vIntervalsLocal := 0
+  DllCall("kernel32\SystemTimeToFileTime", "UPtr", &SYSTEMTIME, "Int64*", vIntervalsUTC)
+  DllCall("kernel32\FileTimeToLocalFileTime", "Int64*", vIntervalsUTC, "Int64*", vIntervalsLocal)
+  vDate := givenTime
+  EnvAdd, vDate, % vIntervalsLocal//10000000, Seconds
+  SYSTEMTIME := 0
+  return vDate
+}
+
+calcInitialEquiSols(k, year) {
+; Equinox & Solstice Calculator
+;  The algorithms and correction tables for this computation come directly from the book Astronomical
+;  Algorithms Second Edition by Jean Meeus, ©1998, published by Willmann-Bell, Inc., Richmond, VA, 
+;  ISBN 0-943396-61-1. They were coded in JavaScript and built into the 
+;  https://stellafane.org/misc/equinox.html web page by its author, Ken Slater.
+; JS code converted to AHK by Marius Șucan
+
+; Function valid for years between 1000 and 3000.
+; Calculate an initial guess as the JD of the Equinox or Solstice of a Given Year.
+; Meeus Astronomical Algorithms Chapter 27.
+
+   JDEzero := 0
+   Y := SM_Divide(year - 2000, 1000)
+   ; fnOutputDebug("y=" Y)
+    ; a := SM_Multiply(365242.37404, Y)
+    ; b := SM_Multiply(0.05169, POW(Y, 2))
+    ; fnOutputDebug("a=" a)
+    ; fnOutputDebug("b=" b)
+   If (k=0)
+      JDEzero := SM_Add( SM_Add( 2451623.80984, SM_Multiply(365242.37404, Y) ), SM_Multiply(0.05169, POW(Y, 2) ) ) - SM_Multiply(0.00411, POW(Y, 3)) - SM_Multiply(0.00057, POW(Y, 4))
+      ; JDEzero := 2451623.80984 + 365242.37404*Y + 0.05169*POW(Y, 2) - 0.00411*POW(Y, 3) - 0.00057*POW(Y, 4)
+   Else If (k=1)
+      JDEzero := SM_Add( SM_Add( 2451716.56767, SM_Multiply(365241.62603, Y) ), SM_Multiply(0.00325, POW(Y, 2) ) ) + SM_Multiply(0.00888, POW(Y, 3)) - SM_Multiply(0.00030, POW(Y, 4))
+      ; JDEzero := 2451716.56767 + 365241.62603*Y + 0.00325*POW(Y, 2) + 0.00888*POW(Y, 3) - 0.00030*POW(Y, 4)
+   Else If (k=2)
+      JDEzero := SM_Add( 2451810.21715, SM_Multiply(365242.01767, Y)) - SM_Add( SM_Add( SM_Multiply(0.11575, POW(Y, 2) ) , SM_Multiply(0.00337, POW(Y, 3) ) ) , SM_Multiply(0.00078, POW(Y, 4) ) )
+      ; JDEzero := 2451810.21715 + 365242.01767*Y - 0.11575*POW(Y, 2) + 0.00337*POW(Y, 3) + 0.00078*POW(Y, 4)
+   Else If (k=3)
+      JDEzero := SM_Add( 2451900.05952, SM_Multiply(365242.74049, Y)) - SM_Multiply(0.06223, POW(Y, 2)) - SM_Multiply(0.00823, POW(Y, 3)) + SM_Multiply(0.00032, POW(Y, 4))
+      ; JDEzero := 2451900.05952 + 365242.74049*Y - 0.06223*POW(Y, 2) - 0.00823*POW(Y, 3) + 0.00032*POW(Y, 4)
+
+   return JDEzero
+}
+
+COSdeg(deg) {
+   Static PI := 3.14159265358979323846
+   Return cos( SM_Divide(SM_Multiply(deg, PI), 180) )
+   ; Return cos( deg * PI/180 )
+}
+
+POW(x, y) {
+  return SM_POW(x, y)
+  ; return x^y
+}
+
+periodic24(T) {
+; Calculate 24 Periodic Terms.
+; Meeus Astronomical Algorithms Chapter 27.
+   static A := {1:485,2:203,3:199,4:182,5:156,6:136,7:77,8:74,9:70,10:58,11:52,12:50,13:45,14:44,15:29,16:18,17:17,18:16,19:14,20:12,21:12,22:12,23:9,24:8}
+   static B := {1:324.96,2:337.23,3:342.08,4:27.85,5:73.14,6:171.52,7:222.54,8:296.72,9:243.58,10:119.81,11:297.17,12:21.02,13:247.54,14:325.15,15:60.93,16:155.12,17:288.79,18:198.04,19:199.76,20:95.39,21:287.11,22:320.81,23:227.73,24:15.45}
+   static C := {1:1934.136,2:32964.467,3:20.186,4:445267.112,5:45036.886,6:22518.443,7:65928.934,8:3034.906,9:9037.513,10:33718.147,11:150.678,12:2281.226,13:29929.562,14:31555.956,15:4443.417,16:67555.328,17:4562.452,18:62894.029,19:31436.921,20:14577.848,21:31931.756,22:34777.259,23:1222.114,24:16859.074}
+
+   S := 0
+   Loop, 24
+   {
+      i := A_Index
+      ; S += A[i] * COSdeg( B[i] + (C[i]*T) )
+      S := SM_Add(S, SM_Multiply(A[i], COSdeg( SM_Add(B[i], SM_Multiply(C[i], T) ) )  ) )
+   }
+   return S
+} 
+
+fromJDtoUTC( JD ) {
+; Julian Date to UTC date
+; Meeus Astronomical Algorithms Chapter 7 
+    Z := SM_Floor( SM_Add(JD, 0.5) )  ; Integer JD's
+    F := SM_Add( SM_Add(JD, 0.5), -Z)     ; Fractional JD's
+    if (Z < 2299161)
     {
-       year--
-       month += 12
+       A := Z
+    } else
+    {
+       alpha := SM_Floor( SM_Divide( SM_Add(Z, "-1867216.25"), 36524.25) )
+       A := SM_Add( SM_Add( SM_Add(Z, 1), alpha), - SM_Floor( SM_Divide(alpha, 4, 90) )  )
     }
-    day += Round(getPercentOfToday(), 3)
-    month++
-    c := 365.25 * year
-    e := 30.6 * month
-    jd := c + e + day - 694039.09   ; jd is total days elapsed
-    jd := jd/29.5305882             ; divide by the moon cycle
-    b := Floor(jd)  ; int(jd) -> b, take integer part of jd
-    jd -= b         ; subtract integer part to leave fractional part of original jd
-    b := jd * 8  ; scale fraction from 0-8
-    if (b>=8)
-       b := 0 ; 0 and 8 are the same so turn 8 into 0
-    perc := b/8
-    Static phaseNames := {0:"〇 New Moon", 1:"Waxing Crescent Moon", 2:"◐ First Quarter Moon", 3:"Waxing Gibbous Moon", 4:"⚫ Full Moon", 5:"Waning Gibbous Moon", 6:"◑ Last Quarter Moon", 7:"Waning Crescent Moon"}
-    z := Round(b)
-    thisPhase := phaseNames[z]
-    return [thisPhase, b, perc]
 
+    B := SM_Add(A, 1524)
+    C := SM_Floor( SM_Divide(SM_Add(B, "-122.1"), 365.25, 90) )
+    ; C := Floor( (B-122.1) / 365.25 )
+    D := SM_Floor( SM_Multiply(365.25, C) )
+    ; D := Floor( 365.25*C )
+    E := SM_Floor( SM_Divide(SM_Add(B, -D), 30.6001) )
+    ; E := Floor( ( B-D )/30.6001 )
+    DT := SM_Add( SM_Add( SM_Add(B, -D), - SM_Floor( SM_Multiply(30.6001, E) )  ),  F )   ; Day of Month with decimals for time
+    ; DT := B - D - Floor(30.6001*E) + F   ; Day of Month with decimals for time
+
+    G := (E < 13.5) ? 1 : 13
+    Mon :=  SM_Add(E, -G)                     ; Month
+    G := (Mon > 2.5) ? 4716 : 4715
+    Yr := SM_Add(C, -G)                       ; Year
+    Day := SM_Floor( DT )                     ; Day of Month without decimals for time
+    H := SM_Multiply(24, SM_Add(DT, -Day) )   ; Hours and fractional hours 
+    Hr := SM_Floor( H )                       ; Integer Hours
+    M := SM_Multiply(60, SM_Add(H, -Hr) )    ; Minutes and fractional minutes
+    Min := SM_Floor( M )                      ; Integer Minutes
+    Sec := SM_Floor( 60 * (M - Min) )         ; Integer Seconds (Milliseconds discarded)
+
+    ; theDate := Yr "-" Mon "-" Day "-" Hr "-" Min "-" Sec
+    theDate := Yr Format("{:02}", Mon) Format("{:02}", Day) Format("{:02}", Hr) Format("{:02}", Min) Format("{:02}", Sec)
+    return theDate
+}
+
+TZI_GetTimeZoneInformation() {
+   ; source https://gist.github.com/hoppfrosch/6882628
+   ; and  https://www.autohotkey.com/board/topic/68856-sample-dealing-with-time-zones-ahk-l/
+
+   ; GetTimeZoneInformationForYear -> msdn.microsoft.com/en-us/library/bb540851(v=vs.85).aspx (Win Vista+)
+   ; cmd.exe w32tm /tz
+
+   Year := A_Year
+   VarSetCapacity(TZI, 172, 0)
+   If !DllCall("GetTimeZoneInformationForYear", "UShort", Year, "Ptr", 0, "Ptr", &TZI, "Int")
+   {
+      TZI := ""
+      Return 0
+   }
+
+   R := []
+   R.Bias := NumGet(TZI, "Int")
+   R.StandardName := StrGet(&TZI + 4, 32, "UTF-16")
+   ST := New TZI_SYSTEMTIME(&TZI + 68) ; Calculate StandardDate TimeStamp
+   ; If ST.Year is not zero the date is fix. Otherwise, the date is variable and must be calculated.
+   ; ST.WDay contains the weekday and ST.Day the occurrence within ST.Month (5 = last) in this case.
+   If (ST.Year = 0) { 
+      ST.Year := Year
+      ST.Day := TZI_GetWDayInMonth(ST.Year, ST.Month, ST.WDay, ST.Day)
+   }
+
+   R.StandardDate := ST.TimeStamp
+   FormatTime, yd, % ST.TimeStamp, Yday
+   R.StandardDateYday := yd
+   R.StandardBias := NumGet(TZI, 84, "Int")
+   R.DaylightName := StrGet(&TZI + 88, 32, "UTF-16")
+   ST := New TZI_SYSTEMTIME(&TZI + 152)  ; Calculate DaylightDate TimeStamp
+   If (ST.Year = 0) {
+      ST.Year := Year
+      ST.Day := TZI_GetWDayInMonth(ST.Year, ST.Month, ST.WDay, ST.Day)
+   }
+   R.DaylightDate := ST.TimeStamp
+   FormatTime, yd, % ST.TimeStamp, Yday
+   R.DaylightDateYday := yd
+   R.DaylightBias := NumGet(TZI, 168, "Int")
+   ; Calculate the UTC values for StandardDate and DaylightDate
+   UTCBias := R.Bias + R.DaylightBias ; StandardDate
+   UTCDate := R.StandardDate
+   UTCDate += UTCBias, M
+   R.StandardDateUTC := UTCDate
+   UTCBias := R.Bias + R.StandardBias ; DaylightDate
+   UTCDate := R.DaylightDate
+   UTCDate += UTCBias, M
+   R.DaylightDateUTC := UTCDate
+   R.TotalCurrentBias := isinRange(A_YDay, R.DaylightDateYday, R.StandardDateYday) ? R.Bias + R.DaylightBias + R.StandardBias : R.Bias + R.StandardBias
+   ; ToolTip, % R.TotalCurrentBias "`n" R.StandardDateYday "==" R.StandardDate "`n" R.DaylightDateYday "==" R.DaylightDateUTC "`n" R.StandardName "=" NumGet(TZI, 84, "Int") "==" NumGet(TZI, 168, "Int") , , , 2
+   Return R
+}
+
+TZI_GetWDayInMonth(Year, Month, WDay, Occurence) {
+   YearMonth := Format("{:04}{:02}01", Year, Month) ; bugfix
+   If YearMonth Is Not Date
+      Return 0
+   If WDay Not Between 1 And 7
+      Return 0
+   If Occurence Not Between 1 And 5 ; 5 = last occurence
+      Return 0
+   FormatTime, WD, %YearMonth%, WDay
+   While (WD <> WDay) {
+      YearMonth += 1, D
+      FormatTime, WD, %YearMonth%, WDay
+   }
+   While (A_Index <= Occurence) && (SubStr(YearMonth, 5, 2) = Month) {
+      Day := SubStr(YearMonth, 7, 2)
+      YearMonth += 7, D
+   }
+   Return Day
+}
+; ----------------------------------------------------------------------------------------------------------------------------------
+Class TZI_SYSTEMTIME {
+   __New(Pointer) { ; a pointer to a SYSTEMTIME structure
+      This.Year  := NumGet(Pointer + 0, "Short")
+      This.Month := NumGet(Pointer + 2, "Short")
+      This.WDay  := NumGet(Pointer + 4, "Short") + 1 ; DayOfWeek is 0 (Sunday) thru 6 (Saturday) in the SYSTEMTIME structure
+      This.Day   := NumGet(Pointer + 6, "Short")
+      This.Hour  := NumGet(Pointer + 8, "Short")
+      This.Min   := NumGet(Pointer + 10, "Short")
+      This.Sec   := NumGet(Pointer + 12, "Short")
+      This.MSec  := NumGet(Pointer + 14, "Short")
+   }
+   TimeStamp[] { ; TimeStamp YYYYMMDDHH24MISS
+      Get {
+         Return Format("{:04}{:02}{:02}{:02}{:02}{:02}", This.Year, This.Month, This.Day, This.Hour, This.Min, This.Sec)
+      }
+      Set {
+         Return ""
+      }
+   }
+}
+
+MoonPhaseCalculator(t:=0, calcDetails:=0) {
+; Calculate the phase and position of the moon for a given date.
+; The algorithm is simple and adequate for many purposes.
+;
+; This software was originally adapted to Javascript by Stephen R. Schmitt
+; from a BASIC program from the 'Astronomical Computing' column of Sky & Telescope,
+; April 1994, page 86, written by Bradley E. Schaefer.
+;
+; Subsequently adapted from Stephen R. Schmitt's Javascript to C++ for the Arduino
+; by Cyrus Rahman. And further down the timeline, the C++ code was converted to AHK
+; by Marius Șucan in September 2022.
+;
+; This work is/was subjected to Stephen Schmitt's copyright:
+; Copyright 2004 Stephen R. Schmitt
+; You may use or modify this source code in any way you find useful, provided
+; that you agree that the author(s) have no warranty, obligations or liability.  You
+; must determine the suitability of this source code for your use.
+;
+; source https://github.com/signetica/MoonPhase
+
+  Static MOON_SYNODIC_PERIOD := 29.530588853     ; Period of moon cycle in days.
+       , MOON_SYNODIC_OFFSET := 2451550.26       ; Reference cycle offset in days. From number of days since new moon on Julian date MOON_SYNODIC_OFFSET (18:15 UTC January 6, 2000), determine remainder of incomplete cycle.
+       , MOON_DISTANCE_PERIOD := 27.55454988     ; Period of distance oscillation
+       , MOON_DISTANCE_OFFSET := 2451562.2
+       , MOON_LATITUDE_PERIOD := 27.212220817    ; Latitude oscillation
+       , MOON_LATITUDE_OFFSET := 2451565.2
+       , MOON_LONGITUDE_PERIOD := 27.321582241   ; Longitude oscillation
+       , MOON_LONGITUDE_OFFSET := 2451555.8
+       , JULIAN_UNIX_EPOCH := 2440587.5          ; The Unix epoch (zero-point) is January 1, 1970 GMT as Julian daye
+       , SECONDS_PER_DAY := 86400.0
+       , LEAP_SECONDS := 27                      ; since 1972 until 2022
+       , M_PI := 3.14159265358979
+       , phaseNames := {1:"New moon", 2:"Waxing Crescent", 3:"First Quarter"
+           , 4: "Waxing Gibbous", 5:"Full moon", 6:"Waning Gibbous"
+           , 7:"Last Quarter", 8:"Waning Crescent"}
+
+  If (t="now" || !t)
+     t := A_NowUTC
+
+  ; MsgBox, % NowUTC
+  t -= 19700101000000, S
+
+  ; jDate := getJulianDate(t)
+  ; jDate := (t - LEAP_SECONDS) / SECONDS_PER_DAY + JULIAN_UNIX_EPOCH ; Julian day from Unix time
+  jDate := SM_Add(SM_Divide(SM_Add(t, -LEAP_SECONDS), SECONDS_PER_DAY), JULIAN_UNIX_EPOCH) ; Julian day from Unix time
+
+  ; Calculate illumination (synodic) phase
+  phase := SM_Divide(SM_Add(jDate, -MOON_SYNODIC_OFFSET), MOON_SYNODIC_PERIOD)
+  ; phase := (jDate - MOON_SYNODIC_OFFSET) / MOON_SYNODIC_PERIOD
+  ; phase := phase - floor(phase)
+  phase := SM_Add(phase, - SM_Floor(phase))
+
+  ; Calculate age and illumination fraction.
+  age := phase * MOON_SYNODIC_PERIOD
+  ; age := SM_Multiply(phase, MOON_SYNODIC_PERIOD)
+  fraction := (1.0 - cos(2 * M_PI * phase)) * 0.5
+  ; fraction := SM_Multiply(SM_Add(1.0, -cos(SM_Multiply(2, SM_Multiply(M_PI, phase) ) ) ), 0.5)
+  ; phaseID := mod(round(floor(phase * 8) + 0.51), 8) + 1
+
+  If (age<1.307)
+    phaseID := 1
+  Else If (age<6.382)
+    phaseID := 2
+  Else If (age<8.382)
+    phaseID := 3
+  Else If (age<13.565)
+    phaseID := 4
+  Else If (age<15.965)
+    phaseID := 5
+  Else If (age<21.148)
+    phaseID := 6
+  Else If (age<23.148)
+    phaseID := 7
+  Else If (age<28.215)
+    phaseID := 8
+  Else
+    phaseID := 1
+
+  phaseName := phaseNames[phaseID]
+  If (fraction>0.994 && phaseID=5)
+     phaseName .= " (peak)"
+  Else if (fraction<0.006 && phaseID=1)
+     phaseName .= " (peak)"
+
+  If (calcDetails=1)
+  {
+     ; Calculate distance from anomalistic phase.
+     distancePhase := (jDate - MOON_DISTANCE_OFFSET) / MOON_DISTANCE_PERIOD
+     distancePhase := distancePhase - floor(distancePhase)
+     distance := 60.4 - 3.3 * cos(2 * M_PI * distancePhase) - 0.6 * cos(2 * 2 * M_PI * phase - 2 * M_PI * distancePhase) - 0.5 * cos(2 * 2 * M_PI * phase)
+ 
+     ; Calculate ecliptic latitude from nodal (draconic) phase.
+     latPhase := (jDate - MOON_LATITUDE_OFFSET) / MOON_LATITUDE_PERIOD
+     latPhase := latPhase - floor(latPhase)
+     latitude := 5.1 * sin(2 * M_PI * latPhase)
+ 
+     ; Calculate ecliptic longitude from sidereal motion.
+     longPhase := (jDate - MOON_LONGITUDE_OFFSET) / MOON_LONGITUDE_PERIOD
+     longPhase := longPhase - floor(longPhase)
+     longitude := longitude - 360 * longPhase + 6.3 * sin(2 * M_PI * distancePhase) + 1.3 * sin(2 * 2 * M_PI * phase - 2 * M_PI * distancePhase) + 0.7 * sin(2 * 2 * M_PI * phase)
+     if (longitude > 360)
+        longitude := longitude - 360
+  }
+  ; fnOutputDebug("jd=" jDate "; phase=" phase "; fraction=" fraction "; " phaseName)
+  Return [phaseName, phaseID, phase, fraction, age, distance, latitude, longitude]
 }
 
 MixARGB(color1, color2, t := 0.5, gamma := 1) {

@@ -5,6 +5,13 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.1.7 - 2022 / 09 / 08
+  - [new] option to display a progress bar in the OSD; users have the ability to choose from several time related progress bars
+  - [new] option to mark full moon by wolves howling [audio]
+  - improved the algorithm that calculates the moon phases; it is now a lot more accurate
+  - improved how the moon phases are drawn in the analog clock widget
+  - the dates for equinoxes and solstices are now calculated based on the current time zone
+
 v3.1.6 - 2022 / 04 / 16
   - small fixes; many thanks to Fantmp
 

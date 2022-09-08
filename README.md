@@ -21,7 +21,7 @@
 <li>option to display time when it chimes/strikes/toll ;-)</li>
 <li>... with an analog clock display (optional)</li>
 <li>tick/tock background sound</li>
-<li>display a Bible verse in English, French or Spanish, at a specified interval (e.g., every three hours)</li>
+<li>display a random Bible verse in English, French or Spanish, at a specified interval (e.g., every three hours)</li>
 <li>informs you about moon phases, equinoxes and solstices, and how much of the current day or year has elapsed</li>
 <li>option to display / observe Christian feast days - for Orthodox and Catholic worshippers; automatically calculates the dates for Easter and related celebrations</li>
 <li>options to set an alarm or a timer</li>

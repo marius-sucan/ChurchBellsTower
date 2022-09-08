@@ -179,67 +179,55 @@ UpdateEverySecond() {
 ; draw moon phase
    If (analogMoonPhases=1)
    {
-     moonPhase := MoonPhaseCalculator(A_Year, A_Mon, A_MDay)
-     moonPhaseF := Round(moonPhase[2])
+     moonPhase := MoonPhaseCalculator()
+     o_moonCycle := Round(moonPhase[3], 3)
      darkFace := mixARGB("0xFF" faceElements, "0xFF" faceBgrColor, 0.4)
-     brightFace := "0xEE" faceBgrColor
-     Diameter := Round(ClockDiameter*0.18, 2)
-     If (moonPhaseF=0 || moonPhaseF=4)
-     {
-        pBrush := (moonPhaseF=0) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
-        Diameter := Round(ClockDiameter*0.19, 2)
-        Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY + diameter//2, Diameter, Diameter)
-        Gdip_DeleteBrush(pBrush)
-     } Else If (moonPhaseF=2 || moonPhaseF=6)
-     {
-        Diameter := Round(ClockDiameter*0.2, 2)
-        pBrush := (moonPhaseF=2) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
-        Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY + diameter//2.1, Diameter, Diameter)
-        Gdip_DeleteBrush(pBrush)
+     brightFace := "0xFF" faceBgrColor
 
-        offsetuC := Diameter
-        Gdip_SetClipRect(globalG, CenterX - Diameter//2 + offsetuC*0.5, CenterY + diameter//2.1, Diameter, Diameter)
-        pBrush := (moonPhaseF=6) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
-        Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY + diameter//2.1, Diameter, Diameter)
-        Gdip_DeleteBrush(pBrush)
-        Gdip_ResetClip(globalG)
-     } Else If (moonPhaseF=1 || moonPhaseF=5)
-     {
-        pBrushA := (moonPhaseF=5) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
-        pBrushB := (moonPhaseF=1) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
-        offsetuC := Diameter
-        DiameterZ := Round(ClockDiameter*0.20, 2)
-        Gdip_FillEllipse(globalG, pBrushB, CenterX - (DiameterZ/2), CenterY + DiameterZ/2.08, DiameterZ, DiameterZ)
-        Gdip_SetClipRect(globalG, CenterX - Diameter/2 + offsetuC*0.5, CenterY + diameter/2.58, Diameter, Diameter*1.25)
-        Diameter := Round(ClockDiameter*0.20, 2)
-        Gdip_FillEllipse(globalG, pBrushA, CenterX-(Diameter/2), CenterY + diameter/2.08, Diameter, Diameter)
-        Gdip_DeleteBrush(pBrushA)
+     ; Static o_moonCycle := 0
+     ; o_moonCycle += 0.05
+     ; If (o_moonCycle>1)
+     ;    o_moonCycle := 0
 
-        ; Gdip_SetClipRect(globalG, CenterX - Diameter//2 + offsetuC*0.3, CenterY + diameter//1.81, Diameter, Diameter, 1)
-        Gdip_FillEllipse(globalG, pBrushB, CenterX - (Diameter/1.4), CenterY + diameter/2.18, Diameter, Diameter)
-        Gdip_DeleteBrush(pBrushB)
-        Gdip_ResetClip(globalG)
-     } Else If (moonPhaseF=3 || moonPhaseF=7)
-     {
-        pBrushA := (moonPhaseF=3) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
-        pBrushB := (moonPhaseF=7) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
-        offsetuC := Diameter
-        DiameterZ := Round(ClockDiameter*0.20, 2)
-        Gdip_FillEllipse(globalG, pBrushB, CenterX - (DiameterZ/2), CenterY + DiameterZ/2.08, DiameterZ, DiameterZ)
-        Gdip_SetClipRect(globalG, CenterX - Diameter, CenterY + diameter/2.58, Diameter, Diameter*1.25)
-        Diameter := Round(ClockDiameter*0.20, 2)
-        Gdip_FillEllipse(globalG, pBrushA, CenterX-(Diameter/2), CenterY + diameter/2.08, Diameter, Diameter)
-        Gdip_DeleteBrush(pBrushA)
+     moonCycle := (o_moonCycle<0.5) ? o_moonCycle * 2 : 1 - (o_moonCycle - 0.5)*2
+     If (o_moonCycle>=0.75)
+        flap := 2
+     Else If (o_moonCycle>=0.5)
+        flap := 1
 
-        ; Gdip_SetClipRect(globalG, CenterX - Diameter//2 + offsetuC*0.3, CenterY + diameter//1.81, Diameter, Diameter, 1)
-        Gdip_FillEllipse(globalG, pBrushB, CenterX - (Diameter/3.4), CenterY + diameter/2.18, Diameter, Diameter)
-        Gdip_DeleteBrush(pBrushB)
-        Gdip_ResetClip(globalG)
+     If (moonCycle>=0.5 && flap!=2)
+     {
+        flip := 1
+        moonCycle -= 0.50001
      }
 
+     bDark := (flip!=1) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
+     bBright := (flip!=1) ? Gdip_BrushCreateSolid(brightFace) : Gdip_BrushCreateSolid(darkFace)
      Diameter := Round(ClockDiameter*0.20, 2)
-     pPen := Gdip_CreatePen("0xFF" faceElements, Round((ClockDiameter/100)*1.3, 2))
-     Gdip_DrawEllipse(globalG, pPen, CenterX-(Diameter//2), CenterY + diameter//2.25,Diameter, Diameter)
+     Gdip_FillEllipse(globalG, bBright, CenterX-(Diameter/2), CenterY + diameter/2.18, Diameter, Diameter)
+     pPath := Gdip_CreatePath()
+     Gdip_AddPathEllipse(pPath, CenterX-(Diameter/2), CenterY + diameter/2.18, Diameter, Diameter)
+     Gdip_SetClipPath(globalG, pPath)
+     DiameterZ := (flip=1) ? Diameter*(moonCycle*2) : Diameter*(1 - moonCycle*2)
+     ; DiameterZ := (moonCycle<0.5) ? Diameter*(1 - moonCycle*2) : Diameter*(moonCycle/1.25)
+     If (flap=2)
+        Gdip_FillRectangle(globalG, bDark, CenterX, CenterY + diameter/2.18, Diameter//2, Diameter)
+     Else If (flap=1)
+        Gdip_FillRectangle(globalG, bDark, CenterX - diameter/2, CenterY + diameter/2.18, Diameter//2, Diameter)
+     Else If (moonCycle<0.5 && flip!=1)
+        Gdip_FillRectangle(globalG, bDark, CenterX - Diameter/2, CenterY + diameter/2.18, Diameter//2, Diameter)
+     Else
+        Gdip_FillRectangle(globalG, bDark, CenterX, CenterY + diameter/2.18, Diameter//2, Diameter)
+    
+     Gdip_FillEllipse(globalG, bDark, CenterX - (DiameterZ/2), CenterY + diameter/2.18, DiameterZ, Diameter)
+     Gdip_DeleteBrush(bBright)
+     Gdip_DeleteBrush(bDark)
+     Gdip_ResetClip(globalG)
+     Gdip_DeletePath(pPath)
+    
+     Diameter := Round(ClockDiameter*0.20, 2)
+     pPen := Gdip_CreatePen("0x66" faceElements, Round((ClockDiameter/100)*1.3, 2))
+     Gdip_DrawEllipse(globalG, pPen, CenterX - (Diameter/2), CenterY + diameter/2.18,Diameter, Diameter)
      Gdip_DeletePen(pPen)
    }
 
@@ -373,11 +361,14 @@ ClockGuiGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
        menuGenerated := 1
     }
 
+    pk := MoonPhaseCalculator()
     Menu, ClockSizesMenu, Check, %analogDisplayScale%x
     Menu, ContextMenu, Add, Sc&ale, :ClockSizesMenu
     Menu, ContextMenu, Add, 
     Menu, ContextMenu, Add, &Hide the clock, toggleAnalogClock
     Menu, ContextMenu, Add, Show &moon phases, toggleMoonPhasesAnalog
+    Menu, ContextMenu, Add, % pk[1], dummy
+    Menu, ContextMenu, Disable, % pk[1]
     If (analogMoonPhases=1)
        Menu, ContextMenu, Check, Show &moon phases
 
@@ -387,12 +378,17 @@ ClockGuiGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
        Menu, ContextMenu, Add, &Tick/tock sounds, ToggleTickTock
        If (tickTockNoise=1)
           Menu, ContextMenu, Check, &Tick/tock sounds
+       Menu, ContextMenu, Add, 
+       Menu, ContextMenu, Add, Set &alarm or timer, PanelSetAlarm
+       Menu, ContextMenu, Add, Stop&watch, PanelStopWatch
        Menu, ContextMenu, Add, &Settings, ShowSettings
-       Menu, ContextMenu, Add, &About, AboutWindow
+       Menu, ContextMenu, Add, 
+       Menu, ContextMenu, Add, &About, PanelAboutWindow
     }
 
     Menu, ContextMenu, Add
-    Menu, ContextMenu, Add, Close menu, dummy
+    Menu, ContextMenu, Add, Restart app, ReloadScript
+    ; Menu, ContextMenu, Add, Close menu, dummy
     Menu, ContextMenu, Show
     lastInvoked := A_TickCount
     Return
