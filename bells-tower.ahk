@@ -33,210 +33,218 @@
 
 ; Script Initialization
 
- #SingleInstance Force
- #NoEnv
- #MaxMem 256
- #Include, Lib\va.ahk                   ; vista audio APIs wrapper by Lexikos
- #Include, Lib\mci.ahk
- #Include, Lib\gdip_all.ahk
- #Include, Lib\analog-clock-display.ahk
- #Include, Lib\Class_CtlColors.ahk
- #Include, Lib\Maths.ahk
+#SingleInstance Force
+#NoEnv
+#MaxMem 256
+#Include, Lib\va.ahk                   ; vista audio APIs wrapper by Lexikos
+#Include, Lib\mci.ahk
+#Include, Lib\gdip_all.ahk
+#Include, Lib\analog-clock-display.ahk
+#Include, Lib\Class_CtlColors.ahk
+#Include, Lib\Maths.ahk
+#Include, Lib\hashtable.ahk
 
- DetectHiddenWindows, On
- ComObjError(false)
- SetTitleMatchMode, 2
- Coordmode, Mouse, Screen
- SetBatchLines, -1
- ListLines, Off
- SetWorkingDir, %A_ScriptDir%
- Critical, On
+DetectHiddenWindows, On
+ComObjError(false)
+SetTitleMatchMode, 2
+Coordmode, Mouse, Screen
+SetBatchLines, -1
+ListLines, Off
+SetWorkingDir, %A_ScriptDir%
+Critical, On
 
 ; Default Settings
- Global IniFile         := "bells-tower.ini"
- , LargeUIfontValue     := 13
- , uiDarkMode           := 0
- , tollQuarters         := 1 
- , tollQuartersException:= 0 
- , tollHours            := 1
- , tollHoursAmount      := 1
- , tollNoon             := 1
- , BeepsVolume          := 35
- , dynamicVolume        := 1
- , silentHours          := 1
- , silentHoursA         := 12
- , silentHoursB         := 14
- , AutoUnmute           := 1
- , tickTockNoise        := 0
- , strikeInterval       := 2000
- , AdditionalStrikes    := 0
- , strikeEveryMin       := 5
- , showBibleQuotes      := 0
- , BibleQuotesLang      := 1
- , makeScreenDark       := 1
- , BibleQuotesInterval  := 5
- , noBibleQuoteMhidden  := 1
- , userBibleStartPoint  := 1
- , orderedBibleQuotes   := 0
- , UserReligion         := 1
- , SemantronHoliday     := 0
- , ObserveHolidays      := 0
- , ObserveSecularDays   := 1
- , ObserveReligiousDays := 1
- , userMuteAllSounds    := 0
- , PreferSecularDays    := 0
- , noTollingWhenMhidden := 0
- , noTollingBgrSounds   := 0
- , NoWelcomePopupInfo   := 0
- , showTimeWhenIdle     := 0
- , showTimeIdleAfter    := 5 ; [in minutes]
- , markFullMoonHowls    := 0
+Global IniFile         := "bells-tower.ini"
+, LargeUIfontValue     := 13
+, uiDarkMode           := 0
+, tollQuarters         := 1 
+, tollQuartersException:= 0 
+, tollHours            := 1
+, tollHoursAmount      := 1
+, tollNoon             := 1
+, BeepsVolume          := 35
+, dynamicVolume        := 1
+, silentHours          := 1
+, silentHoursA         := 12
+, silentHoursB         := 14
+, userAstroInfodMode   := 1
+, AutoUnmute           := 1
+, tickTockNoise        := 0
+, strikeInterval       := 2000
+, AdditionalStrikes    := 0
+, strikeEveryMin       := 5
+, showBibleQuotes      := 0
+, BibleQuotesLang      := 1
+, makeScreenDark       := 1
+, BibleQuotesInterval  := 5
+, OverrideOSDcolorsAstro := 0
+, OSDastralMode        := 1
+, noBibleQuoteMhidden  := 1
+, userBibleStartPoint  := 1
+, orderedBibleQuotes   := 0
+, UserReligion         := 1
+, SemantronHoliday     := 0
+, ObserveHolidays      := 0
+, ObserveSecularDays   := 1
+, ObserveReligiousDays := 1
+, userMuteAllSounds    := 0
+, PreferSecularDays    := 0
+, noTollingWhenMhidden := 0
+, noTollingBgrSounds   := 0
+, NoWelcomePopupInfo   := 0
+, showTimeWhenIdle     := 0
+, showTimeIdleAfter    := 5 ; [in minutes]
+, markFullMoonHowls    := 0
+, allowDSTchanges       := 1
+, allowAltitudeSolarChanges := 1
 
 ; OSD settings
-Global displayTimeFormat  := 1
- , DisplayTimeUser        := 3     ; in seconds
- , displayClock           := 1
- , analogDisplay          := 0
- , analogDisplayScale     := 0.3
- , analogMoonPhases       := 1
- , constantAnalogClock    := 0
- , showOSDprogressBar     := 2
- , GuiX                   := 40
- , GuiY                   := 250
- , ClockGuiX              := 40
- , ClockGuiY              := 250
- , OSDroundCorners        := 1
- , FontName               := (A_OSVersion="WIN_XP") ? "Lucida Sans Unicode" : "Arial"
- , FontSize               := 26
- , FontSizeQuotes         := 20
- , PrefsLargeFonts        := 0
- , OSDbgrColor            := "131209"
- , OSDalpha               := 230
- , OSDtextColor           := "FFFEFA"
- , OSDmarginTop           := 20
- , OSDmarginBottom        := 20
- , OSDmarginSides         := 25
- , maxBibleLength         := 55
+Global displayTimeFormat := 1
+, DisplayTimeUser        := 3     ; in seconds
+, displayClock           := 1
+, analogDisplay          := 0
+, analogDisplayScale     := 0.3
+, analogMoonPhases       := 1
+, constantAnalogClock    := 0
+, showOSDprogressBar     := 2
+, GuiX                   := 40
+, GuiY                   := 250
+, ClockGuiX              := 40
+, ClockGuiY              := 250
+, OSDroundCorners        := 1
+, FontName               := (A_OSVersion="WIN_XP") ? "Lucida Sans Unicode" : "Arial"
+, FontSize               := 26
+, FontSizeQuotes         := 20
+, PrefsLargeFonts        := 0
+, OSDbgrColor            := "131209"
+, OSDastroALTcolor       := "106699"
+, OSDastroALTOcolor       := "006612"
+, OSDalpha               := 230
+, OSDtextColor           := "FFFEFA"
+, OSDmarginTop           := 20
+, OSDmarginBottom        := 20
+, OSDmarginSides         := 25
+, maxBibleLength         := 55
 
 ; Timers and alarms
- , userMustDoTimer    := 0
- , userTimerHours     := 1
- , userTimerMins      := 30
- , userMustDoAlarm    := 0
- , userTimerMsg       := "What is the purpose of God?"
- , userAlarmMsg       := "Why do people anthropomorphize God?"
- , userAlarmHours     := 12
- , userAlarmMins      := 30
- , AlarmersDarkScreen := 1
- , userTimerSound     := 2
- , userTimerFreq      := 1
- , userAlarmSound     := 1
- , userAlarmFreq      := 1
- , userAlarmSnooze    := 5
- , userAlarmRepeated  := 0
- , userAlarmWeekDays  := 1234567
- , stopWatchDoBeeps   := 0
+, userMustDoTimer    := 0
+, userTimerHours     := 1
+, userTimerMins      := 30
+, userMustDoAlarm    := 0
+, userTimerMsg       := "What is the purpose of God?"
+, userAlarmMsg       := "Why do people anthropomorphize God?"
+, userAlarmHours     := 12
+, userAlarmMins      := 30
+, AlarmersDarkScreen := 1
+, userTimerSound     := 2
+, userTimerFreq      := 1
+, userAlarmSound     := 1
+, userAlarmFreq      := 1
+, userAlarmSnooze    := 5
+, userAlarmRepeated  := 0
+, userAlarmWeekDays  := 1234567
+, stopWatchDoBeeps   := 0
 
 ; Analog clock stuff
- , faceBgrColor  := "eeEEee"
- , faceElements  := "001100"
- , mainOSDopacity:= 230
- , faceOpacity   := 254
- , faceOpacityBgr:= Round(faceOpacity/1.25)
- , ClockPosX     := 30
- , ClockPosY     := 90
- , ClockDiameter := 480
- , ClockWinSize  := ClockDiameter + 2
- , ClockCenter   := Round(ClockWinSize/2)
- , roundedCsize  := Round(ClockDiameter/4)
- , EquiSolsCache := 0
+, faceBgrColor  := "eeEEee"
+, faceElements  := "001100"
+, mainOSDopacity:= 230
+, faceOpacity   := 254
+, roundedClock  := 0
+, faceOpacityBgr:= Round(faceOpacity/1.25)
+, ClockPosX     := 30
+, ClockPosY     := 90
+, ClockDiameter := 480
+, ClockWinSize  := ClockDiameter + 2
+, ClockCenter   := Round(ClockWinSize/2)
+, roundedCsize  := Round(ClockDiameter/4)
+, EquiSolsCache := 0
 
 ; Release info
- , ThisFile               := A_ScriptName
- , Version                := "3.1.7"
- , ReleaseDate            := "2022 / 09 / 08"
- , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
- , ScriptInitialized, FirstRun := 1
- , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0
- , LastNoonAudio := 0, appName := "Church Bells Tower"
- , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-1"
+, ThisFile               := A_ScriptName
+, Version                := "3.2.5"
+, ReleaseDate            := "2022 / 11 / 23"
+, storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
+, ScriptInitialized, FirstRun := 1
+, QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0
+, LastNoonAudio := 0, appName := "Church Bells Tower"
+, APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-1"
 
-   If !A_IsCompiled
-      Menu, Tray, Icon, bells-tower.ico
+If !A_IsCompiled
+   Menu, Tray, Icon, bells-tower.ico
 
-   INIaction(0, "FirstRun", "SavedSettings")
-   If (FirstRun=0)
-   {
-      INIsettings(0)
-   } Else
-   {
-      TrayTip, %appName%, Please configure the application for optimal experience.
-      CheckSettings()
-      INIsettings(1)
-   }
+INIaction(0, "FirstRun", "SavedSettings")
+If (FirstRun=0)
+{
+   INIsettings(0)
+} Else
+{
+   TrayTip, %appName%, Please configure the application for optimal experience.
+   CheckSettings()
+   INIsettings(1)
+}
 
 ; Initialization variables. Altering these may lead to undesired results.
 
 Global CSthin      := "░"   ; light gray 
- , CSmid       := "▒"   ; gray 
- , CSdrk       := "▓"   ; dark gray
- , CSblk       := "█"   ; full block
- , DisplayTime := DisplayTimeUser*1000
- , BibleGuiVisible := 0
- , bibleQuoteVisible := 0
- , DoNotRepeatTimer := 0
- , PrefOpen := 0
- , FontList := []
- , userIdleAfter := showTimeIdleAfter * 60000
- , AdditionalStrikeFreq := strikeEveryMin * 60000  ; minutes
- , bibleQuoteFreq := BibleQuotesInterval * 3600000 ; hours
- , ShowPreview := 0
- , ShowPreviewDate := 0
- , LastNoonZeitSound := 1
- , OSDprefix, OSDsuffix
- , windowManageCeleb := 0
- , stopStrikesNow := 0, mouseToolTipWinCreated := 0
- , ClockVisibility := 0, quoteDisplayTime := 100
- , stopAdditionalStrikes := 0
- , strikingBellsNow := 0
- , DoGuiFader := 1
- , lastFaded := 1
- , cutVolumeHalf := 0
- , defAnalogClockPosChanged := 0
- , FontChangedTimes := 0, AnyWindowOpen := 0, CurrentPrefWindow := 0
- , mEquiDay := 79, jSolsDay := 172, sEquiDay := 266, dSolsDay := 356
- , mEquiDate := A_Year "0320010203", jSolsDaTe := A_Year "0621010203", sEquiDate := A_Year "0923010203", dSolsDaTe := A_Year "1222010203"
- , LastBibleQuoteDisplay := 1
- , LastBibleQuoteDisplay2 := 1
- , LastBibleMsg := "", AllowDarkModeForWindow := ""
- , celebYear := A_Year, userAlarmIsSnoozed := 0
- , isHolidayToday := 0, stopWatchRecordsInterval := []
- , TypeHolidayOccured := 0, userTimerExpire := 0
- , hMain := A_ScriptHwnd, stopWatchIntervalInfos := []
- , lastOSDredraw := 1, stopWatchHumanStartTime := 0
- , semtr2play := 0, stopWatchRealStartZeit := 0
- , stopWatchBeginZeit := 0, stopWatchLapBeginZeit := 0
- , stopWatchPauseZeit := 0.001, stopWatchLapPauseZeit := 0.001
- , aboutTheme, GUIAbgrColor, AboutTitleColor, hoverBtnColor, BtnTxtColor, GUIAtxtColor
- , attempts2Quit := 0, OSDfadedColor := ""
- , roundCornerSize := Round(FontSize/2) + Round(OSDmarginSides/5)
- , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
- , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
- , hBibleTxt, hBibleOSD, hSetWinGui, ColorPickerHandles
- , CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
- , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
- , SNDmedia_ticktok, quartersTotalTime := 0, hoursTotalTime := 0
- , SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas
- , SNDmedia_evening, SNDmedia_midnight, SNDmedia_morning, SNDmedia_beep
- , SNDmedia_noon1, SNDmedia_noon2, SNDmedia_noon3, SNDmedia_noon4
- , SNDmedia_orthodox_chimes1, SNDmedia_orthodox_chimes2, SNDmedia_Howl
- , SNDmedia_semantron1, SNDmedia_semantron2, SNDmedia_hours12, SNDmedia_hours11
- , SNDmedia_quarters1, SNDmedia_quarters2, SNDmedia_quarters3, SNDmedia_quarters4
- , SNDmedia_hours1, SNDmedia_hours2, SNDmedia_hours3, SNDmedia_hours4, SNDmedia_hours5
- , SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
- , hFaceClock, lastShowTime := 1, pToken, scriptStartZeit := A_TickCount
- , globalG, globalhbm, globalhdc, globalobm
- , moduleAnalogClockInit := 0, darkWindowColor := 0x202020, darkControlColor := 0xEDedED
+, CSmid       := "▒"   ; gray 
+, CSdrk       := "▓"   ; dark gray
+, CSblk       := "█"   ; full block
+, DisplayTime := DisplayTimeUser*1000
+, BibleGuiVisible := 0
+, bibleQuoteVisible := 0
+, DoNotRepeatTimer := 0
+, PrefOpen := 0, FontList := []
+, userIdleAfter := showTimeIdleAfter * 60000
+, AdditionalStrikeFreq := strikeEveryMin * 60000  ; minutes
+, bibleQuoteFreq := BibleQuotesInterval * 3600000 ; hours
+, ShowPreview := 0, ShowPreviewDate := 0
+, LastNoonZeitSound := 1, hCelebsMan
+, OSDprefix, OSDsuffix, lastTodayPanelZeitUpdate := 1
+, windowManageCeleb := 0, hBtnTodayPrev, hBtnTodayNext
+, stopStrikesNow := 0, mouseToolTipWinCreated := 0
+, ClockVisibility := 0, quoteDisplayTime := 100
+, stopAdditionalStrikes := 0, lastUsedGeoLocation
+, strikingBellsNow := 0, generatingEarthMapNow := 0
+, DoGuiFader := 1, showEarthSunMapModus := 1
+, lastFaded := 1, geoData := new hashtable()
+, cutVolumeHalf := 0, listedCountries := 0, countriesList
+, defAnalogClockPosChanged := 0, allowAutoUpdateTodayPanel := 0
+, FontChangedTimes := 0, AnyWindowOpen := 0, CurrentPrefWindow := 0
+, mEquiDay := 79, jSolsDay := 172, sEquiDay := 266, dSolsDay := 356
+, mEquiDate := A_Year "0320010203", jSolsDaTe := A_Year "0621010203", sEquiDate := A_Year "0923010203", dSolsDate := A_Year "1222010203"
+, LastBibleQuoteDisplay := 1, hSolarGraphPic
+, LastBibleQuoteDisplay2 := 1, countriesArrayList := []
+, LastBibleMsg := "", AllowDarkModeForWindow := ""
+, celebYear := A_Year, userAlarmIsSnoozed := 0
+, isHolidayToday := 0, stopWatchRecordsInterval := []
+, TypeHolidayOccured := 0, userTimerExpire := 0, SolarYearGraphMode := 0
+, hMain := A_ScriptHwnd, stopWatchIntervalInfos := []
+, lastOSDredraw := 1, stopWatchHumanStartTime := 0
+, semtr2play := 0, stopWatchRealStartZeit := 0, attempts2Quit := 0
+, stopWatchBeginZeit := 0, stopWatchLapBeginZeit := 0
+, stopWatchPauseZeit := 0.001, stopWatchLapPauseZeit := 0.001
+, aboutTheme, GUIAbgrColor, AboutTitleColor, hoverBtnColor, BtnTxtColor, GUIAtxtColor
+, listedExtendedLocations := 0, extendedGeoData := []
+, roundCornerSize := Round(FontSize/2) + Round(OSDmarginSides/5)
+, StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+, tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
+, hBibleTxt, hBibleOSD, hSetWinGui, ColorPickerHandles, hDatTime
+, CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
+, hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
+, SNDmedia_ticktok, quartersTotalTime := 0, hoursTotalTime := 0
+, SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas, todaySunMoonGraphMode := 0
+, SNDmedia_evening, SNDmedia_midnight, SNDmedia_morning, SNDmedia_beep
+, SNDmedia_noon1, SNDmedia_noon2, SNDmedia_noon3, SNDmedia_noon4
+, SNDmedia_orthodox_chimes1, SNDmedia_orthodox_chimes2, SNDmedia_Howl
+, SNDmedia_semantron1, SNDmedia_semantron2, SNDmedia_hours12, SNDmedia_hours11
+, SNDmedia_quarters1, SNDmedia_quarters2, SNDmedia_quarters3, SNDmedia_quarters4
+, SNDmedia_hours1, SNDmedia_hours2, SNDmedia_hours3, SNDmedia_hours4, SNDmedia_hours5
+, SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
+, hFaceClock, lastShowTime := 1, pToken, scriptStartZeit := A_TickCount
+, globalG, globalhbm, globalhdc, globalobm, uiUserCountry, uiUserCity, uiUserFullDateUTC
+, moduleAnalogClockInit := 0, darkWindowColor := 0x202020, darkControlColor := 0xEDedED
+, debugMode := !A_IsCompiled
 
 If (roundCornerSize<20)
    roundCornerSize := 20
@@ -254,14 +262,16 @@ If (uiDarkMode=1)
 
 Sleep, 1
 SetMyVolume(1)
-InitializeTray()
+InitializeTrayMenu()
 InitSoundChannels()
-decideFadeColor()
 
 hCursM := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32646, "Ptr")  ; IDC_SIZEALL
 hCursH := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32649, "Ptr")  ; IDC_HAND
 OnMessage(0x205, "WM_RBUTTONUP")
+OnMessage(0x201, "WM_LBUTTONDOWN")
 OnMessage(0x200, "WM_MouseMove")
+OnMessage(0x20A, "WM_MouseWheel")  ; vertical
+OnMessage(0x20E, "WM_MouseWheel")  ; horizontal
 OnMessage(0x404, "AHK_NOTIFYICON")
 Sleep, 1
 theChimer()
@@ -342,6 +352,8 @@ InitSoundChannels() {
 
 TimerShowOSDidle() {
      Static isThisIdle := 0, lastFullMoonZeitTest := -9020
+          , lastCalcZeit := 1
+
      If (constantAnalogClock=1) || (analogDisplay=1 && ClockVisibility=1) || (PrefOpen=1) || (A_IsSuspended)
         Return
 
@@ -351,11 +363,12 @@ TimerShowOSDidle() {
      If (showTimeWhenIdle=1 && (A_TimeIdle > userIdleAfter) && mouseHidden!=1)
      {
         FormatTime, HoursIntervalTest,, H ; 0-23 format
-        If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest)
+        If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest && (A_TickCount - lastCalcZeit>28501) )
         {
            lastFullMoonZeitTest := HoursIntervalTest
-           pk := MoonPhaseCalculator()
-           If InStr(pk[1], "full moon (peak)")
+           pk := oldMoonPhaseCalculator()
+           lastCalcZeit := A_TickCount
+           If InStr(pk[1], "full moon")
            {
               hasHowledDay := A_YDay
               INIaction(1, "hasHowledDay", "SavedSettings")
@@ -363,6 +376,7 @@ TimerShowOSDidle() {
               MCXI_Play(SNDmedia_Howl)
            }
         }
+
         isThisIdle := 1
         DoGuiFader := 0
         If (BibleGuiVisible!=1)
@@ -386,7 +400,7 @@ ShowWelcomeWindow() {
     GenericPanelGUI()
     AnyWindowOpen := 2
     Gui, Font, s20 Bold, Arial, -wrap
-    Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section hwndhIcon, bell-image.png
+    Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section hwndhIcon, %A_ScriptDir%\resources\bell-image.png
     Gui, Add, Text, x+7 y10, %appName%
     Gui, Font, s12 Bold, Arial, -wrap
     Gui, Add, Text, y+5, Quick start window - read me
@@ -404,7 +418,7 @@ ShowWelcomeWindow() {
     Gui, Add, Text, xs y+10 w%txtWid%, %appName% is currently running in background. To configure it or exit, please locate its icon in the system tray area, next to the system clock in the taskbar. To access the settings double click or right click on the bell icon.
     Gui, Add, Button, xs y+15 w%btnWid% h%sm% gShowSettings, &Settings panel
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleLargeFonts Checked%PrefsLargeFonts% vPrefsLargeFonts, Large UI font sizes
-    Gui, Add, Button, xs y+10 w%btnWid% hp gPanelAboutWindow, &About today
+    Gui, Add, Button, xs y+10 w%btnWid% hp gPanelTodayInfos, &About today
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleAnalogClock Checked%constantAnalogClock% vconstantAnalogClock, &Analog clock display
     Gui, Add, Checkbox, xs y+10 hp gToggleWelcomeInfos Checked%NoWelcomePopupInfo% vNoWelcomePopupInfo, &Never show this window
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
@@ -437,10 +451,13 @@ analogClockStarter() {
   }
 }
 
-decideSysTrayTooltip() {
+decideSysTrayTooltip(modus:=0) {
     Static lastInvoked := 1, lastMsg
-    If (A_TickCount - lastInvoked<450)
-       Return lastMsg
+    If (modus!="about")
+    {
+       If (A_TickCount - lastInvoked<450)
+          Return lastMsg
+    }
 
     RunType := A_IsCompiled ? "" : " [script]"
     If A_IsSuspended
@@ -476,19 +493,29 @@ decideSysTrayTooltip() {
        thisHoli := "secular"
 
     thisHoli := (StrLen(isHolidayToday)>2) ? "`nToday a " thisHoli " event is observed" : ""
-    testu := wrapCalculateEquiSolsDates()
-    If (testu.r=1)
-       resu := "`nMarch equinox"
-    Else If (testu.r=2)
-       resu := "`nJune solstice"
-    Else If (testu.r=3)
-       resu := "`nSeptember equinox"
-    Else If (testu.r=4)
-       resu := "`nDecember solstice"
+    If (modus!="about")
+    {
+       testu := wrapCalculateEquiSolsDates(A_YDay)
+       If InStr(testu.msg, "now")
+          resu := "`n" SubStr(testu.msg, 4)
 
-    Menu, Tray, Tip, % appName " v" Version RunType timerInfos alarmInfos stopwInfos  thisHoli resu soundsInfos
+       If (InStr(lastUsedGeoLocation, "|") && OverrideOSDcolorsAstro=1)
+       {
+          w := StrSplit(lastUsedGeoLocation, "|")
+          If (w.Count()>5)
+          {
+             getSunAzimuthElevation(A_NowUTC, w[2], w[3], 0, azii, elevu)
+             obj := SolarCalculator(A_NowUTC, w[2], w[3])
+             getSunAzimuthElevation(obj.RawN, w[2], w[3], 0, azii, eleva)
+             j := decideJijiReadable(A_NowUTC, elevu, w[2], w[3], Round(eleva, 2))
+             sunInfos := (j="daylight" || j="night" || !j) ? "" : "`n" j "."
+          }
+       }
+    }
+
+    Menu, Tray, Tip, % appName " v" Version RunType sunInfos timerInfos alarmInfos stopwInfos  thisHoli resu soundsInfos
     lastInvoked := A_TickCount
-    lastMsg :=  timerInfos alarmInfos stopwInfos  thisHoli resu soundsInfos
+    lastMsg := sunInfos timerInfos alarmInfos stopwInfos thisHoli resu soundsInfos
     Return lastMsg
 }
 
@@ -593,7 +620,7 @@ InvokeBibleQuoteNow() {
         lang := "esp"
      Else
         lang := "eng"
-     Try FileRead, bibleQuotesFile, bible-quotes-%lang%.txt
+     Try FileRead, bibleQuotesFile, %A_ScriptDir%\resources\bible-quotes-%lang%.txt
      lastLoaded := A_TickCount
      If ErrorLevel
      {
@@ -1015,6 +1042,7 @@ readjustBibleTimer() {
 theChimer() {
   Critical, on
   Static lastChimed, todayTest, lastFullMoonZeitTest := -9000
+       , lastCalcZeit := 1
 
   FormatTime, CurrentTime,, hh:mm
   If (lastChimed=CurrentTime || A_IsSuspended || PrefOpen=1)
@@ -1038,11 +1066,12 @@ theChimer() {
      testCelebrations()
   }
 
-  If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && mouseHidden!=1 && mustEndNow!=1 && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest)
+  If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && mouseHidden!=1 && mustEndNow!=1 && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest && (A_TickCount - lastCalcZeit>28501)) 
   {
      lastFullMoonZeitTest := HoursIntervalTest
-     pk := MoonPhaseCalculator()
-     If InStr(pk[1], "full moon (peak)")
+     pk := oldMoonPhaseCalculator()
+     lastCalcZeit := A_TickCount
+     If InStr(pk[1], "full moon")
      {
         hasHowledDay := A_YDay
         INIaction(1, "hasHowledDay", "SavedSettings")
@@ -1343,6 +1372,82 @@ GuiFader(guiName,toggle,alphaLevel) {
    lastEvent := toggle
 }
 
+decideJiji(elevu) {
+   If (isInRange(elevu, -6.1, -0.611))
+      j := 0.45
+   Else If (isInRange(elevu, -12, -6.1))
+      j := 0.2
+   Else If (isInRange(elevu, 0.15, -0.61))
+      j := 0.7
+   Else If (isInRange(elevu, -0.61, 5.9))
+      j := 0.8
+   Else If (elevu>5.9)
+      j := 1 ; daylight
+   Else
+      j := 0 ; night
+ 
+   If (OSDastralMode=2 && j<0.5)
+      j := 0 
+   Else If (OSDastralMode=2 && j=0.7)
+      j := 0.3
+   Else If (OSDastralMode=2 && j=0.8)
+      j := 0.65
+   Return j
+}
+
+decideOSDcolorBGR() {
+  If (OSDastralMode!=3)
+  {
+     If !InStr(lastUsedGeoLocation, "|")
+        Return OSDbgrColor
+ 
+     w := StrSplit(lastUsedGeoLocation, "|")
+     If (w.Count()<5)
+        Return OSDbgrColor
+  }
+
+  timeus := A_NowUTC
+  If (OSDastralMode=1)
+     getSunAzimuthElevation(timeus, w[2], w[3], 0, azii, elevu)
+  Else If (OSDastralMode=2)
+     getMoonElevation(timeus, w[2], w[3], 0, azii, elevu)
+  Else If (OSDastralMode=3 && IsObject(w))
+     moonPhase := MoonPhaseCalculator(timeus, 0, w[2], w[3])
+  Else If (OSDastralMode=3)
+     moonPhase := oldMoonPhaseCalculator(timeus)
+
+  If (OSDastralMode=1 || OSDastralMode=2)
+  {
+     j := decideJiji(elevu)
+  } Else If (OSDastralMode=3)
+  {
+     j := Round(moonPhase[4], 1)
+  } Else If (OSDastralMode=4)
+  {
+     eleva := -90
+     getSunAzimuthElevation(timeus, w[2], w[3], 0, azii, elevu)
+     If (elevu<6)
+        moonPhase := MoonPhaseCalculator(timeus, 0, w[2], w[3])
+
+     mf := moonPhase[4] ? clampInRange(moonPhase[4] + 0.1, 0, 1) : 0
+     ju := decideJiji(elevu)
+     ja := decideJiji(moonPhase[7]) * mf
+     j := ju
+  }
+  ; ToolTip, % j "==" elevu "=" w[2] "=" w[3] "=" w[1] , , , 2
+  If (j=0)
+     j := "0xFF" OSDbgrColor
+  Else If (j=1)
+     j := "0xFF" OSDastroALTcolor
+  Else
+     j := MixARGB("0xFF" OSDbgrColor, "0xFF" OSDastroALTcolor, j)
+
+  If (ju<1 && isNumber(ju) && ja>0)
+     j := MixARGB(j, "0xFF" OSDastroALTOcolor, ja)
+
+  Return SubStr(j, 5)
+}
+
 CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
     Critical, On
     lastOSDredraw := A_TickCount
@@ -1361,10 +1466,11 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
     Else If (noAdds=0)
        msg2Display := OSDprefix msg2Display OSDsuffix
 
+    thisBgrColor := (isBibleQuote=1 || OverrideOSDcolorsAstro!=1) ? OSDbgrColor : decideOSDcolorBGR()
     HorizontalMargins := (isBibleQuote=1) ? OSDmarginSides : 1
     Gui, BibleGui: -DPIScale -Caption +Owner +ToolWindow +HwndhBibleOSD
     Gui, BibleGui: Margin, %OSDmarginSides%, %HorizontalMargins%
-    Gui, BibleGui: Color, %OSDbgrColor%
+    Gui, BibleGui: Color, %thisBgrColor%
 
     If (FontChangedTimes>190)
        Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Q4 Bold,
@@ -1394,7 +1500,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
           percu := Round(getPercentOfToday() * 100)
        } Else If (showOSDprogressBar=3)
        {
-          moonPhase := MoonPhaseCalculator()
+          moonPhase := oldMoonPhaseCalculator()
           percu := Round(moonPhase[3] * 100)
        } Else If (showOSDprogressBar=4)
        {
@@ -1408,8 +1514,8 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
        }
 
        hu := Ceil(mainHeig*0.04 + 1)
-       coloru := (percu=25 || percu=49 || percu=50 || percu=51 || percu=75) ? OSDtextColor : OSDfadedColor
-       Gui, BibleGui: Add, Progress, x0 y0 w%mainWid% h%hu% c%coloru% background%OSDbgrColor%, % percu "%"
+       coloru := (percu=25 || percu=49 || percu=50 || percu=51 || percu=75) ? OSDtextColor : decideFadeColor(thisBgrColor)
+       Gui, BibleGui: Add, Progress, x0 y0 w%mainWid% h%hu% c%coloru% background%thisBgrColor%, % percu "%"
     }
 
     If (centerMsg=1)
@@ -1512,7 +1618,6 @@ SetGuiClassStyle(HGUI, Style) {
    Return result
 }
 
-
 CreateShareButton() {
     FontSizeMin := Round(FontSizeQuotes/2)
     marginz := Round(OSDmarginSides/2)
@@ -1570,10 +1675,257 @@ ResetAnalogClickPosition() {
       Gui, ClockGui: Hide
 }
 
+JEE_ScreenToClient(hWnd, vPosX, vPosY, ByRef vPosX2, ByRef vPosY2) {
+; function by jeeswg found on:
+; https://autohotkey.com/boards/viewtopic.php?t=38472
+  VarSetCapacity(POINT, 8, 0)
+  NumPut(vPosX, &POINT, 0, "Int")
+  NumPut(vPosY, &POINT, 4, "Int")
+  DllCall("user32\ScreenToClient", "UPtr", hWnd, "UPtr", &POINT)
+  vPosX2 := NumGet(&POINT, 0, "Int")
+  vPosY2 := NumGet(&POINT, 4, "Int")
+  POINT := ""
+}
+GetWindowBounds(hWnd) {
+   ; function by GeekDude: https://gist.github.com/G33kDude/5b7ba418e685e52c3e6507e5c6972959
+   ; W10 compatible function to find a window's visible boundaries
+   ; modified by Marius Șucan to return an array
+   size := VarSetCapacity(rect, 16, 0)
+   er := DllCall("dwmapi\DwmGetWindowAttribute"
+      , "UPtr", hWnd  ; HWND  hwnd
+      , "UInt", 9     ; DWORD dwAttribute (DWMWA_EXTENDED_FRAME_BOUNDS)
+      , "UPtr", &rect ; PVOID pvAttribute
+      , "UInt", size  ; DWORD cbAttribute
+      , "UInt")       ; HRESULT
+
+   If er
+      DllCall("GetWindowRect", "UPtr", hwnd, "UPtr", &rect, "UInt")
+
+   r := []
+   r.x1 := NumGet(rect, 0, "Int"), r.y1 := NumGet(rect, 4, "Int")
+   r.x2 := NumGet(rect, 8, "Int"), r.y2 := NumGet(rect, 12, "Int")
+   r.w := Abs(max(r.x1, r.x2) - min(r.x1, r.x2))
+   r.h := Abs(max(r.y1, r.y2) - min(r.y1, r.y2))
+   rect := ""
+   ; ToolTip, % r.w " --- " r.h , , , 2
+   Return r
+}
+
+GetWinClientSize(ByRef w, ByRef h, hwnd, mode) {
+; by Lexikos http://www.autohotkey.com/forum/post-170475.html
+; modified by Marius Șucan
+    Static prevW, prevH, prevHwnd, lastInvoked := 1
+    If (A_TickCount - lastInvoked<95) && (prevHwnd=hwnd)
+    {
+       W := prevW, H := prevH
+       Return
+    }
+
+    prevHwnd := hwnd
+    If (mode=1)
+    {
+       r := GetWindowBounds(hwnd)
+       prevW := W := r.w
+       prevH := H := r.h
+    } Else 
+    {
+       VarSetCapacity(rc, 16, 0)
+       DllCall("GetClientRect", "uint", hwnd, "uint", &rc)
+       prevW := W := NumGet(rc, 8, "int")
+       prevH := H := NumGet(rc, 12, "int")
+       rc := ""
+    }
+
+    lastInvoked := A_TickCount
+} 
+
+getListViewData(guiu, lvu, cols, userDelim:=" | ", minRows:=0, allowEmpty:=0) {
+   Gui, %guiu%: Default
+   Gui, %guiu%: ListView, %lvu%
+   minRows := abs(minRows)
+   aR := aC := 0
+   textu := ""
+   Loop
+   {
+       aC++
+       If (aC>cols)
+       {
+          aR++
+          aC := 1
+       }
+
+       LV_GetText(valu, aR, aC)
+       delimu := (aC!=cols) ? userDelim : "`n"
+       If (valu!="" && allowEmpty=0)
+          textu .= valu delimu
+       Else
+          textu .= valu delimu
+       Sleep, -1
+       ; ToolTip, %valu% -- %aC% -- %aR%
+       If (valu="" && A_Index>950 && !minRows) || (aR>minRows && minRows>1)
+          Break
+   }
+   textu := Trim(textu, delimu)
+   Return textu
+}
+
+btnCopySolarData() {
+   Gui, SettingsGUIA: Default
+   GuiControlGet, CurrentTabLV
+   GuiControlGet, uiInfoGeoData
+   GuiControlGet, UIastroInfoAnnum
+   yearu := SubStr(uiUserFullDateUTC, 1, 4)
+   lvTagLine .= uiInfoGeoData "`n" UIastroInfoAnnum "`nData for " yearu ".`n`n"
+   If (AnyWindowOpen=9)
+   {
+      If (CurrentTabLV=1)
+      {
+         lvu := "LViewSunCombined"
+         lvn := 8
+      } Else If (CurrentTabLV=3)
+      {
+         lvu := "LViewMuna"
+         lvn := 5
+      }
+   } Else If (CurrentTabLV=1)
+   {
+      lvu := "LViewSunCombined"
+      lvn := 9
+   } Else If (CurrentTabLV=2)
+   {
+      lvu := "LViewRises"
+      lvn := 4
+   } Else If (CurrentTabLV=3)
+   {
+      lvu := "LViewSets"
+      lvn := 4
+   } Else If (CurrentTabLV=4)
+   {
+      lvu := "LViewOthers"
+      lvn := 8
+   }
+
+   If !lvu 
+   {
+      MsgBox, , % appName, No table is active to copy the data from. Please switch the window's tab to Summary, Rise, Set or Durations.
+      Return
+   }
+
+   dayz := isLeapYear(yearu) ? 366 : 365
+   textu := lvTagLine "`n"
+   textu .= getListViewData("SettingsGUIA", lvu, lvn,, dayz)
+   If StrLen(textu)>10
+   {
+      If (AnyWindowOpen=9 && CurrentTabLV=3)
+         textu := Trim(StrReplace(textu, " |  |  |  | "), "`n") "`n"
+
+      Try Clipboard := textu
+      Catch wasError
+          Sleep, 1
+
+      If wasError
+      {
+         SoundBeep , 300, 100
+         MsgBox, , % appName, Failed to copy the data to clipboard. Please try again.
+      } Else SoundBeep 900, 100
+   }
+}
+
 WM_MouseMove(wP, lP, msg, hwnd) {
 ; Function by Drugwash
   Global
-  MouseGetPos, , , OutputVarWin
+  Static lastInvoked := 1
+  MouseGetPos, xu, yu, OutputVarWin, OutputVarControl, 2
+  ; ToolTip, % AnyWindowOpen "=" OutputVarWin "=" OutputVarControl "=" hSolarGraphPic , , , 2
+  If (AnyWindowOpen=7 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
+  {
+     GetPhysicalCursorPos(xu, yu)
+     GetWinClientSize(w, h, hSolarGraphPic, 0)
+     JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
+     p := nx/w
+     zp := Round(p*365)
+     Gui, SettingsGUIA: ListView, LViewSunCombined
+     LV_GetText(datu, zp, 2)
+     If (!datu || datu="date")
+     {
+        GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
+     } Else
+     {
+        LV_GetText(dawn, zp, 3)
+        LV_GetText(riseu, zp, 4)
+        LV_GetText(noonu, zp, 5)
+        LV_GetText(elevu, zp, 6)
+        LV_GetText(setu, zp, 7)
+        LV_GetText(dusk, zp, 8)
+        LV_GetText(duru, zp, 9)
+        Gui, SettingsGUIA: ListView, LViewOthers
+        LV_GetText(bumpu, zp, 4)
+        LV_GetText(twdur, zp, 5)
+        dawn := (dawn && dawn!="*") ? dawn : "--:--"
+        dusk := (dusk && dusk!="*") ? dusk : "--:--"
+        setu := setu ? setu : "--:--"
+        riseu := riseu ? riseu : "--:--"
+        datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
+        FormatTime, datu, % datu, LongDate
+        t := datu ". Sunlight length: " duru " (" bumpu  "). Twilight length: " twdur "."
+        t .= "`nDawn: " dawn ". Sunrise: " riseu ". Noon: " noonu " (" elevu "). Sunset: " setu ". Dusk: " dusk "."
+        GuiControl, SettingsGUIA:, GraphInfoLine, % t
+     }
+     lastInvoked := A_TickCount
+     ; tooltip, % nx "=" ny "=" w "=" h "=" zp
+  } Else If (AnyWindowOpen=9 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
+  {
+     GetPhysicalCursorPos(xu, yu)
+     GetWinClientSize(w, h, hSolarGraphPic, 0)
+     JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
+     p := nx/w
+     zp := Round(p*365)
+     Gui, SettingsGUIA: ListView, LViewSunCombined
+     LV_GetText(datu, zp, 2)
+     If (!datu || datu="date")
+     {
+        GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
+     } Else
+     {
+        LV_GetText(riseu, zp, 3)
+        LV_GetText(noonu, zp, 4)
+        LV_GetText(elevu, zp, 5)
+        LV_GetText(setu, zp, 6)
+        LV_GetText(duru, zp, 7)
+        Gui, SettingsGUIA: ListView, LViewOthers
+        LV_GetText(bumpu, zp, 8)
+        setu := setu ? setu : "--:--"
+        riseu := riseu ? riseu : "--:--"
+        datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
+        FormatTime, datu, % datu, LongDate
+        t := datu ". Moonlight duration: " duru " (" bumpu  ")."
+        t .= "`nMoon rise: " riseu ". Culminant: " noonu " (" elevu "). Moon set: " setu "."
+        GuiControl, SettingsGUIA:, GraphInfoLine, % t
+     }
+     lastInvoked := A_TickCount
+     ; tooltip, % nx "=" ny "=" w "=" h "=" zp
+  } Else If (AnyWindowOpen=8 && generatingEarthMapNow!=1 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
+  {
+     GetPhysicalCursorPos(xu, yu)
+     GetWinClientSize(w, h, hSolarGraphPic, 0)
+     JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
+     px := nx/w
+     py := 1 - ny/h
+     gmtu := Round(24 * px - 12)
+     zx := Round(px*360 - 180, 3)
+     zy := Round(py*180 - 90, 3)
+     If (showEarthSunMapModus=3)
+        getMoonElevation(uiUserFullDateUTC, zy, zx, 0, azii, elevu)
+     Else
+        getSunAzimuthElevation(uiUserFullDateUTC, zy, zx, 0, azii, elevu)
+
+     astralObj := (showEarthSunMapModus=1) ? "Sun" : "Moon"
+     t := "Lat/long: " zy " / " zx ". GMT estimated offset: " gmtu " h. " astralObj " elev.: " Round(elevu) "°."
+     GuiControl, SettingsGUIA:, GraphInfoLine, % t
+     lastInvoked := A_TickCount
+     ; tooltip, % nx "=" ny "=" w "=" h "=" zp
+  }
+
   Local A
   SetFormat, Integer, H
   hwnd+=0, A := OutputVarWin, hwnd .= "", A .= ""
@@ -1590,10 +1942,6 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         SetTimer, trackMouseAnalogClockDragging, -25
      }
      DllCall("user32\SetCursor", "Ptr", hCursM)
-  ; } Else If (constantAnalogClock=0 || PrefOpen=1 && (wP&0x1)) && (A_TickCount - lastShowTime>950)
-  ; {
-  ;    hideAnalogClock()
-  ;    SetTimer, showAnalogClock, -900
   } Else If InStr(hBibleOSD, hwnd)
   {
      If (PrefOpen=0)
@@ -1612,12 +1960,15 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         Sleep, 2
      } Else If ((wP&0x2) || (wP&0x10) || bibleQuoteVisible=1)
         DestroyBibleGui(A_ThisFunc)
+  } Else If (hwnd=hSolarGraphPic && isInRange(AnyWindowOpen, 6, 9))
+  {
+     DllCall("user32\SetCursor", "Ptr", hCursH)
   } Else If ColorPickerHandles
   {
-     If hwnd in %ColorPickerHandles%
+     If InStr(ColorPickerHandles, hwnd)
         DllCall("user32\SetCursor", "Ptr", hCursH)
   } Else If (InStr(hwnd, hBibleOSD) && (A_TickCount - LastBibleQuoteDisplay>HideDelay))
-        DestroyBibleGui(A_ThisFunc, 1)
+     DestroyBibleGui(A_ThisFunc, 1)
 }
 
 
@@ -1722,12 +2073,12 @@ SetStartUp() {
         Return
      }
      RegWrite, REG_SZ, %StartRegPath%, %appName%, %regEntry%
-     Menu, Tray, Check, Start at boot
+     Menu, moreOpts, Check, Start at boot
      CreateBibleGUI("Enabled Start at Boot",,,1)
   } Else
   {
      RegDelete, %StartRegPath%, %appName%
-     Menu, Tray, Uncheck, Start at boot
+     Menu, moreOpts, Uncheck, Start at boot
      CreateBibleGUI("Disabled Start at Boot",,,1)
   }
 }
@@ -1791,41 +2142,42 @@ ReloadScriptNow() {
 ; Tray menu and related functions.
 ;================================================================
 
-InitializeTray() {
-    Menu, Tray, NoStandard
-    Menu, Tray, Add, &Customize, ShowSettings
-    Menu, Tray, Add, Large UI &fonts, ToggleLargeFonts
-    If (storeSettingsREG=0)
-       Menu, Tray, Add, Start at boot, SetStartUp
+InitializeTrayMenu() {
+    Menu, moreOpts, Add, Large UI &fonts, ToggleLargeFonts
+    If (PrefsLargeFonts=1)
+       Menu, moreOpts, Check, Large UI &fonts
 
-    Menu, Tray, Add, Dar&k mode UI, ToggleDarkMode
+    Menu, moreOpts, Add, Dar&k mode UI, ToggleDarkMode
     If (uiDarkMode=1)
-       Menu, Tray, Check, Dar&k mode UI
+       Menu, moreOpts, Check, Dar&k mode UI
+
+    If (storeSettingsREG=0)
+       Menu, moreOpts, Add, Start at boot, SetStartUp
 
     RegRead, currentReg, %StartRegPath%, %appName%
     If (StrLen(currentReg)>5 && storeSettingsREG=0)
-       Menu, Tray, Check, Start at boot
+       Menu, moreOpts, Check, Start at boot
 
-    If (PrefsLargeFonts=1)
-       Menu, Tray, Check, Large UI &fonts
-
-    Menu, Tray, Add
     If FileExist(tickTockSound)
     {
-       Menu, Tray, Add, Tick/Toc&k sound, ToggleTickTock
+       Menu, moreOpts, Add, Tick/Toc&k sound, ToggleTickTock
        If (tickTockNoise=1)
-          Menu, Tray, Check, Tick/Toc&k sound
+          Menu, moreOpts, Check, Tick/Toc&k sound
     }
 
+    Menu, moreOpts, Add, Reset analog clock position, ResetAnalogClickPosition
+    Menu, moreOpts, Add
+    Menu, moreOpts, Add, &Customize, ShowSettings
+
+    Menu, Tray, NoStandard
+
+    Menu, Tray, Add, &Preferences, :moreOpts
+    Menu, Tray, Add, 
+    Menu, Tray, Add, Astronom&y / Today, PanelTodayInfos
     Menu, Tray, Add, Analo&g clock display, toggleAnalogClock
-    Menu, Tray, Add, Reset analog clock position, ResetAnalogClickPosition
     Menu, Tray, Add, Set &alarm or timer, PanelSetAlarm
     Menu, Tray, Add, Stop&watch, PanelStopWatch
-    If (ObserveHolidays=1)
-    {
-       Menu, Tray, Add, Celebrations / &holidays, PanelIncomingCelebrations
-       ; Menu, Tray, Add, Mana&ge celebrations, OpenListCelebrationsBtn
-    }
+    Menu, Tray, Add, Celebrations / &holidays, PanelIncomingCelebrations
 
     If (ShowBibleQuotes=1)
        Menu, Tray, Add, Show pre&vious Bible quote, ShowLastBibleMsg
@@ -1836,12 +2188,12 @@ InitializeTray() {
     Menu, Tray, Add, &Mute all sounds, ToggleAllMuteSounds
     If (userMuteAllSounds=1)
        Menu, Tray, Check, &Mute all sounds
-    Menu, Tray, Add, &Restart, ReloadScriptNow
+    Menu, Tray, Add, &Restart app, ReloadScriptNow
     Menu, Tray, Add
     Menu, Tray, Add, Abou&t, PanelAboutWindow
     Menu, Tray, Add
     Menu, Tray, Add, E&xit, KillScript, P50
-    
+
     ; Menu, Tray, Default, Abou&t
     Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display
     decideSysTrayTooltip()
@@ -1856,7 +2208,11 @@ ToggleDarkMode() {
 
     uiDarkMode := !uiDarkMode
     INIaction(1, "uiDarkMode", "SavedSettings")
-    ReloadScript()
+    Menu, moreOpts, % (uiDarkMode=0 ? "Uncheck" : "Check"), Dar&k mode UI
+    setMenusTheme(uiDarkMode)
+    setDarkWinAttribs(A_ScriptHwnd, uiDarkMode)
+    reopenCurrentWin()
+    ; ReloadScript()
 }
 
 ToggleLargeFonts() {
@@ -1864,7 +2220,11 @@ ToggleLargeFonts() {
     LargeUIfontValue := 13
     INIaction(1, "PrefsLargeFonts", "SavedSettings")
     INIaction(1, "LargeUIfontValue", "SavedSettings")
-    Menu, Tray, % (PrefsLargeFonts=0 ? "Uncheck" : "Check"), Large UI &fonts
+    Menu, moreOpts, % (PrefsLargeFonts=0 ? "Uncheck" : "Check"), Large UI &fonts
+    reopenCurrentWin()
+}
+
+reopenCurrentWin() {
     If (PrefOpen=1)
     {
        SwitchPreferences(1)
@@ -1884,11 +2244,19 @@ ToggleLargeFonts() {
        PanelSetAlarm()
     Else If (o_win=5)
        PanelStopWatch()
+    Else If (o_win=6)
+       PanelTodayInfos()
+    Else If (o_win=7)
+       PanelSunYearGraphTable()
+    Else If (o_win=8)
+       PanelEarthMap()
+    Else If (o_win=9)
+       PanelMoonYearGraphTable()
     Else If (windowManageCeleb=1)
     {
        CloseCelebListWin()
        PanelManageCelebrations()
-    }
+    }  
 }
 
 ToggleAllMuteSounds() {
@@ -1918,7 +2286,7 @@ ToggleTickTock() {
 
     tickTockNoise := !tickTockNoise
     INIaction(1, "tickTockNoise", "SavedSettings")
-    Menu, Tray, % (tickTockNoise=0 ? "Uncheck" : "Check"), Tick/Toc&k sound
+    Menu, moreOpts, % (tickTockNoise=0 ? "Uncheck" : "Check"), Tick/Toc&k sound
 
     If (tickTockNoise=1)
        SoundLoop(tickTockSound)
@@ -1937,6 +2305,31 @@ ToggleTickTock() {
 toggleMoonPhasesAnalog() {
     analogMoonPhases := !analogMoonPhases
     INIaction(1, "analogMoonPhases", "SavedSettings")
+}
+
+toggleRoundedWidget() {
+   roundedClock := !roundedClock
+   ClockDiameter := Round(FontSize * 4 * analogDisplayScale)
+   ClockWinSize := ClockDiameter + Round((OSDmarginBottom//2 + OSDmarginTop//2 + OSDmarginSides//2) * analogDisplayScale)
+   Width := Height := ClockWinSize + 2      ; make width and height slightly bigger to avoid cut away edges
+   roundsize := Round(roundedCsize * (analogDisplayScale/1.5))
+   If (ClockDiameter<=80)
+   {
+      ClockDiameter := 80
+      ClockWinSize := 90
+      roundsize := 20
+   }
+
+   rsz := roundsize*2 ; (width + height)//4
+   If (constantAnalogClock=1 && hFaceClock)
+   {
+       If (roundedClock=1)
+          WinSet, Region, 0-0 R%rsz%-%rsz% w%Width% h%Height%, ahk_id %hFaceClock%
+       Else
+          WinSet, Region, 0-0 R1-1 w%Width% h%Height%, ahk_id %hFaceClock%
+   }
+
+   INIaction(1, "roundedClock", "OSDprefs")
 }
 
 ChangeClockSize(newSize) {
@@ -1964,14 +2357,14 @@ toggleAnalogClock() {
 
    o_constantAnalogClock := constantAnalogClock
    constantAnalogClock := !constantAnalogClock
-   If (o_constantAnalogClock && hFaceClock)
+   If (o_constantAnalogClock=1 && hFaceClock)
       saveAnalogClockPosition()
 
    If (constantAnalogClock=1 && moduleAnalogClockInit!=1)
       InitClockFace()
 
-   LastWinOpened := A_ThisFunc
-   INIaction(1, "LastWinOpened", "SavedSettings")
+   ; LastWinOpened := A_ThisFunc
+   ; INIaction(1, "LastWinOpened", "SavedSettings")
    INIaction(1, "constantAnalogClock", "OSDprefs")
    Menu, Tray, % (constantAnalogClock=0 ? "Uncheck" : "Check"), Analo&g clock display
    If (constantAnalogClock=1)
@@ -1997,8 +2390,10 @@ ReloadScript(silent:=1) {
     }
 
     attempts2Quit++
+    CloseWindow()
     DoGuiFader := 1
     DestroyBibleGui(A_ThisFunc)
+    Sleep, 15
     If FileExist(ThisFile)
     {
        Sleep, 50
@@ -2009,15 +2404,14 @@ ReloadScript(silent:=1) {
     } Else
     {
        SoundBeep
-       MsgBox,, %appName%, FATAL ERROR: Main file missing. Execution terminated.
+       simpleMsgBoxWrapper(appName, "FATAL ERROR: Main file missing. Execution terminated.", 0, 1, 16)
        ExitApp
     }
 }
 
 DeleteSettings() {
-    Gui, SettingsGUIA: +OwnDialogs
-    MsgBox, 4, %appName%, Are you sure you want to delete the stored settings?
-    IfMsgBox, Yes
+    r := simpleMsgBoxWrapper(appName, "Are you sure you want to delete the stored settings?", 0, 1, 4)
+    If (r="yes")
     {
        If (storeSettingsREG=0)
        {
@@ -2041,6 +2435,7 @@ KillScript(showMSG:=1) {
    }
 
    attempts2Quit++
+   CloseWindow()
    DoGuiFader := 1
    PrefOpen := 0
    DestroyBibleGui(A_ThisFunc)
@@ -2080,7 +2475,7 @@ applyDarkMode2guiPre(hThisWin) {
    If (uiDarkMode=1)
    {
       Gui, Color, % darkWindowColor, % darkWindowColor
-      Gui, Font, c%darkControlColor%
+      Gui, Font, cd%arkControlColor%
       AboutTitleColor := "eebb22"
       setDarkWinAttribs(hThisWin)
    } Else AboutTitleColor := "1166AA"
@@ -2218,6 +2613,8 @@ ApplySettings() {
 
 CloseWindow() {
     AnyWindowOpen := 0
+    mouseTurnOFFtooltip()
+    SetTimer, regularUpdaterTodayPanel, Off
     ResetStopWatchCounter()
     If (tickTockNoise!=1)
        SoundLoop("")
@@ -2257,6 +2654,9 @@ SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
     }
 
     Menu, ContextMenu, Add, L&arge UI fonts, ToggleLargeFonts
+    If (PrefsLargeFonts=1)
+       Menu, ContextMenu, Check, L&arge UI fonts
+
     If (PrefOpen=0)
     {
        Menu, ContextMenu, Add, Dar&k mode UI, ToggleDarkMode
@@ -2264,39 +2664,70 @@ SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
           Menu, ContextMenu, Check, Dar&k mode UI
 
        Menu, ContextMenu, Add, &Mute all sounds, ToggleAllMuteSounds
+       If (userMuteAllSounds=1)
+          Menu, ContextMenu, Check, &Mute all sounds
+
        If FileExist(tickTockSound)
        {
           Menu, ContextMenu, Add, Tick/Toc&k sound, ToggleTickTock
           If (tickTockNoise=1)
              Menu, ContextMenu, Check, Tick/Toc&k sound
        }
+       if (AnyWindowOpen=6)
+       {
+          Menu, ContextMenu, Add
+          Menu, ContextMenu, Add, &Observe DST changes, toggleDSTchanges
+          Menu, ContextMenu, Add, Over&ride OSD colors, toggleOSDastralColors
+          Menu, ContextMenu, Add, Altitude based &solar times, toggleLocationSolarInfluence
+          If (OverrideOSDcolorsAstro=1)
+             Menu, ContextMenu, Check, Over&ride OSD colors
+          if (allowDSTchanges=1)
+             Menu, ContextMenu, Check, &Observe DST changes
+
+          if (allowAltitudeSolarChanges=1)
+             Menu, ContextMenu, Check, Altitude based &solar times
+       }
+       Menu, ContextMenu, Add
+       Menu, ContextMenu, Add, Astronom&y / Today, PanelTodayInfos
        Menu, ContextMenu, Add, Analo&g clock display, toggleAnalogClock
        If (constantAnalogClock=1)
           Menu, ContextMenu, Check, Analo&g clock display
 
-       If (userMuteAllSounds=1)
-          Menu, ContextMenu, Check, &Mute all sounds
-
-       Menu, ContextMenu, Add
-       If (ObserveHolidays=1)
-          Menu, ContextMenu, Add, Celebrations / &holidays, PanelIncomingCelebrations
+       Menu, ContextMenu, Add, Celebrations / &holidays, PanelIncomingCelebrations
        Menu, ContextMenu, Add, Set &alarm or timer, PanelSetAlarm
        Menu, ContextMenu, Add, Stop&watch, PanelStopWatch
        Menu, ContextMenu, Add, Abou&t, PanelAboutWindow
     }
 
-    Menu, ContextMenu, Add, 
-    If (PrefsLargeFonts=1)
-       Menu, ContextMenu, Check, L&arge UI fonts
-
-    If (PrefOpen=0)
-       Menu, ContextMenu, Add, &Settings, ShowSettings
     Menu, ContextMenu, Add
+    If (PrefOpen=0)
+    {
+        Menu, ContextMenu, Add, &Settings, ShowSettings
+        Menu, ContextMenu, Add
+    }
+
     Menu, ContextMenu, Add, Donate now, DonateNow
-    Menu, ContextMenu, Add, &Restart %appName%, ReloadScriptNow
+    Menu, ContextMenu, Add, &Restart app, ReloadScriptNow
     Menu, ContextMenu, Show
     lastInvoked := A_TickCount
     Return
+}
+
+toggleOSDastralColors() {
+    OverrideOSDcolorsAstro := !OverrideOSDcolorsAstro
+    INIaction(1, "OverrideOSDcolorsAstro", "OSDprefs")
+}
+
+toggleDSTchanges() {
+    allowDSTchanges := !allowDSTchanges
+    INIaction(1, "allowDSTchanges", "SavedSettings")
+    UIcityChooser()
+}
+
+toggleLocationSolarInfluence() {
+    allowAltitudeSolarChanges := !allowAltitudeSolarChanges
+    INIaction(1, "allowAltitudeSolarChanges", "SavedSettings")
+    UIcityChooser()
 }
 
 CelebrationsGuiaGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
@@ -2513,7 +2944,7 @@ ShowSettings() {
     }
 
     columnBpos1b := columnBpos1 + 20
-    Gui, Add, Tab3, +hwndhTabs, Bells|Extras|Restrictions|OSD options
+    Gui, Add, Tab3, +hwndhTabs, Bells|Bible|Restrictions|OSD|More
     LastWinOpened := A_ThisFunc
     INIaction(1, "LastWinOpened", "SavedSettings")
 
@@ -2525,8 +2956,8 @@ ShowSettings() {
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%userMuteAllSounds% vuserMuteAllSounds, Mute all sounds
     Gui, Add, Checkbox, y+20 gVerifyTheOptions Checked%tollNoon% vtollNoon, Toll distinctively every six hours [eg., noon, midnight]
     Gui, Add, Checkbox, y+10 gcheckBoxStrikeQuarter Checked%tollQuarters% vtollQuarters, Strike quarter-hours
-    Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%tollQuartersException% vtollQuartersException, ... except on the hour
-    Gui, Add, Checkbox, xs y+10 gcheckBoxStrikeHours Checked%tollHours% vtollHours, Strike on the hour
+    Gui, Add, Checkbox, x+10 wp -wrap hp gVerifyTheOptions Checked%tollQuartersException% vtollQuartersException, ... except on the hour
+    Gui, Add, Checkbox, xs y+10 wp gcheckBoxStrikeHours Checked%tollHours% vtollHours, Strike on the hour
     Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%tollHoursAmount% vtollHoursAmount, ... and the number of hours
     Gui, Add, Checkbox, xs y+10 gcheckBoxStrikeAdditional Checked%AdditionalStrikes% vAdditionalStrikes, Additional strike every (in minutes)
     Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38, %strikeEveryMin%
@@ -2596,7 +3027,7 @@ ShowSettings() {
     Gui, Add, Text, xs yp+30, Font size
     Gui, Add, Checkbox, xs yp+30 hp gVerifyTheOptions Checked%showTimeWhenIdle% vshowTimeWhenIdle, Display time when idle
     Gui, Add, Text, xs yp+30, Display time (in sec.)
-    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%displayClock% vdisplayClock, Display time on screen when bells toll
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%displayClock% vdisplayClock, Display time when bells toll
     Gui, Add, Checkbox, xs+16 y+10 gVerifyTheOptions Checked%analogDisplay% vanalogDisplay, Analog clock display
     Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%displayTimeFormat% vdisplayTimeFormat, 24 hours format
     Gui, Add, Checkbox, xs y+15 h25 +0x1000 gVerifyTheOptions Checked%ShowPreview% vShowPreview, Show preview window
@@ -2610,25 +3041,41 @@ ShowSettings() {
     Gui, Add, UpDown, vOSDalpha gVerifyTheOptions Range75-250, %OSDalpha%
     Gui, Add, Edit, xp-120 yp+30 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5, %FontSize%
     Gui, Add, UpDown, gVerifyTheOptions vFontSize Range12-295, %FontSize%
-    Gui, Add, DropDownList, x+5 w%mf% gVerifyTheOptions AltSubmit Choose%showOSDprogressBar% vshowOSDprogressBar, No progress bar|Current day|Moon`'s synodic period|Current month|Astronomical seasons|Current year
-    Gui, Add, Edit, xp-60 yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99, %showTimeIdleAfter%
+    Gui, Add, Edit, xp yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99, %showTimeIdleAfter%
     Gui, Add, UpDown, vshowTimeIdleAfter gVerifyTheOptions Range1-950, %showTimeIdleAfter%
     Gui, Add, Text, x+5 vtxt100, idle time (in min.)
     Gui, Add, Edit,  xs yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6, %DisplayTimeUser%
     Gui, Add, UpDown, vDisplayTimeUser gVerifyTheOptions Range1-99, %DisplayTimeUser%
-    Gui, Add, Checkbox, x+5 hp gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners
     If !FontList._NewEnum()[k, v]
     {
         Fnt_GetListOfFonts()
         FontList := trimArray(FontList)
     }
 
-    Loop, % FontList.MaxIndex() {
+    Loop, % FontList.MaxIndex()
+    {
         fontNameInstalled := FontList[A_Index]
         If (fontNameInstalled ~= "i)(@|oem|extb|symbol|marlett|wst_|glyph|reference specialty|system|terminal|mt extra|small fonts|cambria math|this font is not|fixedsys|emoji|hksc| mdl|wingdings|webdings)") || (fontNameInstalled=FontName)
            Continue
+
         GuiControl, SettingsGUIA:, FontName, %fontNameInstalled%
     }
+    zw := StrSplit(lastUsedGeoLocation, "|")
+    ppl := (zw[1] && zw.Count()>4) ? zw[1] : "NONE" 
+
+    Gui, Tab, 5 ; more
+    Gui, Add, Text, x+15 y+15 Section , OSD progress bar line:
+    Gui, Add, DropDownList, x+5 wp+20 gVerifyTheOptions AltSubmit Choose%showOSDprogressBar% vshowOSDprogressBar, None|Current day|Moon`'s synodic period|Current month|Astronomical seasons|Current year
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners for the OSD
+    Gui, Add, Checkbox, xs y+15 gVerifyTheOptions Checked%overrideOSDcolorsAstro% vOverrideOSDcolorsAstro, Override OSD colors based on:
+    Gui, Add, DropDownList, xs+15 y+5 gVerifyTheOptions AltSubmit Choose%OSDastralMode% vOSDastralMode, Daylight|Moonlight|Moon phase|Automatic
+    Gui, Add, Button, x+5 hp ghelpOSDastroColors, &Quick help
+    Gui, Add, Text, xs+15 y+10 hp +0x200, Astro colors:
+    Gui, Add, ListView, x+10 w55 hp %CCLVO% Background%OSDastroALTcolor% vOSDastroALTcolor hwndhLV6,
+    Gui, Add, ListView, x+10 wp hp %CCLVO% Background%OSDastroALTOcolor% vOSDastroALTOcolor hWndhLV7,
+    Gui, Add, Text, xs+15 y+10 hp, Currently defined location:`n%ppl%
+    If (A_PtrSize!=8)
+       Gui, Add, Text, xs+15 y+10 wp, WARNING: The astronomy features are not available on the 32 bits edition.
 
     Gui, Tab
     Gui, Add, Button, xm+0 y+10 w70 h30 Default gApplySettings vApplySettingsBTN, A&pply
@@ -2637,7 +3084,12 @@ ShowSettings() {
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Customize: %appName%
     VerifyTheOptions(0)
-    ColorPickerHandles := hLV1 "," hLV2 "," hLV3 "," hLV5 "," hTXT
+    ColorPickerHandles := hLV1 "," hLV2 "," hLV3 "," hLV5 "," hLV6 "," hLV7 "," hTXT
+}
+
+helpOSDastroColors() {
+  Gui, SettingsGUIA: +OwnDialogs
+  MsgBox, , % appName, The defined color will be used when the sun or moon is up in the sky (above the horizon line). Or`, if the user selects the Moon Phase option`, the OSD color will be mixed with the color defined here based on the illumination fraction of the moon. When new moon occurs`, the main OSD color will not be altered.`n`nDaylight and moonlight options rely on the location of the observer on the planet Earth. To define the location use the Astronomy/Today panel.`n`nThe Automatic Mode. In this mode`, the sun and moon altitudes`, and the moon phase`, are used to determine the color of the OSD. If it is night time`, the OSD colour will be based on the moon elevation and illumination fraction. If the moon is below the horizon or if it is a new moon`, the colour of the OSD will not be changed.
 }
 
 VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
@@ -2662,6 +3114,8 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControlGet, userBibleStartPoint
     GuiControlGet, orderedBibleQuotes
     GuiControlGet, userMuteAllSounds
+    GuiControlGet, OSDastralMode
+    GuiControlGet, OverrideOSDcolorsAstro
 
     GuiControl, % (EnableApply=0 ? "Disable" : "Enable"), ApplySettingsBTN
     GuiControl, % (AdditionalStrikes=0 ? "Disable" : "Enable"), editF38
@@ -2685,6 +3139,9 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt1
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt2
     GuiControl, % (silentHours=1 ? "Disable" : "Enable"), txt3
+    GuiControl, % (OverrideOSDcolorsAstro=1 ? "Enable" : "Disable"), OSDastralMode
+    GuiControl, % (OverrideOSDcolorsAstro=1 ? "Enable" : "Disable"), OSDastroALTcolor
+    GuiControl, % (OverrideOSDcolorsAstro=1 && OSDastralMode=4) ? "Enable" : "Disable", OSDastroALTOcolor
     GuiControl, % (userMuteAllSounds=1 ? "Disable" : "Enable"), BeepsVolume
     GuiControl, % (userMuteAllSounds=1 ? "Disable" : "Enable"), AutoUnmute
     GuiControl, % (userMuteAllSounds=1 ? "Disable" : "Enable"), dynamicVolume
@@ -3133,7 +3590,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         q := "Feast of the Holy Innocents - in remembrance of the young children killed in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus of Nazareth"
 
      aisHolidayToday := q ? q : aisHolidayToday
-     If (StrLen(isHolidayToday)>2)
+     If (StrLen(aisHolidayToday)>2)
         aTypeHolidayOccured := 1
   }
 
@@ -3164,7 +3621,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         . "Human Rights Day|12.10`n"
         . "World Arabic Language Day|12.18"
 
-     Loop, Parse, theList, `n
+     Loop, Parse, theList, `n, `r
      {
         lineArr := StrSplit(A_LoopField, "|")
         miniDate := lineArr[2]
@@ -3197,7 +3654,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         OSDprefix := "▣ "
 
      ; ToolTip, % OSDprefix "== lol" , , , 2
-     If (AnyWindowOpen!=1 && windowManageCeleb!=1)
+     If (AnyWindowOpen!=1 && AnyWindowOpen!=6 && windowManageCeleb!=1)
      {
         Gui, ShareBtnGui: Destroy
         CreateBibleGUI(generateDateTimeTxt() " || " aisHolidayToday, 1, 1)
@@ -3232,9 +3689,9 @@ PanelManageCelebrations(tabChoice:=1) {
   Gui, CelebrationsGuia: Destroy
   Sleep, 15
   Gui, CelebrationsGuia: Default
-  Gui, CelebrationsGuia: -MaximizeBox -MinimizeBox +hwndhThisWin
+  Gui, CelebrationsGuia: -MaximizeBox -MinimizeBox +hwndhCelebsMan
   Gui, CelebrationsGuia: Margin, 15, 15
-  applyDarkMode2guiPre(hThisWin)
+  applyDarkMode2guiPre(hCelebsMan)
   relName := (UserReligion=1) ? "Catholic" : "Orthodox"
   lstWid := 435
   If (PrefsLargeFonts=1)
@@ -3243,6 +3700,7 @@ PanelManageCelebrations(tabChoice:=1) {
      Gui, Font, s%LargeUIfontValue%
   }
 
+  doResetGuiFont()
   windowManageCeleb := 1
   Gui, Add, Checkbox, x15 y10 gupdateOptionsLVsGui Checked%ObserveReligiousDays% vObserveReligiousDays, Observe religious feasts / holidays
   Gui, Add, DropDownList, x+2 w100 gupdateOptionsLVsGui AltSubmit Choose%UserReligion% vUserReligion, Catholic|Orthodox
@@ -3252,24 +3710,27 @@ PanelManageCelebrations(tabChoice:=1) {
   Gui, Add, Tab3, xs+0 y+0 AltSubmit Choose%tabChoice% vCurrentTabLV, Christian|Easter related|Secular|Personal
 
   Gui, Tab, 1
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r8 Grid NoSort -Hdr vLViewOthers, Index|Date|Detailz
+  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r9 Grid NoSort -Hdr vLViewOthers, Index|Date|Detailz
   Gui, Tab, 2
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r8 Grid NoSort -Hdr vLViewEaster, Index|Date|Detailz
+  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r9 Grid NoSort -Hdr vLViewEaster, Index|Date|Detailz
   Gui, Tab, 3
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r8 Grid NoSort -Hdr vLViewSecular, Index|Date|Detailz
+  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r9 Grid NoSort -Hdr vLViewSecular, Index|Date|Detailz
   Gui, Tab, 4
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r8 Grid NoSort -Hdr vLViewPersonal, Index|Date|Detailz
+  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r9 Grid NoSort -Hdr vLViewPersonal, Index|Date|Detailz
 
   Gui, Tab
   Gui, Add, Checkbox, y+15 Section gupdateOptionsLVsGui Checked%ObserveSecularDays% vObserveSecularDays, Observe secular holidays
   Gui, Add, Checkbox, x+5 gupdateOptionsLVsGui Checked%PreferSecularDays% vPreferSecularDays, Prefer these holidays over religious ones
 
-  btnWid := (PrefsLargeFonts=1) ? 145 : 90
-  Gui, Add, Button, xs y+15 w%btnWid% h30 gPrevYearList , &Previous year
-  Gui, Add, Button, x+1 w55 hp gResetYearList vResetYearBTN, %celebYear%
-  Gui, Add, Button, x+1 w%btnWid% hp gNextYearList , &Next year
-  Gui, Add, Button, x+20 wp-25 hp gCloseCelebListWin, &Close list
-  applyDarkMode2winPost("CelebrationsGuia", hThisWin)
+  btnWid := (PrefsLargeFonts=1) ? 50 : 30
+  Gui, Add, Button, xs y+15 w%btnWid% h30 gPrevYearList , &<<
+  Gui, Add, Button, x+1 w60 hp gResetYearList vResetYearBTN, %celebYear%
+  Gui, Add, Button, x+1 w%btnWid% hp gNextYearList , &>>
+  If (PrefOpen=1 && hSetWinGui)
+     Gui, Add, Button, x+20 wp+15 hp gCloseCelebListWin, &Back
+  Else
+     Gui, Add, Button, x+20 wp+15 hp gPanelIncomingCelebrations, &Back
+  applyDarkMode2winPost("CelebrationsGuia", hCelebsMan)
   Gui, Show, AutoSize, Celebrations list: %appName%
   updateOptionsLVsGui()
   If (PrefOpen=1 && hSetWinGui)
@@ -3285,6 +3746,10 @@ updateOptionsLVsGui() {
 
   GuiControl, % ((ObserveReligiousDays=0) ? "Disable" : "Enable"), UserReligion
   GuiControl, % ((ObserveSecularDays=0) ? "Disable" : "Enable"), PreferSecularDays
+  INIaction(1, "ObserveSecularDays", "SavedSettings")
+  INIaction(1, "ObserveReligiousDays", "SavedSettings")
+  INIaction(1, "PreferSecularDays", "SavedSettings")
+  INIaction(1, "UserReligion", "SavedSettings")
   updateHolidaysLVs()
 }
 
@@ -3707,6 +4172,7 @@ AutoDestroyCelebList() {
 
 CloseCelebListWin() {
    celebYear := A_Year
+   hCelebsMan := 0
    Gui, CelebrationsGuia: Default
    If (windowManageCeleb=1)
    {
@@ -3752,16 +4218,16 @@ CancelNewEntryBtn() {
    PanelManageCelebrations(4)
 }
 
-wrapCalculateEquiSolsDates() {
+wrapCalculateEquiSolsDates(givenDay) {
   Critical, on
   Static lastInvoked := 1, prevYear := 0, prevBias := -1, prevDay := 0, TZI := [], z := []
 
   startZeit := A_TickCount
-  If (prevDay!=A_YDay || prevBias=-1)
+  If (prevDay!=givenDay || prevBias=-1)
   {
      TZI := TZI_GetTimeZoneInformation()
      prevBias := -1 * TZI.TotalCurrentBias
-     prevDay := A_YDay
+     prevDay := givenDay
   }
 
   If (InStr(EquiSolsCache, "|") && prevYear!=A_Year)
@@ -3819,17 +4285,24 @@ wrapCalculateEquiSolsDates() {
      Return z
 
     z := []
-    z.MarchEquinox := giveYearDayProximity(mEquiDay, A_YDay) . "March equinox."      ; 03 / 20
-    z.JuneSolstice := giveYearDayProximity(jSolsDay, A_YDay) . "June solstice."      ; 06 / 21
-    z.SepEquinox   := giveYearDayProximity(sEquiDay, A_YDay) . "September equinox."  ; 09 / 22
-    z.DecSolstice  := giveYearDayProximity(dSolsDay, A_YDay) . "December solstice."  ; 12 / 21
-    If InStr(z.MarchEquinox, "now")
+    z.msg := giveYearDayProximity(mEquiDay, givenDay) . "March equinox."      ; 03 / 20
+    If InStr(z.msg, "hide")
+       z.msg := giveYearDayProximity(jSolsDay, givenDay) . "June solstice."      ; 06 / 21
+    If InStr(z.msg, "hide")
+       z.msg := giveYearDayProximity(sEquiDay, givenDay) . "September equinox."  ; 09 / 22
+    If InStr(z.msg, "hide")
+       z.msg  := giveYearDayProximity(dSolsDay, givenDay) . "December solstice."  ; 12 / 21
+    If InStr(z.msg, "hide")
+       z.msg := ""
+
+    ; ToolTip, % sEquiDay "==" givenDay , , , 2
+    If (mEquiDay=givenDay)
        z.r := 1
-    Else If InStr(z.JuneSolstice, "now")
+    Else If (jSolsDay=givenDay)
        z.r := 2
-    Else If InStr(z.SepEquinox, "now")
+    Else If (sEquiDay=givenDay)
        z.r := 3
-    Else If InStr(z.DecSolstice, "now")
+    Else If (dSolsDay=givenDay)
        z.r := 4
 
     lastInvoked := A_TickCount
@@ -3839,7 +4312,6 @@ wrapCalculateEquiSolsDates() {
 }
 
 giveYearDayProximity(givenDay, CurrentDay) {
-
   If (CurrentDay>givenDay)
   {
       passedDays := CurrentDay - givenDay
@@ -3854,8 +4326,6 @@ giveYearDayProximity(givenDay, CurrentDay) {
          Result := "Less than a week"
 
       Result .= " since the "
-      If (passedDays<2)
-         Result := "now"
   } Else
   {
       DaysUntil := givenDay - CurrentDay
@@ -3869,25 +4339,34 @@ giveYearDayProximity(givenDay, CurrentDay) {
       } Else If (DaysUntil>2)
          Result := "Less than a week"
      Result .= " until the "
-     If (DaysUntil<2)
-        Result := "now"
   }
+
   If (Floor(Weeksz)>=4)
      Result := "hide"
+  Else If (givenDay=CurrentDay)
+     Result := "Now"
+  Else If (givenDay=CurrentDay + 1)
+     Result := "Tomorrow is the "
+   Else If (givenDay=CurrentDay + 2)
+     Result := "In two days is the "
+  Else If (givenDay=CurrentDay - 1)
+     Result := "Yesterday was the "
+  Else If (givenDay=CurrentDay - 2)
+     Result := "Two days ago was the "
 
   Return Result
 }
 
 testEquiSols() {
   OSDsuffix := ""
-  testu := wrapCalculateEquiSolsDates()
-  If (testu.r=1)
+  z := wrapCalculateEquiSolsDates(A_YDay)
+  If (z.r=1)
      OSDsuffix := " ▀"
-  Else If (testu.r=2)
+  Else If (z.r=2)
      OSDsuffix := " ⬤"
-  Else If (testu.r=3)
+  Else If (z.r=3)
      OSDsuffix := " ▃"
-  Else If (testu.r=4)
+  Else If (z.r=4)
      OSDsuffix := " ◯"
 
   testFeast := A_Mon "." A_MDay
@@ -3907,7 +4386,7 @@ PanelIncomingCelebrations() {
     txtWid := 360
     Global holiListu, btn1, txtLine
     Gui, Font, c%AboutTitleColor% s20 Bold, Arial, -wrap
-    Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, bell-image.png
+    Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, %A_ScriptDir%\resources\bell-image.png
     Gui, Add, Text, x+7 y10, %appName%
     Gui, Font, s12 Bold, Arial, -wrap
     Gui, Add, Text, y+4 vtxtLine, Celebrations in the next 30 days.
@@ -3924,21 +4403,30 @@ PanelIncomingCelebrations() {
     btnW1 := (PrefsLargeFonts=1) ? 105 : 80
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     Gui, Add, Button, xs+1 y+15 w1 h1, L
+    doResetGuiFont()
     Gui, Add, Edit, xp+1 yp+1 ReadOnly r15 w%txtWid% vholiListu, % listu
-    Gui, Font, Normal
-    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn hwndhBtn1, &Manage
-    Gui, Add, Button, x+5 hp wp+15 gShowSettings hwndhBtn2, &Settings
-    Gui, Add, Button, x+5 hp wp-15 gCloseWindow hwndhBtn3, &Close
+    Gui, Add, Checkbox, xs y+8 gToggleObsHoliEvents Checked%ObserveHolidays% vObserveHolidays, &Observe Christian and/or secular holidays
+
+    Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn vbtn1, &Manage
+    Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Today
+    Gui, Add, Button, x+5 hp wp+15 gShowSettings, &Settings
+    Gui, Add, Button, x+5 hp wp-15 gCloseWindow, &Close
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Celebrations list: %appName%
     PopulateIncomingCelebs()
 }
 
-PopulateIncomingCelebs() {
+ToggleObsHoliEvents() {
+    Gui, SettingsGUIA: Default
+    GuiControlGet, ObserveHolidays
+    INIaction(1, "ObserveHolidays", "SavedSettings")
+    PopulateIncomingCelebs()
+}
 
+coreUpcomingEvents(doToday, dayzCheck, limitList) {
     startDate := ""
     listu := ""
-    If (StrLen(isHolidayToday)>2 && ObserveHolidays=1)
+    If (StrLen(isHolidayToday)>2 && ObserveHolidays=1 && doToday=1)
     {
        relName := (UserReligion=1) ? "Catholic" : "Orthodox"
        holidayMsg := relName " Christians celebrate today: " isHolidayToday "."
@@ -3950,7 +4438,8 @@ PopulateIncomingCelebs() {
 
     startYday := A_YDay
     totalYDays := isLeapYear() ? 366 : 365
-    Loop, 30
+    listed := 0
+    Loop, % dayzCheck
     {
         startDate += 1, Days
         thisMon := SubStr(startDate, 5, 2)
@@ -3962,43 +4451,61 @@ PopulateIncomingCelebs() {
         ; ToolTip, % thisYear "/" thisMon "/" thisMDay " = " thisYday "[" totalYDays "]"  , , , 2
         ; Sleep, 950
         If obju[2]
-           listu .= thisYear "/" thisMon "/" thisMDay " = " obju[2] "`n`n"
+        {
+           prefixu := (obju[1]=1) ? "✝ " : ""
+           listu .= thisYear "/" thisMon "/" thisMDay ". " prefixu obju[2] "`n`n"
+           listed++
+           If (listed>=limitList && limitList>0)
+              Break
+        }
     }
+    Return listu
+}
+
+PopulateIncomingCelebs() {
+    If (ObserveHolidays=1)
+       listu := coreUpcomingEvents(1, 30, 0)
+    If !Trim(listu)
+       listu := "No religious or secular events are observed for the next 30 days.`n`n"
 
     listu .= "Astronomic events:`n`n"
     FormatTime, OutputVar, % mEquiDate, yyyy/MM/dd
     If isinRange(mEquiDay, A_YDay, A_YDay + 30)
-       listu .= OutputVar " = March Equinox`n`n"
+       listu .= OutputVar ". ▀ March Equinox`n`n"
  
     FormatTime, OutputVar, % jSolsDate, yyyy/MM/dd
     If isinRange(jSolsDay, A_YDay, A_YDay + 30)
-       listu .= OutputVar " = June Solstice`n`n"
+       listu .= OutputVar ". ⬤ June Solstice`n`n"
   
     FormatTime, OutputVar, % sEquiDate, yyyy/MM/dd
     If isinRange(sEquiDay, A_YDay, A_YDay + 30)
-       listu .= OutputVar " = September Equinox`n`n"
+       listu .= OutputVar ". ▃ September Equinox`n`n"
   
     FormatTime, OutputVar, % dSolsDate, yyyy/MM/dd
     If isinRange(dSolsDay, A_YDay, A_YDay + 30)
-       listu .= OutputVar " = December Solstice`n`n"
+       listu .= OutputVar ". ◯ December Solstice`n`n"
 
-    startDate := A_Year A_Mon A_MDay 010101
+    prevu := startDate := A_Year A_Mon A_MDay 010101
     ; startDate := 2022 01 01 010101
-    listuA := listuB := ""
-    Loop, 30
+    Loop, 60
     {
-        startDate += 1, Days
-        pk := MoonPhaseCalculator(startDate)
-        If (prevu!=pk[1] && !InStr(pk[1], "peak") && (InStr(pk[1], "full") || InStr(pk[1], "new")))
+        startDate += 12, Hours
+        pk := oldMoonPhaseCalculator(startDate)
+        xu := pk[1]
+        If (prevu!=xu && (InStr(xu, "full") || InStr(xu, "new")))
         {
-           prevu := pk[1]
+           prevu := xu
            FormatTime, OutputVar, % startDate, yyyy/MM/dd
-           listu .= OutputVar " = " pk[1] "`n`n"
+           listu .= OutputVar ". " pk[1] "`n`n"
            ; listu .= OutputVar " = " pk[1] "`n p=" pk[3] "; f=" pk[4] "; a=" pk[5] " `n"
         }
     }
  
-    GuiControl, SettingsGUIA:, holiListu, % listu listuB listuA
+    GuiControl, SettingsGUIA:, holiListu, % listu
+    If (ObserveHolidays=1)
+       GuiControl, SettingsGUIA: Enable, btn1
+    Else
+       GuiControl, SettingsGUIA: Disable, btn1
 }
 
 reactWinOpened(funcu, idu) {
@@ -4094,6 +4601,7 @@ PanelSetAlarm() {
     Gui, Add, Button, x+2 wp+3 gSetPresetTimers, &10m
     Gui, Add, Button, x+2 wp+3 gSetPresetTimers, &15m
     Gui, Add, Button, x+2 wp+3 gSetPresetTimers, &30m
+    doResetGuiFont()
     Gui, Add, Checkbox, xs y+10 Section gupdateUIalarmsPanel Checked%userMustDoTimer% vuserMustDoTimer, Set timer duration (in hours`, mins):
     Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
     Gui, Add, Edit, xs+15 y+10 w%nW% h%nH% Center number -multi limit2 gupdateUIalarmsPanel veditF1, % userTimerHours
@@ -4110,7 +4618,7 @@ PanelSetAlarm() {
     Gui, Add, DropDownList, xs+15 y+10 w%ml% AltSubmit Choose%userTimerSound% vuserTimerSound, Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert
     Gui, Add, Edit, x+5 w%zl% hp Center number -multi limit2 veditF10 gupdateUIalarmsPanel, % userTimerFreq
     Gui, Add, UpDown, vuserTimerFreq Range1-99 gupdateUIalarmsPanel, % userTimerFreq
-    Gui, Add, Button, x+5 hp gBtnTestTimerAudio vbtn1, Test
+    Gui, Add, Button, x+5 wp hp gBtnTestTimerAudio vbtn1, Test
 
     Gui, Tab, 2
     Gui, Add, Checkbox, x+15 y+15 Section gupdateUIalarmsPanel Checked%userMustDoAlarm% vuserMustDoAlarm, Set alarm at (hours`, mins`, snooze mins.):
@@ -4140,7 +4648,7 @@ PanelSetAlarm() {
     Gui, Add, DropDownList, xs+15 y+10 w%ml% AltSubmit Choose%userAlarmSound% vuserAlarmSound, Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert
     Gui, Add, Edit, x+5 w%zl% hp Center number -multi limit2 veditF6 gupdateUIalarmsPanel, % userAlarmFreq
     Gui, Add, UpDown, vuserAlarmFreq Range1-99 gupdateUIalarmsPanel, % userAlarmFreq
-    Gui, Add, Button, x+5 hp gBtnTestAlarmAudio vBtn2, Test
+    Gui, Add, Button, x+5 wp hp gBtnTestAlarmAudio vBtn2, Test
 
     Gui, Tab
     Gui, Add, Checkbox, xm y+10 Section gupdateUIalarmsPanel Checked%AlarmersDarkScreen% vAlarmersDarkScreen, Flash dark screen on alerts
@@ -4730,11 +5238,12 @@ getPercentOfToday(ByRef minsPassed:=0) {
    FirstMinOfDay := CurrentDay "0001"
    EnvSub, CurrentDateTime, %FirstMinOfDay%, Minutes
    minsPassed := CurrentDateTime + 1
-   Return minsPassed/1445
+   Return minsPassed/1442
 }
 
-fnOutputDebug(msg) {
-   OutputDebug, % "QPV: " Trim(msg)
+fnOutputDebug(msg, forced:=0) {
+   If (debugMode=1 || forced=1)
+      OutputDebug, % "QPV: " Trim(msg)
 }
 
 isLeapYear(thisYear:=0) {
@@ -4756,7 +5265,7 @@ PanelAboutWindow() {
     txtWid := 360
     Global btn1
     Gui, Font, c%AboutTitleColor% s20 Bold, Arial, -wrap
-    Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, bell-image.png
+    Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, %A_ScriptDir%\resources\bell-image.png
     Gui, Add, Text, x+7 y10, %appName%
     Gui, Font, s12 Bold, Arial, -wrap
     Gui, Add, Link, y+4 hwndhLink0, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a>.
@@ -4767,8 +5276,4001 @@ PanelAboutWindow() {
        txtWid := txtWid + 105
     }
 
-    If (tickTockNoise!=1)
-       SoundLoop(tickTockSound)
+    btnW1 := (PrefsLargeFonts=1) ? 105 : 80
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    nW := (PrefsLargeFonts=1) ? 65 : 60
+    nH := (PrefsLargeFonts=1) ? 35 : 30
+
+    Gui, Add, Text, x15 y+15 w1 h1 Section, .
+    If (A_OSVersion="WIN_XP")
+    {
+       Gui, Font,, Arial ; only as backup, doesn't have all characters on XP
+       Gui, Font,, Symbola
+       Gui, Font,, Segoe UI Symbol
+       Gui, Font,, DejaVu Sans
+       Gui, Font,, DejaVu LGC Sans
+    }
+
+    If (A_OSVersion="WIN_XP")
+       doResetGuiFont()
+
+    Gui, Add, Text, xs y+15 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
+    Gui, Add, Text, xs y+15 Section w%txtWid%, This application contains code and sounds from various entities.%newLine%You can find more details in the source code.
+    compiled := (A_IsCompiled=1) ? "Compiled. " : "Uncompiled. "
+    compiled .= (A_PtrSize=8) ? "x64. " : "x32. "
+    Gui, Add, Text, xs y+15 w%txtWid%, Current version: v%version% from %ReleaseDate%. Internal AHK version: %A_AhkVersion%. %compiled%OS: %A_OSVersion%.
+    Gui, Add, Text, y+15 +Border gOpenChangeLog, Click here to view the change log / version history.
+    If (storeSettingsREG=1)
+       Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
+    Else      
+       Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, The development page is <a href="https://github.com/marius-sucan/ChurchBellsTower">on GitHub</a>.
+
+    Gui, Font, Bold
+    Gui, Add, Link, xp+30 y+10 hwndhLink1, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
+    Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, %A_ScriptDir%\resources\paypal.png
+    doResetGuiFont()
+
+    btnW1 := (PrefsLargeFonts=1) ? 110 : 80
+    btnW2 := (PrefsLargeFonts=1) ? 80 : 55
+    btnW3 := (PrefsLargeFonts=1) ? 110 : 80
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    Gui, Add, Button, xm+0 y+20 Section h%btnH% w%btnW1% Default gCloseWindowAbout, &Deus lux est
+    Gui, Add, Button, x+5 hp wp-10 gPanelTodayInfos, &Today
+    Gui, Add, Button, x+5 hp w%btnW2% gShowSettings, &Settings
+    Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations, &Celebrations
+
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
+    Gui, Show, AutoSize, About: %appName%
+}
+
+PanelSunYearGraphTable() {
+    If reactWinOpened(A_ThisFunc, 1)
+       Return
+
+    GenericPanelGUI(0)
+    ; LastWinOpened := A_ThisFunc
+    AnyWindowOpen := 7
+    INIaction(0, "SolarYearGraphMode", "SavedSettings")
+    btnWid := 100
+    txtWid := 360
+    lstWid := 435
+    doResetGuiFont()
+    If (PrefsLargeFonts=1)
+    {
+       btnWid := btnWid + 50
+       txtWid := txtWid + 105
+       lstWid := lstWid + 245
+    }
+    If !listedCountries
+       loadGeoData()
+
+    graphW := lstWid - 15
+    graphH := (PrefsLargeFonts=1) ? 280 : 190
+    Global LViewSets, LViewRises, uiInfoGeoYear, LViewMuna, LViewSunCombined, GraphInfoLine
+    Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Summary|Rise|Set|Durations|Graph
+    Gui, Tab, 1
+    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewSunCombined, Day|Date|Dawn|Sunrise|Noon|Altitude|Sunset|Dusk|Sunlight
+    Gui, Tab, 2
+    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewRises, Day|Dawn|Rise|Civil twilight length
+    Gui, Tab, 3
+    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewSets, Day|Sunset|Dusk|Civil twilight length
+    Gui, Tab, 4
+    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewOthers, Day|Date|Sunlight|Diff|Twilight|Diff|Total light|Difference
+    Gui, Tab, 5
+    Gui, Add, Text, x+10 y+10 Section, Location:
+    Gui, Add, DropDownList, x+5 AltSubmit gUIcountryGraphChooser Choose%uiUserCountry% vuiUserCountry, % countriesList
+    Gui, Add, DropDownList, x+5 AltSubmit gUIcityGraphChooser Choose%uiUserCity% vuiUserCity, % getCitiesList(uiUserCountry)
+    Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
+    Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
+    Gui, Add, Text, xs y+10 w%graphW% -wrap vGraphInfoLine, Hover graph for more information.`n-
+    Gui, Add, Text, xs y+10 w%graphW% h%graphH% Section +0x1000 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
+
+    Gui, Tab
+    btnW := (PrefsLargeFonts=1) ? 80 : 55
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    Gui, Add, Text, xm+0 y+10 wp Section -wrap vuiInfoGeoData, Please wait...
+    Gui, Add, Text, xp y+5 wp -wrap vUIastroInfoAnnum, -
+    Gui, Add, Button, xp y+20 h%btnH% w%btnW% Default gCloseWindow, &Close
+    Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
+    Gui, Add, Button, x+5 hp wp gbtnCopySolarData, &Copy
+    Gui, Add, Button, x+5 hp wp gbtnHelpYearSolarGraph, &Help
+    Gui, Add, Button, x+5 hp wp-30 guiPrevSolarDataYear, &<<
+    Gui, Add, Text, x+5 hp wp+15 +Border Center +0x200 guiThisSolarDataYear vuiInfoGeoYear, % SubStr(uiUserFullDateUTC, 1, 4)
+    Gui, Add, Button, x+5 hp wp-15 guiNextSolarDataYear, &>>
+
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
+    Gui, Show, AutoSize, Year graph and table (sun): %appName%
+    uiPopulateTableYearSolarData()
+}
+
+
+PanelMoonYearGraphTable() {
+    If reactWinOpened(A_ThisFunc, 1)
+       Return
+
+    GenericPanelGUI(0)
+    ; LastWinOpened := A_ThisFunc
+    AnyWindowOpen := 9
+    INIaction(0, "SolarYearGraphMode", "SavedSettings")
+    btnWid := 100
+    txtWid := 360
+    lstWid := 435
+    doResetGuiFont()
+    If (PrefsLargeFonts=1)
+    {
+       btnWid := btnWid + 50
+       txtWid := txtWid + 105
+       lstWid := lstWid + 245
+    }
+    If !listedCountries
+       loadGeoData()
+
+    graphW := lstWid - 15
+    graphH := (PrefsLargeFonts=1) ? 280 : 190
+    Global LViewSets, LViewRises, uiInfoGeoYear, LViewMuna, LViewSunCombined, GraphInfoLine
+    Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Summary|Graph|Moon phases
+    Gui, Tab, 1
+    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewSunCombined, Day|Date|Rise|Culminant|Altitude|Set|Moonlight|Diff
+    Gui, Tab, 2
+    Gui, Add, Text, x+10 y+10 Section, Location:
+    Gui, Add, DropDownList, x+5 AltSubmit gUIcountryGraphChooser Choose%uiUserCountry% vuiUserCountry, % countriesList
+    Gui, Add, DropDownList, x+5 AltSubmit gUIcityGraphChooser Choose%uiUserCity% vuiUserCity, % getCitiesList(uiUserCountry)
+    Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
+    Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
+    Gui, Add, Text, xs y+10 w%graphW% -wrap vGraphInfoLine, Hover graph for more information.`n-
+    Gui, Add, Text, xs y+10 w%graphW% h%graphH% Section +0x1000 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
+
+    Gui, Tab, 3
+    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewMuna, Day|Date|Lunar phase|Age|Constellation
+
+    Gui, Tab
+    btnW := (PrefsLargeFonts=1) ? 80 : 55
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    Gui, Add, Text, xm+0 y+10 wp Section -wrap vuiInfoGeoData, Please wait...
+    Gui, Add, Text, xp y+5 wp -wrap vUIastroInfoAnnum, -
+    Gui, Add, Button, xp y+20 h%btnH% w%btnW% Default gCloseWindow, &Close
+    Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
+    Gui, Add, Button, x+5 hp wp gbtnCopySolarData, &Copy
+    Gui, Add, Button, x+5 hp wp gbtnHelpYearMoonGraph, &Help
+    Gui, Add, Button, x+5 hp wp-30 guiPrevSolarDataYear, &<<
+    Gui, Add, Text, x+5 hp wp+15 +Border Center +0x200 guiThisSolarDataYear vuiInfoGeoYear, % SubStr(uiUserFullDateUTC, 1, 4)
+    Gui, Add, Button, x+5 hp wp-15 guiNextSolarDataYear, &>>
+
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
+    Gui, Show, AutoSize, Year graph and table (moon): %appName%
+    uiPopulateTableYearMoonData()
+}
+
+btnHelpYearSolarGraph() {
+  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Sunlight and civil twilight duration per day. The X axis represents the days of year [from 1 to 365]. The Y axis represents how much of 24 hours has sunlight (bright yellow) and civil twilight (dark yellow). The taller the yellow bars are, the longer the duration of sunlight is. The bars are shaded based on the solar noon angle of that day. The higher the sun rises at noon the brighter the shade is.`n`n2. Sun rises and sun sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent rises and sets, while the darker ones, dawn and dusk. Between rises and sets, the solar noon is represented by bright blueish dots.")
+}
+
+btnHelpYearMoonGraph() {
+  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Moonlight duration per day. The X axis represents the days of year [from 1 to 365]. The Y axis represents how much of 24 hours is moonlight. The taller the yellow bars are the longer the duration of moonlight is. The bars are shaded based on the culminant angle of that day. The higher the moon rises the brighter it is.`n`n2. Moon rises and moon sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent rises, and the darker ones, the sets.`n`nThe entire background has a wave pattern. It is calculated based on the moon illumination fraction. The peak blueish bright areas represent full moon, while the darkest shades are for the new moon.")
+}
+
+scorifyCompareWords(thisUserWord, siti) {
+   score := 0
+   If (siti=thisUserWord)
+      score += 15
+   If (n := InStr(siti, thisUserWord))
+      score += StrLen(thisUserWord)
+   If (n=1)
+      score += 10
+   Else If (n=2)
+      score += 5
+   Else If (n=3)
+      score += 2
+
+   ls := StrLen(siti)
+   lw := StrLen(thisUserWord)
+   If (ls=lw && score)
+      score += 2
+   ; Else If (ls=lw)
+   ;    score += 1
+
+   score *= 2
+   If (SubStr(siti, 1, 1)=SubStr(thisUserWord, 1, 1))
+      score += 1
+   If (SubStr(siti, 1, 2)=SubStr(thisUserWord, 1, 2))
+      score += 2
+
+   If (ls>2 && lw>2)
+   {
+      If (SubStr(siti, 2, 2)=SubStr(thisUserWord, 2, 2))
+         score += 1
+      If (SubStr(siti, 1, 3)=SubStr(thisUserWord, 1, 3))
+         score += 3
+   }
+   Return score
+}
+
+scorifyStrictCompareWords(thisUserWord, siti) {
+   score := 0
+   If (siti=thisUserWord)
+      score += 32
+   n := InStr(siti, thisUserWord)
+   If (n=1)
+      score += 29
+   Else If (n=2)
+      score += 1
+
+   ls := StrLen(siti)
+   lw := StrLen(thisUserWord)
+   If (ls=lw && score)
+      score += 3
+
+   Return score*2
+}
+
+PerformGeoDataSearch() {
+    Gui, SettingsGUIA: Default
+    GuiControlGet, GeoDataSearchField
+    Gui, SettingsGUIA: ListView, LViewOthers
+    LV_Delete()
+
+    userQuery := Trim(GeoDataSearchField)
+    userQuery := StrReplace(userQuery, ", ", A_Space)
+    wuserQuery := StrReplace(userQuery, ",", A_Space)
+    If StrLen(wuserQuery)<2
+       Return
+
+    thisIndex := matches := score := 0
+    userQuery := StrSplit(wuserQuery, A_Space)
+    userCountWords := userQuery.Count()
+    If !userCountWords
+       Return
+
+    GuiControl, -Redraw, LViewOthers
+    Loop, % listedExtendedLocations
+    {
+        score := 0
+        cauntri := extendedGeoData[A_Index, 1]
+        siti := extendedGeoData[A_Index, 2]
+        Loop, % userCountWords
+        {
+           thisUserWord := userQuery[A_Index]
+           If StrLen(thisUserWord)<2
+              Continue
+
+           score += scorifyCompareWords(thisUserWord, cauntri)
+           score += scorifyCompareWords(thisUserWord, siti) + 5
+        }
+
+        If (userCountWords>1)
+        {
+           score += scorifyStrictCompareWords(wuserQuery, cauntri)
+           score += scorifyStrictCompareWords(wuserQuery, siti) + 5
+        }
+
+        If (score<13*userCountWords)
+           Continue
+        
+        thisIndex++
+        LV_Add(thisIndex, cauntri, siti, extendedGeoData[A_Index, 3], extendedGeoData[A_Index, 4], extendedGeoData[A_Index, 5], extendedGeoData[A_Index, 7], score, A_Index)
+    }
+
+    ctr := countriesArrayList.Count()
+    Loop, % ctr
+    {
+         ctrIndex := A_Index
+         cities := geoData[A_Index "|-1"]
+         Loop, % cities
+         {
+             thisu := geoData[ctrIndex "|" A_Index]
+             elemu := StrSplit(thisu, "|")
+             siti := elemu[1]
+             cauntri := countriesArrayList[ctrIndex]
+             score := 0
+             Loop, % userCountWords
+             {
+                thisUserWord := userQuery[A_Index]
+                If StrLen(thisUserWord)<2
+                   Continue
+
+                score += scorifyCompareWords(thisUserWord, cauntri)
+                score += scorifyCompareWords(thisUserWord, siti) + 5
+             }
+
+             If (userCountWords>1)
+             {
+                score += scorifyStrictCompareWords(wuserQuery, cauntri)
+                score += scorifyStrictCompareWords(wuserQuery, siti) + 5
+             }
+
+             If (score<13*userCountWords)
+                Continue
+             
+             thisIndex++
+             LV_Add(thisIndex, cauntri, siti, elemu[3], elemu[4], elemu[5], elemu[7], score, ctrIndex "|" A_Index)
+         }
+    }
+
+    Loop, 6
+        LV_ModifyCol(2 + A_Index, "Integer")
+
+    LV_ModifyCol(7, "SortDesc")
+    Loop, 8
+        LV_ModifyCol(A_Index, "AutoHdr Left")
+    GuiControl, +Redraw, LViewOthers
+}
+
+btnUIremoveUserGeoLocation() {
+   Gui, SettingsGUIA: Default
+   GuiControlGet, uiUserCountry
+   GuiControlGet, uiUserCity
+   cities := geoData["1|-1"]
+   If (uiUserCountry!=1 || cities<2)
+      Return
+
+   thisu := []
+   thisIndex := 0
+   Loop, % cities
+   {
+       If (A_Index!=uiUserCity)
+       {
+          thisIndex++
+          thisu[thisIndex] := geoData["1|" A_Index]
+       }
+   }
+
+   Loop, % cities - 1
+      geoData["1|" A_Index] := thisu[A_Index]
+
+   geoData["1|-1"] := cities - 1
+   FileRead, userlist, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   newu := "", thisIndex := 0
+   Loop, Parse, userlist, `n, `r
+   {
+       If StrLen(A_LoopField)<3
+          Continue
+
+       thisIndex++
+       If (thisIndex!=uiUserCity)
+          newu .= "`n" A_LoopField "`n"
+   }
+
+   Sleep, 50
+   FileDelete, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   Sleep, 50
+   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %A_ScriptDir%\resources\geo-locations-userlist.txt
+   p := clampInRange(uiUserCity - 1, 1, cities)
+   If (AnyWindowOpen=7)
+      UIcountryGraphChooser()
+   Else
+      UIcountryChooser()
+   GuiControl, SettingsGUIA: Choose, uiUserCity, % p
+   uiUserCity := p
+   INIaction(1, "uiUserCity", "SavedSettings")
+}
+
+btnUIupdateUserGeoLocation(idu, strA, str) {
+   FileRead, userlist, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   newu := "",  thisIndex := 0, thisIDu := 0
+   Loop, Parse, userlist, `n, `r
+   {
+       If StrLen(A_LoopField)<3
+          Continue
+
+       thisIndex++
+       If InStr(A_LoopField, idu)
+       {
+          thisIDu := thisIndex
+          newu .= "`n" str "`n"
+       } Else
+          newu .= "`n" A_LoopField "`n"
+   }
+
+   If !thisIDu
+      Return
+
+   geoData["1|" thisIDu] := strA
+   Sleep, 50
+   FileDelete, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   Sleep, 50
+   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %A_ScriptDir%\resources\geo-locations-userlist.txt
+   SoundBeep , 900, 100
+}
+
+simpleMsgBoxWrapper(winTitle, msg, buttonz:=0, defaultBTN:=1, iconz:=0, modality:=0, optionz:=0, guiu:="SettingsGUIA") {
+   ; Buttonz options:
+   ; 0 = OK (that is, only an OK button is displayed)
+   ; 1 = OK/Cancel
+   ; 2 = Abort/Retry/Ignore
+   ; 3 - Yes/No/Cancel
+   ; 4 = Yes/No
+   ; 5 = Retry/Cancel
+   ; 6 = Cancel/Try Again/Continue
+
+   ; Iconz options:
+   ; 16 = Icon Hand (stop/error)
+   ; 32 = Icon Question
+   ; 48 = Icon Exclamation
+   ; 64 = Icon Asterisk (info)
+
+   ; Modality options:
+   ; 4096 = System Modal (always on top)
+   ; 8192 = Task Modal
+   ; 262144 = Always-on-top (style WS_EX_TOPMOST - like System Modal but omits title bar icon)
+
+
+    If (defaultBTN=2)
+       defaultBTN := 255
+    Else If (defaultBTN=3)
+       defaultBTN := 512
+    Else
+       defaultBTN := 0
+
+    If (iconz=1 || iconz=16 || iconz="hand" || iconz="error" || iconz="stop")
+       iconz := 16
+    Else If (iconz=2 || iconz=32 || iconz="question")
+       iconz := 32
+    Else If (iconz=3 || iconz=48 || iconz="exclamation")
+       iconz := 48
+    Else If (iconz=4 || iconz=64 || iconz="info")
+       iconz := 64
+    Else
+       iconz := 0
+
+    theseOptionz := buttonz + iconz + defaultBTN + modality
+    If optionz
+       theseOptionz := optionz
+
+    If AnyWindowOpen
+       Gui, %guiu%: +OwnDialogs
+
+    MsgBox, % theseOptionz, % winTitle, % msg
+    IfMsgBox, Yes
+         r := "Yes"
+    IfMsgBox, No
+         r := "No"
+    IfMsgBox, OK
+         r := "OK"
+    IfMsgBox, Cancel
+         r := "Cancel"
+    IfMsgBox, Abort
+         r := "Abort"
+    IfMsgBox, Ignore
+         r := "Ignore"
+    IfMsgBox, Retry
+         r := "Retry"
+    IfMsgBox, Continue
+         r := "Continue"
+    IfMsgBox, TryAgain
+         r := "TryAgain"
+
+   Return r
+}
+
+btnUIaddNewGeoLocation() {
+   Gui, SettingsGUIA: Default
+   GuiControlGet, newGeoDataLocationUserEdit
+   k := StrSplit(newGeoDataLocationUserEdit, "|")
+   If (k.Count()<6)
+   {
+      simpleMsgBoxWrapper(appName, "This field needs to be at least six sections long to be valid, each separated by a pipe symbol: |. The sections are:`n`nLocation name|Latitude|Longitude|GMT offset|DST offset|Altitude (in meters)", 0, 1, 48)
+      Return
+   }
+
+   If (StrLen(k[1])<2)
+   {
+      simpleMsgBoxWrapper(appName, "Please define a name for the custom location to be added.", 0, 1, 48)
+      Return
+   }
+
+   If (!isInRange(k[3], -180, 180) || !isNumber(k[3]))
+   {
+      simpleMsgBoxWrapper(appName, "Please define a correct longitude coordinate for the custom location. Longitude ranges from -180° to 180°.", 0, 1, 48)
+      Return
+   }
+
+   If (!isInRange(k[2], -90, 90) || !isNumber(k[2]))
+   {
+      simpleMsgBoxWrapper(appName, "Please define a correct latitude coordinate for the custom location. Latitude ranges from -90° [south pole] to 90° [north pole].", 0, 1, 48)
+      Return
+   }
+
+   If (!isInRange(k[4], -13, 13) || !isNumber(k[4]))
+   {
+      simpleMsgBoxWrapper(appName, "Please define a correct GMT time offset for the custom location. This can range from -12 to 12 hours.", 0, 1, 48)
+      Return
+   }
+
+   If (!isInRange(k[5], -13, 13) || !isNumber(k[5]))
+   {
+      simpleMsgBoxWrapper(appName, "Please define a correct DST time offset for the custom location. This can range from -12 to 12 hours.`n`nIf no daylight saving time is to be observed, use the same value defined as the GMT offset.", 0, 1, 48)
+      Return
+   }
+
+   If (!isInRange(k[6], -5000, 13000) || !isNumber(k[6]))
+   {
+      simpleMsgBoxWrapper(appName, "Please define a correct altitude for the custom location. Allowed range, in meters, is between -5000 and 13000.", 0, 1, 48)
+      Return
+   }
+
+   strA := k[1] "|" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6]
+   str := "Custom locations|" strA
+   FileRead, userlist, resources\geo-locations-userlist.txt
+   idu := "`nCustom locations|" k[1] "|"
+   If InStr(userlist, idu)
+   {
+      msgResult := simpleMsgBoxWrapper(appName, "The custom locations list already contains " k[1] ". Do you want it updated?", 4, 1, 32)
+      If (msgResult="yes")
+         btnUIupdateUserGeoLocation(Trim(idu, "`n"), strA, str)
+      Return
+   }
+
+   If !InStr(userlist, str)
+   {
+      FileAppend, % "`n" str "`n", resources\geo-locations-userlist.txt, UTF-8
+      cities := geoData["1|-1"] + 1
+      geoData["1|" cities] := strA
+      geoData["1|-1"] := cities 
+      uiUserCountry := 1
+      uiUserCity := cities
+      lastUsedGeoLocation := strA
+      INIaction(1, "uiUserCity", "SavedSettings")
+      INIaction(1, "uiUserCountry", "SavedSettings")
+      INIaction(1, "lastUsedGeoLocation", "SavedSettings")
+      SoundBeep 900, 100
+   }
+}
+
+UiLVgeoSearch() {
+   Gui, SettingsGUIA: Default
+   Gui, SettingsGUIA: ListView, LViewOthers
+   RowNumber := LV_GetNext(0, "F")
+   LV_GetText(OutputVar, RowNumber, 8)
+   If InStr(OutputVar, "|")
+   {
+      p := Substr(OutputVar, 1, InStr(OutputVar, "|") -  1)
+      j := countriesArrayList[p]
+      k := j "|" geoData[OutputVar]
+      k := StrSplit(k, "|")
+   } Else k := extendedGeoData[OutputVar]
+
+   If IsObject(k)
+   {
+      stringu := k[1] ":" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6] "|" k[7]
+      GuiControl, SettingsGUIA:, newGeoDataLocationUserEdit, % stringu
+   }
+}
+
+PanelEarthMap() {
+    If reactWinOpened(A_ThisFunc, 1)
+       Return
+
+    GenericPanelGUI(0)
+    ; LastWinOpened := A_ThisFunc
+    AnyWindowOpen := 8
+    btnWid := 100
+    txtWid := 360
+    lstWid := 435
+    doResetGuiFont()
+    If (PrefsLargeFonts=1)
+    {
+       btnWid := btnWid + 50
+       txtWid := txtWid + 105
+       lstWid := lstWid + 245
+    }
+    If !listedCountries
+       loadGeoData()
+
+    If !listedExtendedLocations
+       loadExtendedGeoData()
+
+    txtW := (PrefsLargeFonts=1) ? lstWid - 105 : lstWid - 100
+    graphW := lstWid - 10  ; (PrefsLargeFonts=1) ? 640 : 380
+    graphH := (PrefsLargeFonts=1) ? 310 : 195
+ 
+    Global GeoDataSearchField, newGeoDataLocationUserEdit, btn5
+    Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Earth map|Search location
+    Gui, Tab, 1
+    Gui, Add, Text, x+10 y+10 w%txtW% Section -wrap vGraphInfoLine, Click on the map for a new location and then add it to the custom list.
+    Gui, Add, DropDownList, xp y+5 -wrap AltSubmit Choose%showEarthSunMapModus% gToggleEarthSunMap vshowEarthSunMapModus, Show indexed cities|Show sunlight map|Show moonlight map
+    Gui, Add, Button, x+5 hp gPrevTodayBTN vbtn1, <<
+    Gui, Add, Button, x+5 hp gUItodayPanelResetDate vbtn5, &Now
+    Gui, Add, Button, x+5 hp gNextTodayBTN vbtn2, >>
+
+    ; Gui, -DPIScale
+    Gui, Add, Text, xs y+10 w%graphW% h%graphH% Section glocateClickOnEarthMap +0x1000 +0xE +hwndhSolarGraphPic, Preview area
+    ; Gui, +DPIScale
+    Gui, Tab, 2
+    ww := (PrefsLargeFonts=1) ? lstWid - 70 : lstWid - 48
+    Gui, Add, Edit, x+10 y+10 Section w%ww% -multi vGeoDataSearchField ,
+    Gui, Add, Button, x+5 hp Default gPerformGeoDataSearch, &Search
+    Gui, Add, ListView, xs y+10 w%lstWid% r12 Grid AltSubmit gUiLVgeoSearch vLViewOthers, Country|City|Latitude|Longitude|GMT|Altitude|Score|Index
+
+    Gui, Tab
+    btnW := (PrefsLargeFonts=1) ? 80 : 55
+    btnH := (PrefsLargeFonts=1) ? 35 : 28
+    thisu := StrReplace(countriesArrayList[uiUserCountry] ":" geoData[uiUserCountry "|" uiUserCity], "Custom locations:")
+    Gui, Add, Edit, xm+0 y+10 w%ww% -wrap vnewGeoDataLocationUserEdit, % thisu
+    Gui, Add, Button, x+5 hp vbtn4 gbtnUIaddNewGeoLocation, &Add to list
+    Gui, Add, Button, xm+0 y+20 h%btnH% w%btnW% gCloseWindow, &Close
+    Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
+    Gui, Add, Button, x+5 hp guiBTNupdateExtendedGeoData vbtn3, &Update index
+    txtW := (PrefsLargeFonts=1) ? lstWid - 245 : lstWid - 210
+    Gui, Add, Text, x+5 hp w%txtW% +0x200 -wrap vUIastroInfoSet, Please wait...
+
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
+    Gui, Show, AutoSize, Earth map: %appName%
+    generateEarthMap()
+}
+
+ToggleEarthSunMap() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, showEarthSunMapModus
+  generateEarthMap()
+}
+
+loadGeoData() {
+   FileRead, userlist, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   FileRead, content, %A_ScriptDir%\resources\geo-locations-final.txt
+   If (StrLen(userlist)<30)
+   {
+      If (ST_Count(userlist, "|")<6)
+         userlist .= "`nCustom locations|User defined default|-30.1914|30.1939|2.0|2.0|2023`n"
+   }
+
+   content := userlist "`n" content
+   newu := ""
+   m := new hashtable()
+   listedCities := listedCountries := p := 0
+   countriesList := ""
+   countriesArrayList := []
+   Loop, Parse, content, `n, `r
+   {
+      p++
+      k := StrSplit(A_LoopField, "|")
+      If StrLen(k[1])<2
+        Continue
+
+      testu := Format("{:L}", k[1])
+      If !m[testu]
+      {
+         geoData[listedCountries "|-1"] := listedCities
+         listedCountries++
+         m[testu] := listedCountries
+         countriesList .= k[1] "|"
+         countriesArrayList[listedCountries] := k[1]
+         listedCities := 1
+      } Else
+      {
+         listedCities++
+      } 
+
+      city := k[2], la := k[3], lo := k[4], gmt := k[5], dst := k[6], elevation := k[7]
+      c := (k[8]="pplc") ? 1 : 0
+      sc := (k[8]="pplc") ? "*" : ""
+      geoData[listedCountries "|" listedCities] := sc city "|" la "|" lo "|" gmt "|" dst "|" elevation "|" c
+   }
+   geoData[listedCountries "|-1"] := listedCities
+   m := ""
+   ; ToolTip, % p "=l=" listedCountries , , , 2
+}
+
+loadExtendedGeoData() {
+   FileRead, content, %A_ScriptDir%\resources\geo-locations-extended.txt
+   listedExtendedLocations := 0
+   extendedGeoData := []
+   Loop, Parse, content, `n, `r
+   {
+      k := StrSplit(A_LoopField, "|")
+      If StrLen(k[1])<2
+        Continue
+
+      listedExtendedLocations++
+      extendedGeoData[listedExtendedLocations] := [Trim(k[1]), Trim(k[2]), k[3], k[4], k[5], k[6], k[7]]
+   }
+
+   ; ToolTip, % p "=l=" listedCountries , , , 2
+}
+
+extractExtendedDataFromText(minPplLocation) {
+; source of cities5000.txt: https://download.geonames.org/export/dump/
+; the function converts the data to a different format for geo-locations-extended.txt
+
+   FileRead, content, *P65001 %A_ScriptDir%\resources\cities5000.txt
+   If ErrorLevel
+      Return "file-err-main-list"
+
+   If FileExist(A_ScriptDir "\resources\new-timezones.txt")
+      FileRead, tmz, *P65001 %A_ScriptDir%\resources\new-timezones.txt
+
+   tmz := StrReplace(tmz, "`t", "|")
+   If (!tmz || !InStr(tmz, "CountryCode|TimeZoneId|GMT offset"))
+      FileRead, tmz, *P65001 %A_ScriptDir%\resources\timezones.txt
+
+   If ErrorLevel
+      Return "file-err-time-zones-list"
+
+   FileRead, countries, *P65001 %A_ScriptDir%\resources\country-codes.txt
+   If ErrorLevel
+      Return "file-err-countries-list"
+
+   newu := "`n"
+   m := new hashtable()
+   ee := p := counter := 0
+   Loop, Parse, content, `n, `r
+   {
+      k := StrSplit(A_LoopField, "`t")
+      If (k[15]<minPplLocation || !k[15])
+         Continue
+
+      testuA := Format("{:L}", k[9] . k[2])
+      If (m[testuA]!=1)
+      {
+         counter++
+         m[testuA] := 1
+         elevu := k[16] ? k[16] : k[17]
+         If (elevu<-395)
+            elevu := -197 + Round(k[6])
+         Else If (elevu>7000)
+            elevu := 7019
+
+         newu .= k[9] "|" k[2] "|" Round(k[5], 4) "|" Round(k[6], 4) "|" k[18] "|" elevu "`n"
+      } else p++
+   }
+
+   Loop, Parse, tmz, `n, `r
+   {
+      If (A_Index=1 || !InStr(A_LoopField, "|"))
+         Continue
+
+      k := StrSplit(A_LoopField, "|")
+      newu := StrReplace(newu, "|" k[2] "|", "|" k[3] "|" k[4] "|")
+   }
+
+   Loop, Parse, countries, `n, `r
+   {
+      If !InStr(A_LoopField, "|")
+         Continue
+
+      k := StrSplit(A_LoopField, "|")
+      newu := StrReplace(newu, "`n" k[1] "|", "`n" k[2] "|")
+      ; c := k[1], d := k[2]
+      ; m[c] := d
+   }
+   
+   m := ""
+   If (counter<1000)
+      Return "list-malformed?"
+
+   FileDelete, %A_ScriptDir%\resources\geo-locations-extended.txt
+   Sleep, 2
+   If !ErrorLevel
+   {
+      FileAppend, % newu, %A_ScriptDir%\resources\geo-locations-extended.txt, UTF-8
+      If ErrorLevel
+         Return "file-permission-severe-error. Locations list was lost."
+   } Else
+      Return "file-permission-error"
+   ; fnOutputDebug(minpop " | " maxpop "|" ee "|" p)
+}
+
+uiBTNupdateExtendedGeoData() {
+    Gui, SettingsGUIA: +OwnDialogs
+    InputBox, UserInput, Update indexed locations, The locations to be indexed by Church Bells Tower are filtered by population count. Please enter a number higher than 7000. The locations with people fewer than the entered number will be filtered out.,,,,,,,,10100
+    If ErrorLevel
+    {
+       Return
+    } Else
+    {
+       UserInput := StrReplace(UserInput, ".")
+       UserInput := StrReplace(UserInput, ",")
+       UserInput := StrReplace(UserInput, " ")
+       UserInput := Trim(UserInput)
+       If !isNumber(UserInput)
+       {
+          simpleMsgBoxWrapper(appName, "Invalid number given. Update procedure abandoned.", 0, 1, 16)
+          Return
+       }
+       UserInput := clampInRange(UserInput, 7000, 950100)
+    }
+    ; MsgBox, 52, %appName%, Please confirm you want to update the list of indexed locations by choosing Yes. Cities with fewer than 10000 people will be left out.
+    ; IfMsgBox, Yes
+    ;    allGood := 1
+    ; If !allGood
+    ;    Return
+
+    FileDelete, %A_ScriptDir%\resources\cities5000.zip
+    ; FileDelete, resources\new-country-codes.txt
+    FileDelete, %A_ScriptDir%\resources\new-timezones.txt
+    ctr := countriesArrayList.Count()
+    cachedImg := A_ScriptDir "\resources\earth-surface-map-cached-countries-" ctr "-" listedExtendedLocations "-" A_Year ".jpg"
+    FileDelete, % cachedImg
+    Sleep, 50
+    ToolTip, Please wait... downloading... 1/5
+    Try UrlDownloadToFile, https://download.geonames.org/export/dump/cities5000.zip, %A_ScriptDir%\resources\cities5000.zip
+    Sleep, 300
+    ToolTip, Downloading... 1/5
+    d := (FileExist(A_ScriptDir "\resources\cities5000.zip") || AnyWindowOpen!=8) ? 200 : 1000
+    Sleep, % d
+    Try UrlDownloadToFile, https://download.geonames.org/export/dump/timeZones.txt, %A_ScriptDir%\resources\new-timezones.txt
+    ; Try UrlDownloadToFile, https://download.geonames.org/export/dump/countryInfo.txt, resources\new-country-codes.txt
+    ToolTip, Downloading... 2/5
+    d := (FileExist(A_ScriptDir "\resources\cities5000.zip") || AnyWindowOpen!=8) ? 200 : 1000
+    Sleep, % d
+    ToolTip, Downloading... 3/5
+    d := (FileExist(A_ScriptDir "\resources\cities5000.zip") || AnyWindowOpen!=8) ? 200 : 1000
+    Sleep, % d
+    ToolTip, Downloading... 4/5
+    d := (FileExist(A_ScriptDir "\resources\cities5000.zip") || AnyWindowOpen!=8) ? 200 : 1000
+    Sleep, % d
+    ToolTip, Downloading... 5/5
+    d := (FileExist(A_ScriptDir "\resources\cities5000.zip") || AnyWindowOpen!=8) ? 100 : 500
+    Sleep, % d
+    FileGetSize, sizeCity, %A_ScriptDir%\resources\cities5000.zip, K
+    FileGetSize, sizeTmz, %A_ScriptDir%\resources\new-timezones.txt, K
+    ; FileGetSize, sizeCountry, resources\new-country-codes.txt, K
+    Sleep, 50
+    If (sizeTmz<3)
+       FileDelete, %A_ScriptDir%\resources\new-timezones.txt
+    ; If (sizeCountry<5)
+    ;    FileDelete, resources\new-country-codes.txt
+
+    Tooltip
+    If ((sizeCity<250 || !FileExist(A_ScriptDir "\resources\cities5000.zip")) && AnyWindowOpen=8)
+       simpleMsgBoxWrapper(appName, "Update failed! Error downloading locations list file from`nhttps://download.geonames.org/export/dump.", 0, 1, 16)
+    Else If (AnyWindowOpen=8)
+       updateExtendedGeoData(UserInput)
+}
+
+updateExtendedGeoData(minPplLocation) {
+   Tooltip, Please wait - processing update data...
+   UnZipExtract2Folder(A_ScriptDir "\resources\cities5000.zip" , A_ScriptDir "\resources")
+   If FileExist(A_ScriptDir "\resources\cities5000.txt")
+   {
+      r := extractExtendedDataFromText(minPplLocation)
+      If !r
+      {
+         loadExtendedGeoData()
+         Tooltip
+         CloseWindow()
+         PanelEarthMap()
+         MsgBox, , %appName%, Locations list succesfully updated. There are now %listedExtendedLocations% indexed cities with a population higher than %minPplLocation%.
+      } Else
+      {
+         Tooltip
+         MsgBox, , %appName%, An error occured updating the locations list. Error code: %r%.
+      }
+   }
+
+   FileDelete, %A_ScriptDir%\resources\cities5000.zip
+   ; FileDelete, resources\new-country-codes.txt
+   FileDelete, %A_ScriptDir%\resources\new-timezones.txt
+}
+
+UnZipExtract2Folder(Zip, Dest="", Filename="") {
+; Function by Jess Harpur [2013] based on code by shajul (backup by Drugwash)
+; https://autohotkey.com/board/topic/60706-native-zip-and-unzip-xpvista7-ahk-l/page-2
+
+    SplitPath, Zip,, SourceFolder
+    If !SourceFolder
+       Zip := A_WorkingDir . "\" . Zip
+    
+    If !Dest
+    {
+       SplitPath, Zip,, DestFolder,, Dest
+       Dest := DestFolder . "\" . Dest . "\"
+    }
+    If (SubStr(Dest, 0, 1) <> "\")
+       Dest .= "\"
+
+    SplitPath, Dest,,,,,DestDrive
+    If !DestDrive
+       Dest := A_WorkingDir . "\" . Dest
+    StringTrimRight, MoveDest, Dest, 1
+    StringSplit, d, MoveDest, \
+    dName := d%d0%
+
+    fso := ComObjCreate("Scripting.FileSystemObject")
+    If !fso.FolderExists(Dest)   ;  http://www.autohotkey.com/forum/viewtopic.php?p=402574
+       fso.CreateFolder(Dest)
+
+    AppObj := ComObjCreate("Shell.Application")
+    FolderObj := AppObj.Namespace(Zip)
+    If Filename
+    {
+       FileObj := FolderObj.ParseName(Filename)
+       AppObj.Namespace(Dest).CopyHere(FileObj, 4|16)
+    } Else
+    {
+       FolderItemsObj := FolderObj.Items()
+       AppObj.Namespace(Dest).CopyHere(FolderItemsObj, 4|16)
+    }
+}
+
+coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob:=0, simplifiedMode:=0) {
+   If IsObject(prevufkob)
+   {
+      prevDuration := prevufkob.pvdur
+      possibleSR := prevufkob.psr
+      moreBonus := prevufkob.mbx
+      ; testus := getTwilightDuration(trz, latu, longu, gmtOffset, 6.1)
+      ; fnOutputDebug("signetica twilight duration=" Round((testus)/60,1))
+   }
+
+   ref := SubStr(trz, 1, 8)
+   tref := SubStr(tmr, 1, 8)
+   xtref := SubStr(xtmr, 1, 8)
+   yref := SubStr(yd, 1, 8)
+   altitudeBonus := (Altitude>100) ? Round(Altitude/1453, 2) : 0  ; in minutes
+
+   otherz := [],    fkob := []
+   fkob.RawR := 0,  fkob.RawS := 1
+
+   ; calculate sunrise and sunset times for yesterday, today and tomorrow 
+   ; I chose to do this because the results returned can be missing or exceed the given date
+   If (simplifiedMode=0)
+   {
+      kobyd := SolarCalculator(yd, latu, longu, gmtOffset, altitudeBonus)
+      kobtmr := SolarCalculator(tmr, latu, longu, gmtOffset, altitudeBonus)
+   }
+
+   kob := SolarCalculator(trz, latu, longu, gmtOffset, altitudeBonus)
+   If ((!kob.r || !kob.s) && simplifiedMode=0)
+   {
+      ofu := SubStr(trz, 1, 8) . "000001"
+      ; if no sunrise, sunset returned by Solar Calculator, use the SunRise class
+      bkob := calculateSunMoonRiseSet(SubStr(trz, 1, 10) "0101", ofu, latu, longu, gmtOffset, 1, altitudeBonus)
+      ; If (!bkob.r || !bkob.s)
+      If (!bkob.r && !bkob.s)
+      {
+         fnOutputDebug("2nd bkob")
+         bkob := calculateSunMoonRiseSet(SubStr(trz, 1, 10) "3101", ofu, latu, longu, gmtOffset, 1, altitudeBonus)
+         ; If ((bbkob.r && bbkob.s) || (!bkob.r && !bkob.s))
+         ; {
+         ;    fnOutputDebug("2nd bbkob yay")
+         ;    bkob := bbkob.Clone()
+         ; }
+      }
+
+      fnOutputDebug(trz "=bkob.r=" bkob.r)
+      fnOutputDebug(trz "=bkob.s=" bkob.s)
+   }
+
+   ; fnOutputDebug(trz "= kobyd.r=" kobyd.r)
+   ; fnOutputDebug("kob.r=" kob.r)
+   ; fnOutputDebug("kobtmr.r=" kobtmr.r)
+   ; fnOutputDebug("kobyd.s=" kobyd.s)
+   ; fnOutputDebug("kob.s=" kob.s)
+   ; fnOutputDebug("kobtmr.s=" kobtmr.s)
+   ; fnOutputDebug(trz "= civil kobyd.twR=" kobyd.twR)
+   ; fnOutputDebug("kob.twR=" kob.twR)
+   ; fnOutputDebug("kobtmr.twR=" kobtmr.twR)
+   ; fnOutputDebug("kobyd.twS=" kobyd.twS)
+   ; fnOutputDebug("kob.twS=" kob.twS)
+   ; fnOutputDebug("kobtmr.twS=" kobtmr.twS)
+
+   If (kobyd.RawDa && kob.RawDa)
+      diffDawnA := timeSpanInSeconds(ref . SubStr(kobyd.RawDa, 9), kob.RawDa)
+   If (kobtmr.RawDa && kob.RawDa)
+      diffDawnB := timeSpanInSeconds(ref . SubStr(kobtmr.RawDa, 9), kob.RawDa)
+
+   If (diffDawnA && diffDawnB)
+      fkob.diffuDawn := (diffDawnA + diffDawnB)//2
+   Else
+      fkob.diffuDawn := diffDawnA ? diffDawnA : diffDawnB
+
+   If (kobyd.RawDu && kob.RawDu)
+      diffDuskA := timeSpanInSeconds(ref . SubStr(kobyd.RawDu, 9), kob.RawDu)
+   If (kobtmr.RawDu && kob.RawDu)
+      diffDuskB := timeSpanInSeconds(ref . SubStr(kobtmr.RawDu, 9), kob.RawDu)
+
+   If (diffDuskA && diffDuskB)
+      fkob.diffuDusk := (diffDuskA + diffDuskB)//2
+   Else
+      fkob.diffuDusk := diffDuskA ? diffDuskA : diffDuskB
+
+   ; decide which sunrise and sunset are closest to the date chosen by user
+   If (InStr(kob.RawR, tref)=1 && InStr(kob.RawN, tref)=1 && InStr(kob.RawS, tref)=1
+   && InStr(kobyd.RawR, ref)=1 && InStr(kobyd.RawN, ref)=1 && InStr(kobyd.RawS, ref)=1)
+   {
+      ; this fixes locations such as Apia [Samoa], where GMT is +13
+      kobtmr := kob.Clone()
+      kob := kobyd.Clone()
+      kobyd := ""
+      fkob.accuracy .= "^"
+   }
+
+   If (!kob.RawR && !InStr(bkob.RawR, tref) && !InStr(bkob.RawR, xtref))
+   {
+      fkob.RawR := bkob.RawR
+      fkob.r := bkob.r
+      fkob.accuracy .= "."
+   } Else
+   {
+      fkob.RawR := kob.RawR
+      fkob.r := kob.r
+   }
+
+   If (!kob.RawS && !InStr(bkob.RawS, yref) && !InStr(bkob.RawS, xtref))
+   {
+      fkob.RawS := bkob.RawS
+      fkob.s := bkob.s
+      fkob.accuracy .= "."
+   } Else
+   {
+      fkob.RawS := kob.RawS
+      fkob.s := kob.s
+   }
+
+   fkob.twR := kob.twR
+   fkob.RawDa := kob.RawDa
+   fkob.twS := kob.twS
+   fkob.RawDu := kob.RawDu
+   If (InStr(fkob.RawS, yref)=1 || !fkob.RawS)
+   {
+      ; we do not need a sunset from yesterday 
+      fkob.s := ""
+      fkob.RawS := ""
+   }
+
+   ; ToolTip, % fkob.RawR "==" tref "==" ref , , , 2
+   If (InStr(fkob.RawR, tref)=1 || !fkob.RawR)
+   {
+      ; we do not need a sunrise from tomorrow  
+      fkob.r := ""
+      fkob.RawR := ""
+   }
+
+   fkob.n := kob.n        ; noon time
+   fkob.RawN := kob.RawN
+   getSunAzimuthElevation(kob.RawN, latu, longu, gmtOffset, azii, elevu)
+   fkob.elev := elevu
+
+   ; otherz[] object holds yesterday's dawn, sunrise and tomorrow's sunset, dawn;
+   If (InStr(kobyd.RawR, yref)=1 && !InStr(fkob.RawR, yref))
+   {
+      otherz.r := kobyd.r
+      otherz.RawR := kobyd.RawR
+   }
+
+   If (InStr(kobtmr.RawS, tref)=1 && !InStr(fkob.RawS, tref))
+   {
+      otherz.s := kobtmr.s
+      otherz.RawS := kobtmr.RawS
+   }
+
+   If (InStr(kobyd.RawDa, yref)=1 && !InStr(fkob.RawDa, yref))
+   {
+      otherz.twR := kobyd.twR
+      otherz.RawDa := kobyd.RawDa
+   }
+
+   If (InStr(kobtmr.RawDu, tref)=1 && !InStr(fkob.RawDu, tref))
+   {
+      otherz.twS := kobtmr.twS
+      otherz.RawDu := kobtmr.RawDu
+   }
+
+   ; now we decide to use some of yesterday's dates , or tomorrow's dates
+   If (!InStr(fkob.RawR, ref) && InStr(otherz.RawR, yref)=1 && otherz.RawR<fkob.RawS)
+   {
+      fkob.r := otherz.r
+      fkob.RawR := otherz.RawR
+   }
+
+   If (!InStr(fkob.RawDa, ref) && InStr(otherz.RawDa, yref)=1)
+   {
+      fkob.RawDa := otherz.RawDa
+      fkob.twR := otherz.twR
+   }
+
+   If (!InStr(fkob.RawDu, ref) && InStr(otherz.RawDu, tref)=1)
+   {
+      fkob.RawDu := otherz.RawDu
+      fkob.twS := otherz.twS
+   }
+
+   ; the bonus holds today's sunset that occured before the sunrise; we display the next sunset, even if it is tomorrow 
+   ; the bonus is required to calculate sunlight total time
+   specialBonus := (InStr(fkob.RawS, ref)=1 && InStr(otherz.RawS, tref)=1 && fkob.RawR>fkob.RawS && fkob.r && fkob.s) ? 1 : 0
+   If (!InStr(fkob.RawS, ref) && InStr(otherz.RawS, tref)=1 && otherz.RawS>fkob.RawR) || (specialBonus=1)
+   {
+      If (specialBonus=1)
+         bonus := fkob.RawS
+
+      fkob.s := otherz.s
+      fkob.RawS := otherz.RawS
+      ; fkob.RawDu := otherz.RawDu
+      ; fkob.twS := otherz.twS
+   }
+
+   If (!bonus && InStr(kobyd.RawS, ref)=1 && InStr(fkob.RawS, tref)=1)
+      bonus := kobyd.RawS
+
+   ; ToolTip, % bonus "=" moreBonus "=" ref "=" , , , 2
+   ; from the previous call of this function, if the sunset corresponds to today,
+   ; it is passed as moreBonus;
+   ; we set it as the sunset time in this call, if somehow in this call,
+   ; there is no sunset defined
+   If (!fkob.RawS && moreBonus)
+   {
+      fnOutputDebug("add moreBonus= " moreBonus)
+      FormatTime, s, % moreBonus, yyyy/MM/dd HH:mm
+      fkob.RawS := moreBonus
+      fkob.s := s
+      fkob.accuracy .= ","
+      If (possibleSR && !fkob.RawR)
+      {
+         ; in the wrapper of this function, a possible sunrise is calculated
+         ; based on the sunlight duration and the sunset time, moreBonus, both 
+         ; determined from a previous call to this function
+         fnOutputDebug("add possibleSR= " possibleSR)
+         FormatTime, p, % possibleSR, yyyy/MM/dd HH:mm
+         fkob.RawR := possibleSR
+         fkob.r := p
+         fkob.accuracy .= "/"
+      }
+   }
+
+   ; if there is bonus set in this call, we use moreBonus under specific circumstances as bonus,
+   ; to ensure total sunlight time is correct
+   If (!bonus && InStr(moreBonus, ref)=1 && moreBonus && SubStr(moreBonus, 1, 10)!=SubStr(fkob.RawS, 1, 10) && moreBonus<fkob.RawR)
+      bonus := moreBonus
+
+   If (!bonus && prevDuration=86400 && InStr(fkob.RawR, ref)=1 && (InStr(fkob.RawS, tref)=1 || InStr(fkob.RawS, tref + 1)=1))
+   {
+      ; We have no "sunset bonus" from yesterday, because yesterday was a polar day [no sunset],
+      ; but we do have a sunrise today and a sunset defined for tomorrow, then...
+      ; it means we must have a sunset before the sunrise of today;
+      ; a polar day cannot end with a sunrise, but with a sunset; it is obvious that
+      ; once you have a sunrise, a sunset must preceed it
+
+      sp := timeSpanInSeconds(SubStr(fkob.RawR, 1, 8) "000001", fkob.RawR)
+      If kobtmr.RawR
+         zp := timeSpanInSeconds(fkob.RawR, SubStr(fkob.RawR, 1, 8) . SubStr(kobtmr.RawR, 9))
+
+      bonus := fkob.RawR
+      If zp
+      {
+         zp := clampInRange(zp, 10, sp//1.15)
+         bonus += -zp, Seconds
+      } Else
+         bonus += -1*(sp//2), Seconds
+
+      fnOutputDebug("sp=" sp "; zp=" zp "; bonus=" bonus)
+      FormatTime, sx, % bonus, yyyy/MM/dd HH:mm
+      fkob.RawXS := bonus         ; only used when listing sunsets and sunrises
+      fkob.XS := sx
+      fkob.accuracy .= "\"
+   }
+
+   FormatTime, dayum, % trz, Yday
+   twDurA := max(Round(fkob.diffuDusk), Round(fkob.diffuDawn))
+   twDurB := max(Round(prevufkob.diffuDusk), Round(prevufkob.diffuDawn))
+   twDurC := max(twDurA, twDurB)
+
+   If (InStr(fkob.RawDa, yref)=1 && otherz.RawDa=fkob.RawDa && prevufkob.RawDa=fkob.RawDa && fkob.RawR)
+   {
+       ; if the dawn occured yesterday and it is the same with the one identified «today»
+       ; and we have a sunrise specific for today...
+       ; we estimate a new dawn for today's sunrise
+       fnOutputDebug("new dawn is needed: " twDurC "|"  fkob.diffuDusk "|" fkob.diffuDawn "|" prevufkob.diffuDusk "|" prevufkob.diffuDawn)
+       ; twDurD := getTwilightDuration(trz, latu, longu)
+       ; twDur := max(Round(twDurD), Round(twDurC))
+       ; method A
+       z := timeSpanInSeconds(kobyd.RawR, kobyd.RawDa)
+       giu := trz 
+       giu += -2, Days
+       kobxyd := SolarCalculator(giu, latu, longu, gmtOffset, altitudeBonus)
+       y := timeSpanInSeconds(SubStr(kobyd.RawDa, 1, 8) . SubStr(kobxyd.RawDa, 9), kobyd.RawDa)
+       z += y + 24
+       gj := fkob.RawR
+       gj += -z, Seconds
+
+       ; method B 'n C'
+       wa := timeSpanInSeconds(prevufkob.RawS, prevufkob.RawDu)
+       wb := timeSpanInSeconds(prevufkob.RawR, prevufkob.RawDa)
+       w := (wa + wb)//2
+       wza := prevufkob.RawDa ? w//2.05 : Round(w*1.1)
+       wzb := prevufkob.RawDa ? w//1.55 : Round(w*1.1)
+       wz := (wza + wzb)//2
+       blo := SubStr(fkob.RawR, 1, 8) . SubStr(prevufkob.RawDa, 9) 
+       iu := prevufkob.RawDa ? blo : fkob.RawR
+       fnOutputDebug("wz=" wz ", w=" w ", iu=" iu ", r=" prevufkob.RawR ", dawn=" prevufkob.RawDa  ", dusk=" prevufkob.RawDu)
+       iu += -wz, Seconds
+       If (iu<prevufkob.RawDu || iu<prevufkob.RawS || !prevufkob.accuracy)
+       {
+          iu := (prevufkob.accuracy="}") ? prevufkob.RawS : prevufkob.RawDu
+          If (iu=prevufkob.RawS)
+          {
+             iu += (190 - dayum)*2, Seconds
+          } Else
+          {
+             fkob.accuracy .= "#"
+             iu += wz*0.45, Seconds
+          }
+       }
+
+       zvr := min(iu, gj) ; choose from A or B 'n C'
+       fkob.RawDa := zvr
+       FormatTime, tw, % zvr, yyyy/MM/dd HH:mm
+       fkob.twR := tw
+       fkob.accuracy .= "<"
+       fnOutputDebug("new dawn twilight: iu=" iu "; gj =" gj "; twR=" tw)
+       fnOutputDebug("new dawn twilight: twDur=" twDur "; twDurD =" twDurD "; twDurC =" twDurC "; twR=" tw)
+      ; SoundBeep , 900, 100
+   }
+
+   If (fkob.RawS<kobtmr.RawDa && kobtmr.RawDa<fkob.RawDu && fkob.RawS<kobtmr.RawS && kobtmr.RawS>kobtmr.RawDa && kobtmr.RawS
+   && fkob.RawS && kobtmr.RawDa && InStr(fkob.RawDu, tref)=1 && InStr(fkob.RawS, ref)=1 && InStr(kobtmr.RawDa, tref)=1 && !kob.RawDu)
+   {
+      ; if the dusk occured yesterday and it is the same with the one identified «today»
+      ; and we have a sunset specific for today...
+      ; we estimate a new dusk for today's sunset
+      fnOutputDebug("new dusk twilight: " twDurC "|"  fkob.diffuDusk "|" fkob.diffuDawn "|" prevufkob.diffuDusk "|" prevufkob.diffuDawn)
+      twDurD := getTwilightDuration(trz, latu, longu, gmtOffset)
+      twDur := max(Round(twDurD), Round(twDurC))
+      If twDur
+      {
+         iu := fkob.RawS
+         iu += twDur, Seconds
+         If (iu>kobtmr.RawDa && kobtmr.RawDa>1)
+         {
+            iu := fkob.RawS
+            iu += twDur//1.5, Seconds
+         }
+         newu := 1
+      } Else If (InStr(fkob.RawS, ref)=1 && InStr(kobtmr.RawDa, tref)=1)
+      {
+         w := timeSpanInSeconds(SubStr(fkob.RawS, 1, 8) "235959", fkob.RawS)
+         w += timeSpanInSeconds(SubStr(kobtmr.RawDa, 1, 8) "000001", kobtmr.RawDa)
+         iu := fkob.RawS
+         iu += w//1.25, Seconds
+         newu := 1
+      }
+
+      If (newu=1)
+      {
+         fkob.RawDu := iu
+         FormatTime, tw, % iu, yyyy/MM/dd HH:mm
+         fkob.twS := tw
+         fkob.accuracy .= w ? "~>" : ">"
+         If (InStr(fkob.RawDu, tref)=1)
+            g := timeSpanInSeconds(SubStr(fkob.RawDu, 1, 8) "000001", fkob.RawDu)
+      }
+      fnOutputDebug("new dusk twilight: twDur=" twDur "; twDurD =" twDurD "; twDurC =" twDurC "; twS=" tw)
+      ; SoundBeep , 990, 100
+   }
+
+   If InStr(kobyd.RawDu, ref)
+      cbonus := kobyd.RawDu
+
+   If (isInRange(dayum, mEquiDay - 2, sEquiDay + 2) && latu>0 && (!fkob.RawDa || !fkob.RawDu))
+   || (!isInRange(dayum, mEquiDay - 2, sEquiDay + 2) && latu<0 && (!fkob.RawDa || !fkob.RawDu))
+   {
+      ; when the sun does not pass below the 6 degrees of the horizon line, we have undefined civil twilight times
+      ; here we use the next sunrise as the end of civil twilight and the previous sunset as the beginning
+      ; it is meant to help with calculating the civil twilight duration 
+      ; this only applies between the March equinox and the September equinox, if it is the north pole,
+      ; however ... it is the opposite for the south pole.
+
+      If (!fkob.RawDa && kobyd.s && fkob.r)
+      {
+         fkob.accuracy .= "{"
+         fkob.RawDa := kobyd.RawS
+         fkob.twR := kobyd.s
+         fkob.Dawn := 2
+      }
+
+      If (!fkob.RawDa && fkob.XS && fkob.r)
+      {
+         fkob.accuracy .= "{"
+         fkob.RawDa := fkob.RawXS
+         fkob.twR := fkob.XS
+         fkob.Dawn := 2
+      }
+
+      If (!fkob.RawDu && kobtmr.r && fkob.s)
+      {
+         fkob.accuracy .= "}"
+         fkob.RawDu := kobtmr.RawR
+         fkob.twS := kobtmr.r
+         fkob.Dusk := 2
+      }
+
+      If (fkob.RawDu && fkob.Dusk=2 && kobtmr.twR && kobtmr.RawDa<fkob.RawDu)
+      {
+         ; here we try to guess a dusk time because we have a sunset followed by a dawn
+         ; in-between the two moments of the day
+
+         z := timeSpanInSeconds(kobtmr.RawS, kobtmr.RawDu)
+         kobxtmr := SolarCalculator(xtmr, latu, longu, gmtOffset, altitudeBonus)
+         y := timeSpanInSeconds(SubStr(kobtmr.RawDu, 1, 8) . SubStr(kobxtmr.RawDu, 9), kobtmr.RawDu)
+         z += y
+         j := fkob.RawS
+         j += z+39, Seconds
+
+         fkob.RawDu := j
+         FormatTime, tw, % j, yyyy/MM/dd HH:mm
+         ; MsgBox, % tw "`n" msgu "=" zx "==" z//1.85
+         fkob.twS := tw
+         fkob.accuracy .= "@"
+         fkob.Dusk := 1
+         fnOutputDebug(y "=y; today=" ref " = new dusk=" j "; sunset="  fkob.RawS "; dawnTmr=" kobtmr.RawDa)
+         If (InStr(fkob.RawDu, tref)=1)
+         {
+            g := timeSpanInSeconds(SubStr(fkob.RawDu, 1, 8) "000001", fkob.RawDu)
+            fnOutputDebug("lul=" g)
+         }
+      }
+
+      If (fkob.Dawn=2 && InStr(fkob.RawDa, ref)=1)
+         p := timeSpanInSeconds(SubStr(fkob.RawDa, 1, 8) "000001", fkob.RawDa)
+      ; Else If (prevufkob.Dusk=2 && InStr(prevufkob.RawDu, ref))
+      ; {
+      ;    p := timeSpanInSeconds(SubStr(prevufkob.RawDu, 1, 8) "000001", prevufkob.RawDu)
+      ;    fkob.accuracy .= "^"
+      ; }
+   }
+
+   fkob.sunbonux := bonus
+   fkob.civilbonux := cbonus
+   fkob.civilextra := p
+   fkob.civilestra := g
+   ; If prevDuration
+   ;    fnOutputDebug("bonus=" bonus "; civil bonus=" cbonus "; civil extra p=" p)
+   Return fkob
+}
+
+wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0) {
+   ; this function tries to make sensical the values displayed by Church Bells Tower 
+   ; tomorrow or yesterday are relative to the given date;
+   ; the time for rise can be yesterday, if not available for today;
+   ; the time for set can be tomorrow, if not available for today;
+   ; after these «adjustments», calculate day length;
+   ; if no rise or set, assume it is a polar day if the given date is between the march equinox and september equinox
+   ; otherwise, assume it is a polar night;
+
+   ; coreWrapSunInfos() and coreCalculateLightDuration() are called twice
+   ; the first time is for yesterday and the 2nd time is for today, but with additional details
+   ; derived from the previous call.
+
+; Tested on:
+
+    ;/ Canada|Inuvik|68.361|-133.729|-7.0|PPLA|-6.0|15                 [ polar night ]
+    ;/ Canada|Naujaat [Kivalliq]|66.522|-86.235|-6.0|PPL|-5.0|25       [ polar day ]
+    ;/ Canada|Qikiqtarjuaq (Nunavut)|67.554|-64.028|-5.0|PPLA|-4.0|19  [ polar day ]
+    ;  05/29 -  R=00:19  S=00:07  -- missing sun rise/set
+
+    ;/ Greenland|Sisimiut|66.939|-53.672|-3.0|PPLA|-2.0|21  [ polar day ]
+    ;  06/02 -  R=01:50  S=01:14  -- missing sun rise/set
+
+    ; Russia|Severnyy|76.421|67.304|3.0|PPLA|3.0|234       [ polar deep night ]
+    ; Norway|Svalbard-Jan Mayen|78.223|15.647|1.0|PPLC|2.0 [ polar deep night ]
+    ; Sweden|Luleå|65.584|22.155|1.0|PPLA|2.0|17
+    ; Iceland|Akureyri|65.684|-18.088|0.0|PPLA|0.0|6
+    ; USA|Fairbanks|64.843|-147.723|-9.0|PPLA2|-8.0|132
+    ; USA|Anchorage|61.218|-149.900|-9.0|PPLA2|-8.0|31
+    ; 06/06 - tR=02:11 tS=01:44  -- missing civil twilights
+
+    ;/ Finland|Kemi|65.736|24.564|2.0|PPLA3|3.0|16        [ polar day ]
+    ;/ Finland|Kuusamo|65.964|29.189|2.0|PPLA3|3.0|261    [ polar day ]
+    ;/ Finland|Rovaniemi|66.500|25.717|2.0|PPLA|3.0|92    [ polar day ]
+    ;/ Finland|Sevettijärvi|69.505|28.591|2.0|PPLA|3.0|95 [ polar night ]
+    ;/ Norway|Bardufoss|69.064|18.515|1.0|PPLA|2.0|70     [ polar night ]
+    ;/ Norway|Bodø|67.280|14.405|1.0|PPLA|2.0|22          [ polar day ]
+    ;/ Norway|Harstad|68.798|16.542|1.0|PPLA2|2.0|1       [ polar night ]
+    ;/ Norway|Lakselv|70.051|24.971|1.0|PPLA|2.0|50       [ polar night ]
+    ;/ Norway|Kiberg|70.285|30.998|1.0|PPLA|2.0|18        [ polar night ]
+    ;/ Norway|Tromsø|69.649|18.955|1.0|PPLA|2.0|10        [ polar night ]
+    ;/ Russia|Murmansk|68.979|33.093|3.0|PPLA|3.0|96      [ polar night ]
+    ;/ Russia|Norilsk|69.354|88.203|7.0|PPL|7.0|76        [ polar night ]
+    ;/ Sweden|Boden|65.825|21.689|1.0|PPLA2|2.0|10        [ polar day ]
+    ;/ Sweden|Kiruna|67.856|20.225|1.0|PPLA2|2.0|579      [ polar night ]
+
+; Locations picked to «stress test» corner cases, where daylights are longer than 24 hours or inexistent, in winter.
+; Results compared with results from https://www.timeanddate.com/sun/
+
+   trz := t
+   If gmtOffset
+      trz += gmtOffset, Hours
+
+   yd := tmr := xtmr := trz
+   tmr += 1, Days
+   xtmr += 2, Days
+   yd += -1, Days
+   ref := SubStr(trz, 1, 8)
+   tref := SubStr(tmr, 1, 8)
+   xtref := SubStr(xtmr, 1, 8)
+   yref := SubStr(yd, 1, 8)
+   If (simplifiedMode=0)
+   {
+      byd := btmr := bxtmr := btrz := yd
+      btmr += 1, Days
+      bxtmr += 2, Days
+      byd += -1, Days
+      bref := SubStr(btrz, 1, 8)
+      btref := SubStr(btmr, 1, 8)
+      bxtref := SubStr(bxtmr, 1, 8)
+      bydref := SubStr(byd, 1, 8)
+ 
+      bfkob := coreWrapSunInfos(byd, btrz, btmr, bxtmr, latu, longu, gmtOffset, Altitude)
+      bduration := coreCalculateLightDuration(bfkob.sunbonux, bfkob.r, bfkob.s, bfkob.RawR, bfkob.RawS, bydref, bref, btref, btrz, "Sun", latu)
+      moreBonus := InStr(bfkob.RawS, ref) ? bfkob.RawS : 0
+      FormatTime, dayum, % trz, Yday
+      If (isInRange(dayum, mEquiDay + 15, sEquiDay - 15) && moreBonus && bfkob.RawS)
+      {
+         ; a possible sunrise is calculated based on the sunlight duration and the sunset time of the previous call to coreWrapSunInfos();
+         ; this applies only between the march equinox and september equinox;
+         ; the next call to coreWrapSunInfos() will determine if this is going to be used or not
+         possibleSR := bfkob.RawS
+         ; sp := timeSpanInSeconds(SubStr(moreBonus, 1, 8) "000001", moreBonus)
+         k := 86400 - bduration[2] ; - sp
+         possibleSR += k//2, Seconds
+         fnOutputDebug("maybe possibleSR=" possibleSR "; bdur[2]=" bduration[2] "; sp=" sp)
+      }
+ 
+      bfkob.psr := possibleSR
+      bfkob.mbx := moreBonus
+      bfkob.pvdur := bduration[2]
+ 
+      ; fnOutputDebug("first run duration=" bduration[1] "; moreBonus=" moreBonus)
+   }
+
+   fkob := coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, bfkob)
+   duration := coreCalculateLightDuration(fkob.sunbonux, fkob.r, fkob.s, fkob.RawR, fkob.RawS, yref, ref, tref, trz, "Sun", latu)
+   If (isInRange(dayum, mEquiDay - 2, jSolsDay - 1) && fkob.r=bfkob.r && fkob.s=bfkob.s && duration[2]<bduration[2] && simplifiedMode=0)
+   {
+      ; guesstimate a new sunrise if yesteday and today have the same sunrise and sunset times
+      ; and the sunlight duration of today is shorter compared to yesterday;
+      ; this can never be the case between the march equinox and June's solstice
+      ; the sunrise is calculated based on the sunlight duration and the sunset time of the first call to coreWrapSunInfos();
+      possibleSR := max(bfkob.RawS, bfkob.RawR)
+      k := 86400 - bduration[2] ; - sp
+      possibleSR += k//2, Seconds
+      fkob.RawR := possibleSR
+      FormatTime, rx, % possibleSR, yyyy/MM/dd HH:mm
+      fkob.r := rx
+      fkob.accuracy .= "!"
+
+      ; recalculate sunlight duration
+      duration := coreCalculateLightDuration(fkob.sunbonux, fkob.r, fkob.s, fkob.RawR, fkob.RawS, yref, ref, tref, trz, "Sun", latu)
+      fnOutputDebug("deep fuck up")
+      ; SoundBeep 300, 100
+   }
+
+   ; fkob.v := (trz>fkob.RawR && trz<fkob.RawS) ? "Yes" : "No"
+   civilSecondsExtra := Round(fkob.civilextra) + Round(bfkob.civilestra)
+   ; fnOutputDebug("civilSecondsExtra=" fkob.civilextra "; " bfkob.civilestra)
+   civilrest := (fkob.dawn=2 && fkob.dusk=2) ? 1 : 0
+   civilduration := coreCalculateLightDuration(fkob.civilbonux, fkob.twR, fkob.twS, fkob.RawDa, fkob.RawDu, yref, ref, tref, trz, "Civil", latu, duration[2], civilSecondsExtra, civilrest)
+   If (civilrest=1)
+      fkob.accuracy .= "&"
+
+   fkob.dur := duration[1]
+   fkob.cdur := civilduration[1]
+   fkob.durRaw := duration[2]
+   fkob.cdurRaw := civilduration[2]
+   ; fnOutputDebug("twilight duration=" Round(civilduration[2]/60, 1))
+   ; getMoonElevation(t, trz, latu, longu)
+   Return fkob
+}
+
+coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, obju, latu:=0, sunlight:=0, civilExtra:=0, civilrest:=0) {
+   If (civilrest=1 && obju="civil")
+   {
+      rawP := 86400 - sunlight
+      duration := transformSecondsReadable(rawP)
+   } Else If ((dcR && dcS) || (!dcR && InStr(dSraw, ref)=1) || (!dcS && InStr(dRraw, ref)=1))
+   {
+      If (dcR && dcS)
+      {
+         g := (!bonus && InStr(dSraw, tref)=1) ? ref "235959" : dSraw
+         cr := (InStr(dRraw, yref)=1) ? ref "000001" : dRraw
+         cs := (bonus && InStr(dSraw, tref)=1) ? SubStr(cr, 1, 8) "235959" : g
+         p := timeSpanInSeconds(cr, cs)
+         b := (bonus<cr && cs<cr && InStr(dSraw, ref)=1 && InStr(dRraw, ref)=1) ? 0 : 1
+         If (bonus && b=1)
+            p += timeSpanInSeconds(SubStr(bonus, 1, 8) "000001", bonus)
+
+         ; fnOutputDebug(obju "\" b " bonus=" bonus)
+         ; fnOutputDebug("g=" g)
+         ; fnOutputDebug("cr=" cr)
+         ; fnOutputDebug("cs=" cs)
+         ; fnOutputDebug("p=" p " /" obju)
+         If (dSraw<dRraw && (InStr(dSraw, ref)=1 || InStr(dSraw, tref)=1))
+         {
+            ; if the sunset occured before the sunrise, we must substract
+            ; the time span from that of an entire day: 86400 seconds
+            fnOutputDebug("substract: 86400 - " p)
+            p := 86400 - p
+         }
+      } Else If (!dcR && InStr(dSraw, ref)=1)
+         p := timeSpanInSeconds(SubStr(dSraw, 1, 8) "000001", dSraw)
+      Else If (!dcS && InStr(dRraw, ref)=1)
+         p := timeSpanInSeconds(SubStr(dRraw, 1, 8) "235959", dRraw)
+
+      If (obju="Civil")
+      {
+         ; fnOutputDebug("civil p=" p "; sl=" sunlight "; extra=" civilExtra)
+         p += civilExtra
+         p := (p>sunlight) ? p - sunlight : sunlight - p
+      }
+
+      rawP := p
+      duration := transformSecondsReadable(p)
+      ; If (obju="sun")
+      ; ToolTip, % duration "=" Round(p/60, 1) "=" Mod(p, 60) , , , 2
+   } Else If (obju="Sun")
+   {
+      ; if no sunrise and sunset, then we can assume it is either a polar day or a polar night 
+      ; based on the day of the year; if it is somewhere 
+      ; between the March equinox and the September equinox it is likely a polar day, 
+      ; otherwise, it is a polar night
+      FormatTime, dayum, % trz, Yday
+      If (latu>0)
+         duration := isInRange(dayum, mEquiDay - 2, sEquiDay + 2) ? "24:00" : "00:00"
+      Else
+         duration := isInRange(dayum, mEquiDay - 2, sEquiDay + 2) ? "00:00" : "24:00"
+      rawP := InStr(duration, "24:") ? 86400 : 1 ; in seconds
+   } Else If (obju="Civil")
+   {
+      ; if no dawn and dusk, then we can assume it is all civil twilight
+      ; only if sunlight time is over 20 hours and the day of the year is
+      ; between the March equinox and the September equinox, if it is the north pole,
+      ; however ... it is the opposite for the south pole.
+
+      forceType := 0
+      FormatTime, dayum, % trz, Yday
+      If (isInRange(dayum, mEquiDay + 2, sEquiDay - 2) && latu>0 && sunlight>72150)
+      || (!isInRange(dayum, mEquiDay + 2, sEquiDay - 2) && latu<0 && sunlight>72150)
+      {
+         forceType := 1
+         rawP := 86400 - sunlight
+         duration := transformSecondsReadable(rawP)
+      } Else
+      {
+         rawP := 1
+         duration := "00:00"
+      }
+   } Else If (obju="Moon")
+   {
+      ; if no rise/set for the moon, use the data from getMoonNoonZeit()
+      ; we have min and max elevation of the moon and make assumptions based on these
+
+      forceType := 0
+      FormatTime, dayum, % trz, Yday
+      If (bonus.maxu>0 && bonus.minu>-0.1)
+      {
+         rawP := 86400
+         duration := transformSecondsReadable(rawP)
+      } Else If (bonus.maxu<=0.1)
+      {
+         rawP := 1
+         duration := "00:00"
+      }
+   }
+   ; If (obju="Civil")
+   ;    fnOutputDebug("civil=" duration " / " rawP)
+
+   Return [duration, rawP, forceType]
+}
+
+transformSecondsReadable(p, friendly:=0) {
+  p := p/60  ; from seconds to minutes
+  d := (Floor(p/1441)>=1) ? Floor(p/1440) "d " : ""
+  ; t := (Floor(p/60)>24) ? p - (60*24) : p
+  y := Round(Mod(p, 60))
+  If (y=60)
+     y -= 1
+
+  duration := d format("{1:02}", Floor(p/60)) ":" format("{1:02}", y)
+  If (InStr(duration, "00:0") && friendly=1)
+  {
+     ; ToolTip, % p , , , 2
+     g := Round((p - Floor(p)) * 60)
+     duration := y "m " g "s"
+     If (y=0 && g=0)
+        duration := "0s"
+  }
+
+  Return duration
+}
+
+wrapCalcMoonRiseSet(t, latu, longu, gmtOffset:=0, Altitude:=0) {
+   ; this function tries to make sensical the values displayed by Church Bells Tower 
+   ; just show the rise/set on the given day, not tomorrow or yesterday [relative to the given date]
+   ; the time for rise can be yesterday, if not available for today
+   ; the time for set can be tomorrow, if not available for today
+   ; after these «adjustments», calculate day length
+
+   trz := t
+   If gmtOffset
+      trz += gmtOffset, Hours
+
+   altitudeBonus := (Altitude>100) ? Round(Altitude/1453, 2) : 0  ; in minutes
+   yd := tmr := trz
+   tmr += 1, Days
+   yd += -1, Days
+   ref := SubStr(trz, 1, 8)
+   tref := SubStr(tmr, 1, 8)
+   yref := SubStr(yd, 1, 8)
+
+   ftz := t
+   ftz += gmtOffset, Hours
+
+   ofu := ftz := SubStr(ftz, 1, 8) . "000001"
+   ftz += -1*gmtOffset, Hours
+   ftz += -15, Hours
+   ; ftz += 24, Hours
+   ; ToolTip, % ftz , , , 2
+   otherz := []
+   fkob := []
+   fkob.RawR := 0
+   fkob.RawS := 1
+   ; ToolTip, % yref "="  ref "=" tref , , , 2
+   Loop, 48
+   {
+       kob := calculateSunMoonRiseSet(ftz, ofu, latu, longu, gmtOffset, 0, altitudeBonus)
+       ; fnOutputDebug(A_Index " kob.r=" kob.RawR "; ref=" ref "; ftz=" ftz)
+       ftz += 60, Minutes
+       If (InStr(kob.RawR, ref)=1)
+       {
+          fkob.r := kob.r
+          fkob.RawR := kob.RawR
+       } Else If (InStr(kob.RawR, yref)=1)
+       {
+          otherz.r := kob.r
+          otherz.RawR := kob.RawR
+       }
+
+       If (InStr(kob.RawS, ref)=1)
+       {
+          fkob.s := kob.s
+          fkob.RawS := kob.RawS
+       } Else If (InStr(kob.RawS, tref)=1)
+       {
+          otherz.s := kob.s
+          otherz.RawS := kob.RawS
+       }
+
+       If (InStr(fkob.RawR, ref) && (InStr(fkob.RawS, ref) || InStr(fkob.RawS, tref)) && fkob.RawR<fkob.RawS && fkob.r && fkob.s)
+          Break
+   }
+
+   If (!InStr(fkob.RawR, ref) && InStr(otherz.RawR, yref)=1 ) ; && otherz.RawR<fkob.RawS)
+   {
+      fkob.r := otherz.r
+      fkob.RawR := otherz.RawR
+   }
+
+   If (!InStr(fkob.RawS, ref) && InStr(otherz.RawS, tref)=1)
+   {
+      fkob.s := otherz.s
+      fkob.RawS := otherz.RawS
+   }
+   ; fkob.v := (trz>fkob.RawR && trz<fkob.RawS) ? "Yes" : "No"
+   fkob.reverse := (fkob.RawS<fkob.RawR && fkob.RawS && fkob.RawR) ? 1 : 0
+   fkob.ref := ref
+   fkob.yref := yref
+   fkob.tref := tref
+   fkob.trz := trz
+   Return fkob
+}
+
+timeSpanInSeconds(x, y) {
+    ax := max(x, y)
+    an := min(x, y)
+    p := ax
+    g := an
+    ; p -= g, Minutes
+    p -= g, Seconds
+    Return p
+}
+
+initCBTdll() {
+   DllPath := A_ScriptDir "\cbt-main.dll"
+   If !A_IsCompiled
+      DllPath := "cpp-dll\cbt-main.dll"
+
+   If !hCbtDLL
+      hCbtDLL := DllCall("LoadLibraryW", "WStr", DllPath, "UPtr")
+   Else
+      Return hCbtDLL
+
+   Return hCbtDLL
+}
+
+callCBTdllFunc(funcu) {
+  Static oldie := {"calculateEquiSols":24, "getMoonElevation":32, "getMoonNoon":44, "getMoonPhase":56, "getSolarCalculatorData":48, "getSunAzimuthElevation":52, "getSunMoonRiseSet":48, "getTwilightDuration":36, "oldgetMoonPhase":40}
+  If (A_PtrSize=8)
+     Return "cbt-main.dll\" funcu
+  Else
+     Return "cbt-main.dll\" funcu "@" oldie[funcu]
+}
+
+getSunAzimuthElevation(t, latu, longu, gmtOffset, ByRef azimuth, ByRef elevation) {
+   ; latu := 52.524,   longu := 13.411 ; germany, berlin
+   If (!initCBTdll() || !t)
+      Return
+
+   t += -1*gmtOffset, Hours
+   FormatTime, yr, % t, yyyy
+   FormatTime, mo, % t, M
+   FormatTime, da, % t, d
+   FormatTime, hh, % t, H
+   FormatTime, mi, % t, m
+   azimuth := elevation := ""
+   r := DllCall(callCBTdllFunc("getSunAzimuthElevation"), "double", t, "Int", yr, "Int", mo, "Int", da, "Int", hh, "Int", mi, "double", latu, "double", longu, "double*", azimuth, "double*", elevation, "Int")
+   If r
+   {
+      elevation := Round(elevation, 2)
+      azimuth := Round(azimuth, 2)
+   }
+   Return r
+}
+
+calculateSunMoonRiseSet(t, rt, latu, longu, gmtOffset:=0, obju:=1, altitudeBonus:=0) {
+   ; latu := 52.524,   longu := 13.411 ; germany, berlin
+   If (!initCBTdll() || A_PtrSize!=8)
+      Return
+   if !t
+      t := A_NowUTC
+
+   ot := t
+   rot := rt
+   t -= 19700101000000, S   ; convert to Unix TimeStamp
+   rt -= 19700101000000, S   ; convert to Unix TimeStamp
+   twilight := grise := gsetu := ""
+   r := DllCall(callCBTdllFunc("getSunMoonRiseSet"), "double", t, "double", rt, "Float", latu, "Float", longu, "int", obju, "double*", grise, "double*", gsetu, "double*", twilight, "Int")
+   If !r
+      Return
+
+   ; fnOutputDebug(Round(grise, 2) "//" Round(gsetu, 2))
+   If (Round(grise)!=999999)
+   {
+      nrise := rot
+      nrise += grise, hours
+   }
+
+   If (Round(gsetu)!=999999)
+   {
+      nsetu := rot
+      nsetu += gsetu, hours
+      ; fnOutputDebug(gsetu "//" nsetu "//" rot)
+   }
+
+   If (allowAltitudeSolarChanges!=1)
+      altitudeBonus := 0
+
+   If gmtOffset
+   {
+      ; ot += gmtOffset, Hours
+      If nsetu
+         nsetu += gmtOffset, Hours
+      If nrise
+         nrise += gmtOffset, Hours
+   }
+
+   If altitudeBonus
+   {
+      If nsetu
+         nsetu += altitudeBonus, Minutes
+      If nrise
+         nrise += -altitudeBonus, Minutes
+   }
+
+   If twilight
+   {
+      twRiseRaw := nrise
+      twSetRaw := nsetu
+      twRiseRaw += -twilight, Seconds
+      twSetRaw += twilight, Seconds
+      ; fnOutputDebug("tw=" twilight " twRise=" twRise " twSet=" twSet)
+      FormatTime, twRise, % twRiseRaw, yyyy/MM/dd HH:mm
+      FormatTime, twSet, % twSetRaw, yyyy/MM/dd HH:mm
+   }
+
+   obju := []
+   ; obju.v := (ot>nrise && ot<nsetu) ? "Yes" : "No"
+   If nsetu
+      FormatTime, fnsetu, % nsetu, yyyy/MM/dd HH:mm
+
+   If nrise
+      FormatTime, fnrise, % nrise, yyyy/MM/dd HH:mm
+
+   obju.r := fnrise
+   obju.s := fnsetu
+   obju.RawDa := twRiseRaw
+   obju.RawR := nrise
+   obju.RawS := nsetu
+   obju.RawDu := twSetRaw
+   obju.tw := twilight
+   obju.twR := twRise
+   obju.twS := twSet
+   ; fnOutputDebug(r "=" nrise "=" nsetu)
+   Return obju
+}
+
+calculateEquiSols(k, yearu, l:=0) {
+   If !initCBTdll()
+      Return
+
+   mm := d := hh := m := ""
+   r := DllCall(callCBTdllFunc("calculateEquiSols"), "int", k - 1, "int", yearu, "int*", mm, "int*", d, "int*", hh, "int*", m, "Int")
+   If !r
+      Return
+
+   theDate := yearu Format("{:02}", mm) Format("{:02}", d) Format("{:02}", hh) Format("{:02}", m) Format("{:02}", 14)
+   If (l=1)
+      Return convertUTCtoLocalTime(theDate)
+
+   Return theDate
+}
+
+getMoonLichtAngle(t, obsLat, obsLon, obsAlt) {
+   If !initCBTdll()
+      Return
+
+   FormatTime, yr, % t, yyyy
+   FormatTime, mo, % t, M
+   FormatTime, da, % t, d
+   FormatTime, hh, % t, H
+   FormatTime, mi, % t, m
+   t -= 19700101000000, S   ; convert to Unix TimeStamp
+   r := DllCall(callCBTdllFunc("getMoonLitAngle"), "double", t, "int", yr, "int", mo, "int", da, "int", hh, "int", mi, "double", obsLat, "double", obsLon, "int", obsAlt, "double")
+   If !r
+      Return
+
+   Return r
+}
+
+getTwilightDuration(timeus, latu, longu, gmtOffset, degs:=6.1) {
+   If !initCBTdll()
+      Return
+
+   twDur := ""
+   If gmtOffset
+      timeus += -1*gmtOffset, Hours
+   timeus -= 19700101000000, S   ; convert to Unix TimeStamp
+   r := DllCall(callCBTdllFunc("getTwilightDuration"), "double", timeus, "double", latu, "double", longu, "double", degs, "double*", twDur, "Int")
+   If !r
+      Return
+
+   If !twDur
+   {
+      degs -= 0.4
+      r := DllCall(callCBTdllFunc("getTwilightDuration"), "double", timeus, "double", latu, "double", longu, "double", degs, "double*", twDur, "Int")
+   }
+   Return twDur*2
+}
+
+getMoonElevation(timeus, latu, longu, gmtOffset, ByRef azimuth, ByRef eleva) {
+   If !initCBTdll()
+      Return
+   If gmtOffset
+      timeus += -1*gmtOffset, Hours
+   timeus -= 19700101000000, S   ; convert to Unix TimeStamp
+   azimuth := eleva := ""
+   r := DllCall(callCBTdllFunc("getMoonElevation"), "double", timeus, "double", latu, "double", longu, "double*", azimuth,  "double*", eleva, "Int")
+   ; ToolTip, % eleva , , , 2
+   If !r
+      Return
+
+   Return 1
+}
+
+getMoonNoonZeit(timeus, latu, longu, gmtOffset, doAll) {
+   If !initCBTdll()
+      Return
+
+   ot := timeus
+   If gmtOffset
+      timeus += -1*gmtOffset, Hours
+
+   timeus -= 19700101000000, S   ; convert to Unix TimeStamp
+   hmax := hmin := fmax := fmin := ""
+   r := DllCall(callCBTdllFunc("getMoonNoon"), "double", timeus, "double", latu, "double", longu, "int", doAll, "double*", hmax,  "double*", hmin, "double*", fmax,  "double*", fmin, "Int")
+   If !r
+      Return
+
+   obju := []
+   otn := ot
+   otn += hmax, Minutes
+   FormatTime, fnoon, % otn, yyyy/MM/dd HH:mm
+   obju.RawN := otn
+   obju.n := fnoon
+   obju.maxu := fmax
+
+   If (doAll=1)
+   {
+      otm := ot
+      otm += hmin, Minutes
+      FormatTime, fmidn, % otm, yyyy/MM/dd HH:mm
+      obju.RawMN := otm
+      obju.mn := fmidn
+      obju.minu := fmin
+   }
+
+   Return obju
+}
+
+SolarCalculator(t, latu, longu, gmtOffset:=0, altitudeBonus:=0) {
+   If (!initCBTdll() || A_PtrSize!=8)
+      Return
+
+   ; If gmtOffset
+   ;    t += -1*gmtOffset, Hours
+
+   FormatTime, y, % t, yyyy
+   FormatTime, m, % t, M
+   FormatTime, d, % t, d
+   rise := setu := dawn := ""
+   dusk := noon := ""
+   r := DllCall(callCBTdllFunc("getSolarCalculatorData"), "Float", latu, "Float", longu, "int", y, "int", m, "int", d, "float*", rise, "float*", setu, "float*", dawn, "float*", dusk, "float*", noon, "Int")
+   If !r
+      Return
+
+   If (allowAltitudeSolarChanges!=1)
+      altitudeBonus := 0
+
+   ; fnOutputDebug(t " ri=" rise "se=" setu "da=" dawn "du=" dusk "no=" noon)
+   ; b := y format("{1:02}", m) format("{1:02}", d) . "000001"
+   b := SubStr(t, 1, 8) . "000001"
+   ; ToolTip, % d "==" b "==" t "==" rise "==" gmtOffset , , , 2
+   If dawn
+   {
+      ndawn := b
+      ndawn += gmtOffset + dawn, Hours
+      ndawn += -(altitudeBonus*1.3), Minutes
+   }
+
+   If rise
+   {
+      nrise := b
+      nrise += gmtOffset + rise, Hours
+      nrise += -altitudeBonus, Minutes
+   }
+
+   If noon
+   {
+      nnoon := b
+      nnoon += gmtOffset + noon, Hours
+   }
+
+   If setu
+   {
+      nsetu := b
+      nsetu += gmtOffset + setu, Hours
+      nsetu += altitudeBonus, Minutes
+   }
+
+   If dusk
+   {
+      ndusk := b
+      ndusk += gmtOffset + dusk, Hours
+      ndusk += altitudeBonus*1.3, Minutes
+   }
+      
+   obju := []
+   If ndawn
+      FormatTime, fndawn, % ndawn, yyyy/MM/dd HH:mm
+   If nrise
+      FormatTime, fnrise, % nrise, yyyy/MM/dd HH:mm
+   If nnoon
+      FormatTime, fnnoon, % nnoon, yyyy/MM/dd HH:mm
+   If nsetu
+      FormatTime, fnsetu, % nsetu, yyyy/MM/dd HH:mm
+   If ndusk
+      FormatTime, fndusk, % ndusk, yyyy/MM/dd HH:mm
+
+   obju.twR := fndawn
+   obju.r := fnrise
+   obju.n := fnnoon
+   obju.s := fnsetu
+   obju.twS := fndusk
+   obju.RawDa := ndawn
+   obju.RawR := nrise
+   obju.RawN := nnoon
+   obju.RawS := nsetu
+   obju.RawDu := ndusk
+   ; fnOutputDebug(fnrise "=" nrise "=" nsetu)
+   Return obju
+}
+
+UItodayPanelResetDate(modus:="") {
+  uiUserFullDateUTC := A_NowUTC
+  allowAutoUpdateTodayPanel := 1
+  If (AnyWindowOpen=8)
+  {
+     generateEarthMap()
+     Return
+  }
+
+  If (modus!="yo")
+  {
+     Gui, SettingsGUIA: Default
+     GuiControl, SettingsGUIA:, uiUserFullDateUTC, % uiUserFullDateUTC
+     UIcityChooser()
+  }
+}
+
+batchDumpTests() {
+  Static g := "Canada.Inuvik.32.40|Canada.Naujaat.32.64|Canada.Qikiqtarjuaq.32.81|Finland.Kemi.60.16|Finland.Kuusamo.60.22|Finland.Rovaniemi.60.34|Finland.Sevettijärvi.60.37|Greenland.Sisimiut.69.2|Iceland.Akureyri.78.1|Norway.Svaldbard.129.1|Norway.Bardufoss.129.5|Norway.Bodø.129.7|Norway.Harstad.129.11|Norway.Kiberg.129.14|Norway.Lakselv.129.17|Norway.Tromsø.129.28|Russia.Murmansk.144.59|Russia.Norilsk.144.68|Russia.Severnyy.144.6|Sweden.Boden.167.2|Sweden.Kiruna.167.17|Sweden.Luleå.167.24|USA.Anchorage.187.12|USA.Fairbanks.187.56"
+  j := ""
+  debugMode := 0
+  ToolTip, % "running" , , , 2
+  Loop, Parse, g,|
+  {
+      If !InStr(A_LoopField, ".")
+         Continue
+
+      k := StrSplit(A_LoopField, ".")
+      j .= UIlistSunRiseSets("forced", "(" k[1] ") ", k[3], k[4]) "`n`n"
+  }
+  Try Clipboard := j
+  ToolTip, , , , 2
+  debugMode := !A_IsCompiled
+}
+
+UIlistSunRiseSets(modus:=0, cr:=0, i:=0, o:=0) {
+  Gui, SettingsGUIA: Default
+  yearu := SubStr(uiUserFullDateUTC, 1, 4)
+  If (modus="forced")
+  {
+     p := geoData[i "|" o]
+  } Else
+  {
+     GuiControlGet, uiUserCountry
+     GuiControlGet, uiUserCity
+     ToolTip, % "running" , , , 2
+     p := geoData[uiUserCountry "|" uiUserCity]
+  }
+
+  w := extractGeoLocationInfos(p)
+  timeus := yearu "0101020102"
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  listu := yearu " for " cr w[1] " at " w[2] ", " w[3] "`n"
+  allYearLight := 0
+  Loop, 365
+  {
+      FormatTime, gyd, % timeus, Yday
+      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
+      FormatTime, f, % timeus, MM/dd
+      licht := obj.durRaw + obj.cdurRaw
+      allYearLight += licht
+      totalu := transformSecondsReadable(licht)
+      noonu := (obj.elev<=0) ? "n=" obj.elev : ""
+      listu .= "    " gyd " | " f ": d[" obj.dur "] c[" obj.cdur "] " SubStr(obj.twR, 6) " / " SubStr(obj.twS, 6) " [" totalu "] " obj.accuracy noonu " `n"
+      ; listu .= "    " gyd " | " f ": [" obj.dur "] " SubStr(obj.r, 6) " / " SubStr(obj.s, 6) " [" obj.cdur "] " SubStr(obj.twR, 6) " / " SubStr(obj.twS, 6) A_Space obj.accuracy " `n"
+      timeus += 1, Days
+  }
+
+  listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
+  If (modus="forced")
+  {
+     Return listu
+  } Else
+  {
+     Try Clipboard := listu
+     ToolTip, , , , 2
+  }
+}
+
+BTNopenYearSolarTable() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, uiUserCountry
+  GuiControlGet, uiUserCity
+  CloseWindow()
+  If (userAstroInfodMode=1)
+     PanelSunYearGraphTable()
+  Else
+     PanelMoonYearGraphTable()
+}
+
+uiNextSolarDataYear() {
+  yearu := SubStr(uiUserFullDateUTC, 1, 4)
+  yearu++
+  uiUserFullDateUTC := yearu . SubStr(uiUserFullDateUTC, 5)
+  If (userAstroInfodMode=1)
+     uiPopulateTableYearSolarData()
+  Else
+     uiPopulateTableYearMoonData()
+}
+
+uiThisSolarDataYear() {
+  uiUserFullDateUTC := A_Year . SubStr(uiUserFullDateUTC, 5)
+  If (userAstroInfodMode=1)
+     uiPopulateTableYearSolarData()
+  Else
+     uiPopulateTableYearMoonData()
+}
+
+uiPrevSolarDataYear() {
+  yearu := SubStr(uiUserFullDateUTC, 1, 4)
+  yearu--
+  uiUserFullDateUTC := yearu . SubStr(uiUserFullDateUTC, 5)
+  If (userAstroInfodMode=1)
+     uiPopulateTableYearSolarData()
+  Else
+     uiPopulateTableYearMoonData()
+}
+
+testCircumpolarDays(yearu, latu:=46.186, longu:=21.312, gmtOffset:=0, Altitude:=0) {
+  simplifiedMode := 1
+  t := yearu "1222020304"   ; december solstice
+  obj := wrapCalcSunInfos(t, latu, longu, gmtOffset, Altitude)
+  If (InStr(obj.dur, "00:") || InStr(obj.cdur, "00:") || !obj.durRaw || !obj.cdurRaw)
+     simplifiedMode := 0
+
+  t := yearu "0622020304"   ; june solstice
+  obj := wrapCalcSunInfos(t, latu, longu, gmtOffset, Altitude)
+  If (obj.durRaw>82500 || obj.dawn=2 || obj.dusk=2)
+     simplifiedMode := 0
+  Return simplifiedMode
+}
+
+uiPopulateTableYearSolarData() {
+  Static lviuws := "LViewRises|LViewSets|LViewOthers|LViewSunCombined"
+  If (A_PtrSize!=8)
+     Return
+
+  ToolTip, % "Please wait..."
+  startoperation := A_TickCount
+  p := geoData[uiUserCountry "|" uiUserCity]
+  w := extractGeoLocationInfos(p)
+  Gui, SettingsGUIA: Default
+  Loop, Parse, lviuws, |
+  {
+      If !A_LoopField
+         Continue
+     
+      Gui, SettingsGUIA: ListView, % A_LoopField
+      LV_Delete()
+      GuiControl, -Redraw, % A_LoopField
+      Loop, 11
+         LV_ModifyCol(A_Index, "Integer")
+  }
+
+  yearu := SubStr(uiUserFullDateUTC, 1, 4)
+  timeus := yearu "0101020102"
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  listu := yearu " for " cr w[1] " at " w[2] ", " w[3] "`n"
+  deepNights := polarDays := polarNights := allYearLight := 0
+  loopsu := isLeapYear(yearu) ? 366 : 365
+  timeus += -1, Days
+  timis := timeus
+  otimeus := timeus
+  prevu := "p"
+  debugMode := 0
+  graphArraySun := []
+  graphArrayElev := []
+  maxLichtu := 0, minLichtu := 86400
+  FormatTime, gyd, % timeus, Yday
+  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  simplifiedMode := testCircumpolarDays(yearu, w[2], w[3], gmtOffset, w[6])
+  arrayUcivilrise := []
+  arrayUsunriseu := []
+  arrayUnoonu := []
+  arrayUsunsetu := []
+  arrayUcivilsetu := []
+
+  Loop, % loopsu + 1
+  {
+      FormatTime, gyd, % timeus, Yday
+      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], simplifiedMode)
+      FormatTime, f, % timeus, MM/dd
+      timis := timeus
+      timis += gmtOffset, Hours
+      FormatTime, testToday, % timis, yyyy/MM/dd
+
+      licht := obj.durRaw + obj.cdurRaw
+      If (obj.durRaw<950)
+         polarNights++
+      Else If (obj.durRaw>86000)
+         polarDays++
+
+      If (licht<2)
+         deepNights++
+
+      allYearLight += licht
+      diffuT := licht - prevlicht
+      totalu := transformSecondsReadable(licht)
+      diffuT := transformSecondsReadable(abs(diffuT), 1)
+      If (diffuT!="00:00" && diffuT!="0s")
+         diffuT := (prevlicht>licht) ? "-" diffuT : "+" diffuT
+
+      diffuSL := obj.durRaw - prevsundur
+      diffuSL := transformSecondsReadable(abs(diffuSL), 1)
+      If (diffuSL!="00:00" && diffuSL!="0s")
+         diffuSL := (prevsundur>obj.durRaw) ? "-" diffuSL : "+" diffuSL
+
+      diffuCL := obj.cdurRaw - prevcivildur
+      diffuCL := transformSecondsReadable(abs(diffuCL), 1)
+      If (diffuCL!="00:00" && diffuCL!="0s")
+         diffuCL := (prevcivildur>obj.cdurRaw) ? "-" diffuCL : "+" diffuCL
+
+      ; listu .= "    " gyd " | " f ": d[" obj.dur "] c[" obj.cdur "] " SubStr(obj.twR, 6) " / " SubStr(obj.twS, 6) " [" totalu "] " obj.accuracy " `n"
+      If (A_Index>1)
+      {
+         civilrise := SubStr(obj.twR, 12)
+         Ncivilrise := SubStr(obj.twR, 6, 5)
+         If Ncivilrise
+            arrayUcivilrise[Ncivilrise] := (obj.Dawn=2) ? "*" : civilrise
+
+         sunriseu := SubStr(obj.r, 12)
+         Nsunriseu := SubStr(obj.r, 6, 5)
+         If Nsunriseu
+            arrayUsunriseu[Nsunriseu] := sunriseu
+
+         noonu := SubStr(obj.n, 12)
+         Nnoonu := SubStr(obj.n, 6, 5)
+         If Nnoonu
+            arrayUnoonu[Nnoonu] := [noonu, obj.dur, obj.elev]
+
+         sunsetu := InStr(obj.accuracy, "\") ? obj.XS : obj.s
+         Nsunsetu := SubStr(sunsetu, 6, 5)
+         sunsetu := SubStr(sunsetu, 12)
+         If Nsunsetu
+            arrayUsunsetu[Nsunsetu] := sunsetu
+
+         civilsetu := SubStr(obj.twS, 12)
+         Ncivilsetu := SubStr(obj.twS, 6, 5)
+         If Ncivilsetu
+            arrayUcivilsetu[Ncivilsetu] := (obj.Dusk=2) ? "*" : civilsetu
+ 
+         psunsetu := InStr(obj.accuracy, "\") ? obj.XS : obj.s
+         prsunsetu := InStr(obj.accuracy, "\") ? obj.RawXS : obj.RawS
+         dudur := timeSpanInSeconds(prsunsetu, obj.RawDu)
+         dudur := (dudur>2 && obj.RawDu>prsunsetu) ? transformSecondsReadable(dudur) : "-"
+         dadur := timeSpanInSeconds(obj.RawR, obj.RawDa)
+         dadur := (dadur>2 && obj.RawDa<obj.RawR) ? transformSecondsReadable(dadur) : "-"
+         Gui, SettingsGUIA: ListView, LViewRises
+         clr1 := (obj.Dawn=2) ? "*" : ""
+         clr2 := (obj.Dusk=2) ? "*" : ""
+         LV_Add(A_Index - 1, gyd, clr1 SubStr(obj.twR, 6), SubStr(obj.r, 6), dadur)
+         Gui, SettingsGUIA: ListView, LViewSets
+         LV_Add(A_Index - 1, gyd, SubStr(psunsetu, 6), clr2 SubStr(obj.twS, 6), dudur)
+  
+         Gui, SettingsGUIA: ListView, LViewOthers
+         LV_Add(A_Index - 1, gyd, SubStr(testToday, 6), obj.dur, diffuSL, obj.cdur, diffuCL, totalu, diffuT)
+
+         ; jpoi := SubStr(obj.RawN, 1, 8) . "120001"
+         ; kpp := timeSpanInSeconds(jpoi, obj.RawN)
+         ; kq := (jpoi>obj.RawN) ? "-" : "+"
+         ; fnOutputDebug(A_Index "=" jpoi "==" kpp "==" kq "==" obj.RawN "==" obj.n, 1)
+         graphArraySun[A_Index - 1] := [obj.cdurRaw/86400, obj.durRaw/86400]
+         graphArrayElev[A_Index - 1] := Round(clampInRange(obj.elev, 0, 85)/85, 2)
+      }
+
+      prevlicht := licht
+      prevsundur := obj.durRaw
+      prevcivildur := obj.cdurRaw
+      maxLichtu := max(obj.durRaw, maxLichtu)
+      minLichtu := min(obj.durRaw, minLichtu)
+      ; listu .= "    " gyd " | " f ": [" obj.dur "] "  " / "  " [" obj.cdur "] "  " / "  A_Space obj.accuracy " `n"
+      timeus += 1, Days
+  }
+
+  graphArrayTimes := []
+  timis := timeus := otimeus
+  Gui, SettingsGUIA: ListView, LViewSunCombined
+  Loop, % loopsu + 1
+  {
+      FormatTime, gyd, % timeus, Yday
+      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      timis := timeus
+      timis += gmtOffset, Hours
+      FormatTime, testToday, % timis, MM/dd
+      dawn := arrayUcivilrise[testToday]
+      sunriseu := arrayUsunriseu[testToday]
+      noonu := arrayUnoonu[testToday, 1]
+      duru := arrayUnoonu[testToday, 2]
+      elev := arrayUnoonu[testToday, 3] "°"
+      sunsetu := arrayUsunsetu[testToday]
+      dusk := arrayUcivilsetu[testToday]
+      If (A_Index!=1)
+      {
+
+         bpu := SubStr(timis, 1, 8)
+         LV_Add(A_Index - 1, gyd, testToday, dawn, sunriseu, noonu, elev, sunsetu, dusk, duru)
+         If (SolarYearGraphMode=1)
+         {
+            fdawn := fsunriseu := fnoonu := fsunsetu := fdusk := 0
+            If InStr(dawn, ":")
+               fdawn := timeSpanInSeconds(bpu . StrReplace(dawn, ":") . "01", bpu . "000001")
+            If InStr(sunriseu, ":")
+               fsunriseu := timeSpanInSeconds(bpu . StrReplace(sunriseu, ":") . "01", bpu . "000001")
+            If InStr(noonu, ":")
+               fnoonu := timeSpanInSeconds(bpu . StrReplace(noonu, ":") . "01", bpu . "000001")
+            If InStr(sunsetu, ":")
+               fsunsetu := timeSpanInSeconds(bpu . StrReplace(sunsetu, ":") . "01", bpu . "000001")
+            If InStr(dusk, ":")
+               fdusk := timeSpanInSeconds(bpu . StrReplace(dusk, ":") . "01", bpu . "000001")
+               ; fnOutputDebug(fdawn "==" fsunriseu, 1)
+            graphArrayTimes[A_Index - 1] := [fdawn, fsunriseu, fnoonu, fsunsetu, fdusk]
+         }
+      }
+      timeus += 1, Days
+  }
+
+  Loop, Parse, lviuws, |
+  {
+      If !A_LoopField
+         Continue
+     
+      Gui, SettingsGUIA: ListView, % A_LoopField
+      Loop, 11
+         LV_ModifyCol(A_Index, "AutoHdr Left")
+      GuiControl, +Redraw, % A_LoopField
+  }
+
+  maxLichtu := transformSecondsReadable(maxLichtu)
+  minLichtu := transformSecondsReadable(minLichtu)
+  infodeepnights := deepNights ? "Out of these, " deepNights " days have no civil twilight." : A_Space
+  infoPolarDays := polarDays ? "Polar days: " polarDays ". " : "Longest daylight: " maxLichtu ". "
+  infoPolarNight := polarNights ? "Polar nights: " polarNights ". " : "Shortest daylight: " minLichtu ". "
+  FormatTime, gyd, % A_NowUTC, Yday
+  yearu := SubStr(uiUserFullDateUTC, 1, 4)
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  gmtOffset := k.isDST ? w[5] : w[4]
+
+  thisu := countriesArrayList[uiUserCountry] ". " w[1]
+  thisu .= " (" Round(w[2], 3) " / " Round(w[3], 3) "). GMT: " Round(gmtOffset, 1) " h."
+  GuiControl, SettingsGUIA:, uiInfoGeoData, % thisu
+  thisu :=  infoPolarDays infoPolarNight infodeepnights
+  GuiControl, SettingsGUIA:, UIastroInfoAnnum, % thisu
+  GuiControl, SettingsGUIA:, uiInfoGeoYear, % yearu
+  debugMode := !A_IsCompiled
+  ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
+  ; ToolTip, % A_TickCount - startoperation , , , 2
+  generateGraphYearSunData(graphArraySun, graphArrayElev, loopsu, graphArrayTimes)
+  ToolTip
+}
+
+uiPopulateTableYearMoonData() {
+  Static lviuws := "LViewSunCombined|LViewMuna"
+  If (A_PtrSize!=8)
+     Return
+
+  ToolTip, % "Please wait..."
+  startoperation := A_TickCount
+  p := geoData[uiUserCountry "|" uiUserCity]
+  w := extractGeoLocationInfos(p)
+  Gui, SettingsGUIA: Default
+  Loop, Parse, lviuws, |
+  {
+      If !A_LoopField
+         Continue
+     
+      Gui, SettingsGUIA: ListView, % A_LoopField
+      LV_Delete()
+      GuiControl, -Redraw, % A_LoopField
+      Loop, 2
+         LV_ModifyCol(A_Index, "Integer")
+      LV_ModifyCol(4, "Integer")
+  }
+
+  yearu := SubStr(uiUserFullDateUTC, 1, 4)
+  timeus := yearu "0101020102"
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  listu := yearu " for " cr w[1] " at " w[2] ", " w[3] "`n"
+  deepNights := polarDays := polarNights := allYearLight := 0
+  loopsu := isLeapYear(yearu) ? 366 : 365
+  timeus += -1, Days
+  timis := timeus
+  otimeus := timeus
+  prevu := "p"
+  debugMode := 0
+  graphArrayMoon := []
+  graphArrayElev := []
+  maxLichtu := 0, minLichtu := 86400
+  FormatTime, gyd, % timeus, Yday
+  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  arrayUsunriseu := []
+  arrayUnoonu := []
+  arrayUsunsetu := []
+  intervalsList := ""
+  Loop, % loopsu + 1
+  {
+      FormatTime, gyd, % timeus, Yday
+      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      FormatTime, f, % timeus, MM/dd
+      timis := timeus
+      timis += gmtOffset, Hours
+
+      coolminant := getMoonNoonZeit(SubStr(timis, 1, 8) "000105", w[2], w[3], gmtOffset, 1)
+      obj := wrapCalcMoonRiseSet(timeus, w[2], w[3], gmtOffset, w[6])
+      If (SolarYearGraphMode=2)
+      {
+         If (obj.RawS!=1)
+            intervalsList .= SubStr(obj.RawS, 1, 12) "|S`n"
+         If (obj.RawR!=0)
+            intervalsList .= SubStr(obj.RawR, 1, 12) "|R`n"
+      }
+
+      mldur := coreCalculateLightDuration(coolminant, obj.r, obj.s, obj.RawR, obj.RawS, obj.yref, obj.ref, obj.tref, obj.trz, "Moon")
+      obj.durRaw := mldur[2]
+      obj.dur := mldur[1]
+      obj.elev := Round(coolminant.maxu, 1)
+      obj.n := coolminant.n
+
+      FormatTime, testToday, % timis, yyyy/MM/dd
+      licht := obj.durRaw
+      If (obj.durRaw<950)
+         polarNights++
+      Else If (obj.durRaw>86000)
+         polarDays++
+
+      diffuT := licht - prevlicht
+      diffuT := transformSecondsReadable(abs(diffuT), 1)
+      If (diffuT!="00:00" && diffuT!="0s")
+         diffuT := (prevlicht>licht) ? "-" diffuT : "+" diffuT
+
+      ; listu .= "    " gyd " | " f ": d[" obj.dur "] c[" obj.cdur "] " SubStr(obj.twR, 6) " / " SubStr(obj.twS, 6) " [" totalu "] " obj.accuracy " `n"
+      If (A_Index>1)
+      {
+         sunriseu := SubStr(obj.r, 12)
+         Nsunriseu := SubStr(obj.r, 6, 5)
+         If Nsunriseu
+            arrayUsunriseu[Nsunriseu] := sunriseu
+
+         noonu := SubStr(obj.n, 12)
+         ; Nnoonu := SubStr(obj.n, 6, 5)
+         ; If Nnoonu
+         ;    arrayUnoonu[Nnoonu] := [noonu, obj.dur, obj.elev, diffuT]
+
+         Nsunsetu := SubStr(obj.s, 6, 5)
+         sunsetu := SubStr(obj.s, 12)
+         If Nsunsetu
+            arrayUsunsetu[Nsunsetu] := sunsetu
+
+         Gui, SettingsGUIA: ListView, LViewSunCombined
+         LV_Add(A_Index - 1, gyd, f,, noonu, obj.elev "°", , obj.dur, diffuT)
+
+         Gui, SettingsGUIA: ListView, LViewMuna
+         pk := oldMoonPhaseCalculator(timeus)
+         If (prevu!=pk[1] && (InStr(pk[1], "quarter") || InStr(pk[1], "moon")))
+         {
+            prevu := pk[1]
+            ; fnOutputDebug(prevu, 1)
+            LV_Add(A_Index - 1, gyd, f, pk[1], Round(pk[5], 1), pk[6])
+         }
+         ; jpoi := SubStr(obj.RawN, 1, 8) . "120001"
+         ; kpp := timeSpanInSeconds(jpoi, obj.RawN)
+         ; kq := (jpoi>obj.RawN) ? "-" : "+"
+         ; fnOutputDebug(A_Index "=" jpoi "==" kpp "==" kq "==" obj.RawN "==" obj.n, 1)
+         graphArrayMoon[A_Index - 1] := [obj.durRaw/86400, pk[4]]
+         graphArrayElev[A_Index - 1] := Round(clampInRange(obj.elev, 0, 85)/85, 2)
+      }
+
+      prevlicht := licht
+      prevsundur := obj.durRaw
+      maxLichtu := max(obj.durRaw, maxLichtu)
+      minLichtu := min(obj.durRaw, minLichtu)
+      ; listu .= "    " gyd " | " f ": [" obj.dur "] "  " / "  " [" obj.cdur "] "  " / "  A_Space obj.accuracy " `n"
+      timeus += 1, Days
+  }
+
+  graphArrayTimes := []
+  timis := timeus := otimeus
+  Gui, SettingsGUIA: ListView, LViewSunCombined
+  Loop, % loopsu + 1
+  {
+      FormatTime, gyd, % timeus, Yday
+      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      timis := timeus
+      timis += gmtOffset, Hours
+      FormatTime, testToday, % timis, MM/dd
+      If (A_Index!=1)
+      {
+         sunriseu := arrayUsunriseu[testToday]
+         sunsetu := arrayUsunsetu[testToday]
+         bpu := SubStr(timis, 1, 8)
+         LV_Modify(A_Index - 1, ,,, sunriseu,,, sunsetu)
+         If (SolarYearGraphMode=1)
+         {
+            fsunriseu := fnoonu := fsunsetu := 0
+            If InStr(sunriseu, ":")
+               fsunriseu := timeSpanInSeconds(bpu . StrReplace(sunriseu, ":") . "01", bpu . "000001")
+            If InStr(sunsetu, ":")
+               fsunsetu := timeSpanInSeconds(bpu . StrReplace(sunsetu, ":") . "01", bpu . "000001")
+
+            ; fnOutputDebug(fdawn "==" fsunriseu, 1)
+            graphArrayTimes[A_Index - 1] := [fsunriseu, fsunsetu]
+         }
+      }
+      timeus += 1, Days
+  }
+
+  Loop, Parse, lviuws, |
+  {
+      If !A_LoopField
+         Continue
+     
+      Gui, SettingsGUIA: ListView, % A_LoopField
+      Loop, 11
+         LV_ModifyCol(A_Index, "AutoHdr Left")
+      GuiControl, +Redraw, % A_LoopField
+  }
+
+  maxLichtu := transformSecondsReadable(maxLichtu)
+  minLichtu := transformSecondsReadable(minLichtu)
+  infoPolarDays := polarDays ? "Polar moon days: " polarDays ". " : "Longest moonlight: " maxLichtu ". "
+  infoPolarNight := polarNights ? "Moonless days: " polarNights ". " : "Shortest moonlight: " minLichtu ". "
+  FormatTime, gyd, % A_NowUTC, Yday
+  yearu := SubStr(uiUserFullDateUTC, 1, 4)
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  gmtOffset := k.isDST ? w[5] : w[4]
+
+  thisu := countriesArrayList[uiUserCountry] ". " w[1]
+  thisu .= " (" Round(w[2], 3) " / " Round(w[3], 3) "). GMT: " Round(gmtOffset, 1) " h."
+  GuiControl, SettingsGUIA:, uiInfoGeoData, % thisu
+  thisu :=  infoPolarDays infoPolarNight
+  GuiControl, SettingsGUIA:, UIastroInfoAnnum, % thisu
+  GuiControl, SettingsGUIA:, uiInfoGeoYear, % yearu
+  debugMode := !A_IsCompiled
+  ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
+  ; ToolTip, % A_TickCount - startoperation , , , 2
+  generateGraphYearMoonData(graphArrayMoon, graphArrayElev, loopsu, graphArrayTimes, intervalsList)
+  ToolTip
+}
+
+generateGraphYearSunData(graphArraySun, graphArrayElev, dayz, graphArrayTimes) {
+    If !pToken
+       pToken := Gdip_Startup()
+
+    If !pToken
+       Return
+
+    mainBitmap := Gdip_CreateBitmap(dayz*2, 864)
+    fnOutputDebug(gdiplasterror "==" dayz*2)
+    If !mainBitmap
+       Return
+
+    G := Gdip_GraphicsFromImage(mainBitmap, 7, 4)
+    If !G
+    {
+       Gdip_DisposeImage(mainBitmap, 1)
+       Return
+    }
+
+    x := 0
+    Gdip_GraphicsClear(G, "0xff112233")
+    If (SolarYearGraphMode=1)
+    {
+       bu := 0
+       sunColor := MixARGB("0x65998844", "0xCCffeebb", 0.9)
+       sunBrush := Gdip_BrushCreateSolid(sunColor)
+       civilColor := MixARGB("0x33eeddbb", "0x55efdecd", 0.25)
+       civilBrush := Gdip_BrushCreateSolid(civilColor)
+       noonBrush := Gdip_BrushCreateSolid("0xbb6699aa")
+       fadedNoonBrush := Gdip_BrushCreateSolid("0x77446677")
+       dBrush := Gdip_BrushCreateSolid("0x22aaeeaa")
+       Gdip_FillRectangle(G, dBrush, 0, 216, 864, 3)
+       Gdip_FillRectangle(G, dBrush, 0, 216*2, 864, 3)
+       Gdip_FillRectangle(G, dBrush, 0, 216*3, 864, 3)
+       Loop, % dayz
+       {
+          t := ((graphArrayTimes[A_Index, 2] + graphArrayTimes[A_Index, 4])>2 || isinrange(A_Index, mEquiDay, sEquiDay) ) ? noonBrush : fadedNoonBrush
+          y := (graphArrayTimes[A_Index, 1]/86400) * 864
+          If y
+             Gdip_FillRectangle(G, civilBrush, x, y, 3, 9)
+          y := (graphArrayTimes[A_Index, 2]/86400) * 864
+          If y
+             Gdip_FillEllipse(G, sunBrush, x, y, 3, 9)
+          y := (graphArrayTimes[A_Index, 3]/86400) * 864
+          If (y && bu)
+             Gdip_FillEllipse(G, t, x, y, 4, 9)
+          y := (graphArrayTimes[A_Index, 4]/86400) * 864
+          If y
+             Gdip_FillEllipse(G, sunBrush, x, y, 3, 9)
+          y := (graphArrayTimes[A_Index, 5]/86400) * 864
+          If y
+             Gdip_FillRectangle(G, civilBrush, x, y, 3, 9)
+          x += 2
+          bu := !bu
+        }
+        Gdip_DeleteBrush(sunBrush)
+        Gdip_DeleteBrush(noonBrush)
+        Gdip_DeleteBrush(fadedNoonBrush)
+        Gdip_DeleteBrush(civilBrush)
+        Gdip_DeleteBrush(dBrush)
+    } Else
+    {
+       Loop, % dayz
+       {
+          sunColor := MixARGB("0x65667744", "0xCCffeebb", graphArrayElev[A_Index])
+          sunBrush := Gdip_BrushCreateSolid(sunColor)
+          civilColor := MixARGB("0x33eeddbb", "0x99efdecd", graphArrayElev[A_Index])
+          civilBrush := Gdip_BrushCreateSolid(civilColor)
+          If (SolarYearGraphMode=100)
+          {
+             devu := (graphArraySun[A_Index, 3]/86400) * 864
+             If (graphArraySun[A_Index, 4]="-")
+                devu *= -1
+             ; fnOutputDebug(A_Index " devu=" devu)
+          } Else devu := 0
+ 
+          y := 864 - graphArraySun[A_Index, 2] * 864 + devu
+          Gdip_FillRectangle(G, sunBrush, x, y, 2, 864)
+          y := 864 - (graphArraySun[A_Index, 1] + graphArraySun[A_Index, 2]) * 864 + devu
+          Gdip_FillRectangle(G, civilBrush, x, y, 2, 864)
+          ; fnOutputDebug(A_Index "==" x "//" y)
+          Gdip_DeleteBrush(sunBrush)
+          Gdip_DeleteBrush(civilBrush)
+          x += 2
+       }
+    }
+
+    If (SolarYearGraphMode=2)
+    {
+       zbmp := Gdip_ResizeBitmap(mainBitmap, dayz*2, 432, 0, 7)
+       If StrLen(zbmp)>2
+       {
+          Gdip_DrawImageFast(G, zbmp, 0, 0) 
+          Gdip_ImageRotateFlip(zbmp, 6)
+          Gdip_DrawImageFast(G, zbmp, 0, 432) 
+          Gdip_DisposeImage(zbmp, 1)
+       }
+    }
+
+    Gdip_DeleteGraphics(G)
+    Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
+    Gdip_DisposeImage(mainBitmap, 1)
+}
+
+generateGraphYearMoonData(graphArrayMoon, graphArrayElev, dayz, graphArrayTimes, intervalsList) {
+    If !pToken
+       pToken := Gdip_Startup()
+
+    If !pToken
+       Return
+
+    mainBitmap := Gdip_CreateBitmap(dayz*2, 864)
+    fnOutputDebug(gdiplasterror "==" dayz*2)
+    If !mainBitmap
+       Return
+
+    G := Gdip_GraphicsFromImage(mainBitmap, 7, 4)
+    If !G
+    {
+       Gdip_DisposeImage(mainBitmap, 1)
+       Return
+    }
+
+    x := 0
+    Gdip_GraphicsClear(G, "0xff112233")
+    If (SolarYearGraphMode=1)
+    {
+       sunColor := MixARGB("0x65667744", "0xCCffeebb", 0.75)
+       sunBrush := Gdip_BrushCreateSolid(sunColor)
+       civilColor := MixARGB("0x33eeddbb", "0x99efdecd", 0.25)
+       civilBrush := Gdip_BrushCreateSolid(civilColor)
+       dBrush := Gdip_BrushCreateSolid("0x22aaeeaa")
+       Gdip_FillRectangle(G, dBrush, 0, 216, 864, 3)
+       Gdip_FillRectangle(G, dBrush, 0, 216*2, 864, 3)
+       Gdip_FillRectangle(G, dBrush, 0, 216*3, 864, 3)
+       Loop, % dayz
+       {
+          otherColor := MixARGB("0xFF001122", "0x66004433", graphArrayMoon[A_Index, 2])
+          otherBrush := Gdip_BrushCreateSolid(otherColor)
+          Gdip_FillRectangle(G, otherBrush, x, 0, 1, 864)
+          Gdip_DeleteBrush(otherBrush)
+
+          y := (graphArrayTimes[A_Index, 1]/86400) * 864
+          If y
+             Gdip_FillEllipse(G, sunBrush, x, y, 3, 14)
+
+          y := (graphArrayTimes[A_Index, 2]/86400) * 864
+          If y
+             Gdip_FillEllipse(G, civilBrush, x, y, 3, 14)
+          x += 2
+        }
+        Gdip_DeleteBrush(sunBrush)
+        Gdip_DeleteBrush(civilBrush)
+        Gdip_DeleteBrush(dBrush)
+    } Else If (SolarYearGraphMode=2)
+    {
+       Sort, intervalsList, UND`n
+       arrayIntervals := StrSplit(intervalsList, "`n")
+       fIntervals := []
+       thisIndex := fIndex := 0
+       t := arrayIntervals.Count()
+       minP := 2678400, maxuP := 0
+       maxuP := 86400*2
+       Loop, % arrayIntervals.Count()
+       {
+            thisIndex++
+            x := arrayIntervals[thisIndex]
+            thisIndex++
+            y := arrayIntervals[thisIndex]
+            If (thisIndex>t)
+               Break
+
+            x := SubStr(x, 1, 12) . "00"
+            y := SubStr(y, 1, 12) . "00"
+            p := timeSpanInSeconds(x, y)
+            If !p
+               Continue
+
+            s := InStr(x, "S") ? 1 : 0
+            if (p>maxuP)
+               p := maxuP - 1
+            ; maxuP := max(maxuP, p)
+            ; minP := min(minP, p)
+            findex++
+            fIntervals[fIndex] := [p, s]
+            fnOutputDebug(s " | " x " / " y "=" p, 1)
+            ; fnOutputDebug(p "/" s, 1)
+       }
+
+       pxd := (dayz*2)/fIntervals.Count()
+       Loop, % fIntervals.Count()
+       {
+          If (fIntervals[A_Index, 2]=1)
+             sunColor := MixARGB("0x65217744", "0xCC22eebb", graphArrayElev[A_Index])
+          Else
+             sunColor := MixARGB("0x65667744", "0xCCffeebb", graphArrayElev[A_Index])
+          sunBrush := Gdip_BrushCreateSolid(sunColor)
+          c := Round(fIntervals[A_Index, 1] / maxuP, 3)
+          y := 864 - c * 864
+          ; fnOutputDebug("c / y =" c " / " y " m" maxuP " i" fIntervals[A_Index, 1], 1 )
+          Gdip_FillRectangle(G, sunBrush, x, y, pxd, 864)
+          ; fnOutputDebug(A_Index "==" x "//" y)
+          Gdip_DeleteBrush(sunBrush)
+          x += pxd
+       }
+    } Else
+    {
+       Loop, % dayz
+       {
+          sunColor := MixARGB("0xFF001122", "0x66004433", graphArrayMoon[A_Index, 2])
+          sunBrush := Gdip_BrushCreateSolid(sunColor)
+          Gdip_FillRectangle(G, sunBrush, x, 0, 1, 864)
+          Gdip_DeleteBrush(sunBrush)
+
+          sunColor := MixARGB("0x65667744", "0xCCffeebb", graphArrayElev[A_Index])
+          sunBrush := Gdip_BrushCreateSolid(sunColor)
+          If (SolarYearGraphMode=3)
+          {
+             devu := (graphArrayMoon[A_Index, 1]/86400) * 864
+             If (graphArrayMoon[A_Index]="-")
+                devu *= -1
+             ; fnOutputDebug(A_Index " devu=" devu)
+          } Else devu := 0
+
+          y := 864 - graphArrayMoon[A_Index, 1] * 864 + devu
+          Gdip_FillRectangle(G, sunBrush, x, y, 2, 864)
+          ; fnOutputDebug(A_Index "==" x "//" y)
+          Gdip_DeleteBrush(sunBrush)
+          x += 2
+       }
+    }
+
+    If (SolarYearGraphMode=3)
+    {
+       zbmp := Gdip_ResizeBitmap(mainBitmap, dayz*2, 432, 0, 7)
+       If StrLen(zbmp)>2
+       {
+          Gdip_DrawImageFast(G, zbmp, 0, 0) 
+          Gdip_ImageRotateFlip(zbmp, 6)
+          Gdip_DrawImageFast(G, zbmp, 0, 432) 
+          Gdip_DisposeImage(zbmp, 1)
+       }
+    }
+
+    Gdip_DeleteGraphics(G)
+    Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
+    Gdip_DisposeImage(mainBitmap, 1)
+}
+
+ToggleAstroInfosModa() {
+   userAstroInfodMode := !userAstroInfodMode
+   todaySunMoonGraphMode := !userAstroInfodMode
+   INIaction(1, "userAstroInfodMode", "SavedSettings")
+   UIcityChooser()
+}
+
+generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
+     If !pToken
+        pToken := Gdip_Startup()
+ 
+     If !pToken
+        Return
+ 
+     Static w := 360, h := 180
+     mainBitmap := Gdip_CreateBitmap(w, h)
+     If !mainBitmap
+        Return
+ 
+     G := Gdip_GraphicsFromImage(mainBitmap, 7, 4)
+     If !G
+     {
+        Gdip_DisposeImage(mainBitmap, 1)
+        Return
+     }
+ 
+     m := (PrefsLargeFonts=1) ? 30 : 20
+     clru := (todaySunMoonGraphMode=1) ? "0xff112222" : "0xff112233"
+     Gdip_GraphicsClear(G, clru)
+
+     bu := hasDrawn := 0
+     lineBrush := Gdip_BrushCreateSolid("0xAAeeEEee")
+
+     clru := (todaySunMoonGraphMode=1) ? "0xeeEEffff" : "0xeeffee00"
+     sunBrush := Gdip_BrushCreateSolid(clru)
+
+     clru := (todaySunMoonGraphMode=1) ? "0x77AAeeff" : "0x77ffee00"
+     lightBrush := Gdip_BrushCreateSolid(clru)
+
+     twilightBrush := Gdip_BrushCreateSolid("0x88aabb88")
+     darkBrush := Gdip_BrushCreateSolid("0xff001122")
+     dBrush := Gdip_BrushCreateSolid("0x44aaeeaa")
+     startZeit := SubStr(timi, 1, 8) . "000001"
+
+     pu := (timeSpanInSeconds(timi, startZeit) / 86400) * 360
+     If (pu<3.1)
+        pu := 3.1
+
+     If gmtOffset
+        startZeit += -1*gmtOffset, Hours
+
+     Gdip_FillRectangle(G, darkBrush, w/2, 0, 3, h)
+     ; startZeit += -12, Hours
+     pPath := Gdip_CreatePath()
+     x := 3
+     hc := (PrefsLargeFonts=1) ? 10:8
+     Loop, 48
+     {
+        If (todaySunMoonGraphMode=1)
+           getMoonElevation(startZeit, lat, lon, 0, azii, elevu)
+        Else
+           getSunAzimuthElevation(startZeit, lat, lon, 0, azii, elevu)
+
+        y := m + (h - m*2) - Round(((elevu + 90)/180) * (h - m*2), 3)
+        dh := y - h/2 - 1.5, lh := h/2 - y
+        If (y<h/2 && lh>0.02)
+           Gdip_FillRectangle(G, lightBrush, x - 4, y, 8, lh)
+        Else If (dh>0)
+           Gdip_FillRectangle(G, darkBrush, x - 4, h/2, 8, dh)
+
+        brushu := (y<h/2) ? lineBrush : dBrush
+        diam := (elevu<-12.1) ? 2.5 : 3.1
+        diam := (elevu<-18.5) ? 2 : diam
+        If y
+           Gdip_FillEllipseC(G, brushu, x, y, diam)
+        If (y && isInRange(elevu, 0, -7))
+           Gdip_FillEllipseC(G, brushu, x, y, 3)
+
+        If (IsInRange(pu, x, x + 7.5) && hasDrawn!=1)
+        {
+           hasDrawn := 1
+           Gdip_FillEllipseC(G, sunBrush, x, y, 10, hc)
+           Gdip_AddPathEllipseC(pPath, x, y, 10, hc)
+           Gdip_SetClipPath(G, pPath, 4)
+        }
+
+        x += 7.5
+        startZeit += 30, Minutes
+      }
+      Gdip_FillRectangle(G, dBrush, 0, h/2, w, 3)
+      Gdip_DeleteBrush(sunBrush)
+      Gdip_DeleteBrush(lightBrush)
+      Gdip_DeleteBrush(lineBrush)
+      Gdip_DeleteBrush(darkBrush)
+      Gdip_DeleteBrush(twilightBrush)
+      Gdip_DeleteBrush(dBrush)
+      Gdip_DeletePath(pPath)
+
+     Gdip_DeleteGraphics(G)
+     Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
+     Gdip_DisposeImage(mainBitmap, 1)
+}
+
+locateClickOnEarthMap() {
+    Static prevk, clicks := 0
+    GetPhysicalCursorPos(xu, yu)
+    GetWinClientSize(w, h, hSolarGraphPic, 0)
+    JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
+    px := nx/w
+    py := 1 - ny/h
+    zx := Round(px*360 - 180)
+    zy := Round(py*180 - 90)
+    ; ToolTip, % zx "=" zy , , , 2
+
+    foundy := whatever := nwhatever := nprecise := precise := 0
+    Loop, % listedExtendedLocations
+    {
+         dx := Round(extendedGeoData[A_Index, 4])
+         dy := Round(extendedGeoData[A_Index, 3])
+         ; fnOutputDebug(dx "==" dy)
+         If (dx=zx && dy=zy)
+         {
+            foundy := 1
+            whatever := A_Index
+            If !nwhatever
+               nwhatever := A_Index
+         }
+    }
+
+    If (foundy!=1)
+    {
+        ctr := countriesArrayList.Count()
+        Loop, % ctr
+        {
+             ctrIndex := A_Index
+             cities := geoData[A_Index "|-1"]
+             Loop, % cities
+             {
+                 thisu := geoData[ctrIndex "|" A_Index]
+                 elemu := StrSplit(thisu, "|")
+                 x := Round(elemu[3]), y := Round(elemu[2])
+                 If (x=zx && y=zy)
+                 {
+                    foundy := 1
+                    whatever := ctrIndex "|" A_Index
+                    If !nwhatever
+                       nwhatever := ctrIndex "|" A_Index
+                 }
+             }
+        }
+    }
+
+    k := nwhatever
+    k := (prevk=k) ? whatever : nwhatever
+    ; ToolTip, % k "=====" whatever "==" nwhatever , , , 2
+    prevk := k
+    gmtu := Round(24 * px - 12)
+    If InStr(k, "|")
+    {
+       p := Substr(k, 1, InStr(k, "|") -  1)
+       j := countriesArrayList[p]
+       k := j "|" geoData[k]
+       k := StrSplit(k, "|")
+    } Else k := extendedGeoData[k]
+
+    If IsObject(k)
+    {
+       stringu := k[1] ":" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6] "|" k[7]
+    } Else
+    {
+       clicks++
+       zx := Round(px*360 - 180, 4)
+       zy := Round(py*180 - 90, 4)
+       stringu := "User defined N" clicks "|" zy "|" zx "|" gmtu ".0|" gmtu ".0|135"
+    }
+
+    GuiControl, SettingsGUIA:, newGeoDataLocationUserEdit, % stringu
+}
+
+generateSunlightEarthMap(modus) {
+    If !pToken
+       pToken := Gdip_Startup()
+
+    If !pToken
+       Return
+
+    mainBitmap := Gdip_CreateBitmapFromFileSimplified(A_ScriptDir "\resources\earth-surface-map.jpg")
+    fnOutputDebug(gdiplasterror "==" mainBitmap)
+    If !mainBitmap
+       Return
+
+    Gdip_GetImageDimensions(mainBitmap, imgW, imgH)
+    xbmp := Gdip_ResizeBitmap(mainBitmap, Round(imgW/2), Round(imgH/2), 0, 7)
+    If xbmp
+    {
+       Gdip_DisposeImage(mainBitmap)
+       mainBitmap := xbmp
+    }
+
+    cbmp := Gdip_CloneBitmap(mainBitmap)
+    Gdip_GetImageDimensions(mainBitmap, imgW, imgH)
+    G := Gdip_GraphicsFromImage(mainBitmap, 5, 3)
+    If !G
+    {
+       Gdip_DisposeImage(mainBitmap, 1)
+       Return
+    }
+
+    x := 0
+    dotBrush9 := Gdip_BrushCreateSolid("0xaaffeeff") ; 0xdd
+    dotBrush8 := Gdip_BrushCreateSolid("0xaaffeeff") ; 0xaa
+    dotBrush7 := Gdip_BrushCreateSolid("0xaaffeeff") ; 0x77
+    dotBrush6 := Gdip_BrushCreateSolid("0xaaffeeff") ; 0x44
+    dotBrush5 := Gdip_BrushCreateSolid("0x33ffeeff") ; 0x22
+
+    dotBrush4 := Gdip_BrushCreateSolid("0x33001100")
+    dotBrush3 := Gdip_BrushCreateSolid("0xaa001100")
+    dotBrush2 := Gdip_BrushCreateSolid("0xaa001100")
+    dotBrush1 := Gdip_BrushCreateSolid("0xaa001100")
+    dotBrush0 := Gdip_BrushCreateSolid("0xaa001100")
+    ; dotBrush := Gdip_BrushCreateSolid("0xBBffeeff")
+    ; bgrBrush := Gdip_BrushCreateSolid("0x99001100")
+    ; Gdip_FillRectangle(G, bgrBrush, 0, 0, imgW, imgH)
+    dx := 0,  dy := -2
+    timeus := uiUserFullDateUTC
+    ; ToolTip, % timeus , , , 2
+    Loop, % imgW//2
+    {
+        dy := -2
+        Loop, % imgH//2
+        {
+             dy += 2
+             px := dx/imgW
+             py := 1 - dy/imgH
+             zx := Round(px*360 - 180, 3)
+             zy := Round(py*180 - 90, 3)
+             If (modus=3)
+             {
+                getMoonElevation(timeus, zy, zx, 0, azii, elevu)
+                If (elevu<-0.5)
+                   elevu := -85
+                ; brushu := (elevu>0.5) ? dotBrush7 : dotBrush2
+             } Else
+                getSunAzimuthElevation(timeus, zy, zx, 0, azii, elevu)
+
+             pv := Floor(((elevu + 90)/195)*10)
+             pv := SubStr(pv, 1, 1)
+             brushu := dotBrush%pv%
+             If brushu
+                Gdip_FillRectangle(G, brushu, dx, dy, 2)
+        }
+        dx += 2
+    }
+    Gdip_DrawImage(G, cbmp, ,,,,,,,, 0.35)
+    mm := ""
+
+    Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
+    Gdip_DeleteGraphics(G)
+    Loop, 10
+    {
+        i := A_Index - 1
+        Gdip_DeleteBrush(dotBrush%i%)
+    }
+    Gdip_DisposeImage(mainBitmap, 1)
+    Gdip_DisposeImage(cbmp, 1)
+}
+
+generateEarthMap() {
+   Gui, SettingsGUIA: Default
+   GuiControl, SettingsGUIA:, UIastroInfoSet, Please wait, generating earth map...
+   GuiControl, SettingsGUIA: Disable, showEarthSunMapModus
+   GuiControl, SettingsGUIA: Disable, newGeoDataLocationUserEdit
+   Loop, 5
+       GuiControl, SettingsGUIA: Disable, btn%A_Index%
+
+   generatingEarthMapNow := 1
+   If (showEarthSunMapModus>1)
+      generateSunlightEarthMap(showEarthSunMapModus)
+   Else
+      citiesGenerateEarthMap()
+
+   generatingEarthMapNow := 0
+   ctr := countriesArrayList.Count()
+   GuiControl, SettingsGUIA: Enable, showEarthSunMapModus
+   actu := (showEarthSunMapModus>1) ? "SettingsGUIA: Enable" : "SettingsGUIA: Disable"
+   GuiControl, % actu, btn1
+   GuiControl, % actu, btn2
+   GuiControl, % actu, btn5
+   GuiControl, SettingsGUIA: Enable, btn3
+   GuiControl, SettingsGUIA: Enable, btn4
+   GuiControl, SettingsGUIA: Enable, newGeoDataLocationUserEdit
+   FormatTime, brr, % uiUserFullDateUTC, yyyy/MM/dd, HH:mm
+   p := geoData.Count()- countriesArrayList.Count() + listedExtendedLocations
+   If (showEarthSunMapModus=1)
+      GuiControl, SettingsGUIA:, UIastroInfoSet, Countries: %ctr%. Cities: %p%.
+   Else
+      GuiControl, SettingsGUIA:, UIastroInfoSet, % brr ". Indexed locations: " p "."
+   Sleep, 2
+   GuiControl, SettingsGUIA:Focus, showEarthSunMapModus
+}
+
+citiesGenerateEarthMap() {
+    If !pToken
+       pToken := Gdip_Startup()
+
+    If !pToken
+       Return
+
+    ctr := countriesArrayList.Count()
+    cached := A_ScriptDir "\resources\earth-surface-map-cached-countries-" ctr "-" listedExtendedLocations "-" A_Year ".jpg"
+    wasCached := 1
+    If FileExist(cached)
+       mainBitmap := Gdip_CreateBitmapFromFileSimplified(cached)
+    If !mainBitmap
+    {
+       mainBitmap := Gdip_CreateBitmapFromFileSimplified(A_ScriptDir "\resources\earth-surface-map.jpg")
+       wasCached := 0
+    }
+
+    If !mainBitmap
+    {
+       fnOutputDebug(gdiplasterror "==" mainBitmap)
+       Return
+    }
+
+    Gdip_GetImageDimensions(mainBitmap, imgW, imgH)
+    G := Gdip_GraphicsFromImage(mainBitmap)
+    If !G
+    {
+       Gdip_DisposeImage(mainBitmap, 1)
+       Return
+    }
+
+    x := 0
+    dotBrush := Gdip_BrushCreateSolid("0xAA88ff66")
+    broBrush := Gdip_BrushCreateSolid("0xddffee00")
+    bgrBrush := Gdip_BrushCreateSolid("0x99001100")
+    If (wasCached=0)
+    {
+        Gdip_FillRectangle(G, bgrBrush, 0, 0, imgW, imgH)
+        mm := new hashtable()
+        Loop, % listedExtendedLocations
+        {
+             dx := extendedGeoData[A_Index, 4] + 180
+             dy := extendedGeoData[A_Index, 3] + 90
+             x := (dx/360)*imgW
+             y := ImgH - (dy/180)*imgH
+             testu := Round(x,1) . Round(y,1)
+             If (mm[testu]!=1)
+             {
+                Gdip_FillEllipseC(G, dotBrush, x, y, 1.5)
+                mm[testu] := 1
+             }
+        }
+
+        Loop, % ctr
+        {
+             ctrIndex := A_Index
+             cities := geoData[A_Index "|-1"]
+             Loop, % cities
+             {
+                 thisu := geoData[ctrIndex "|" A_Index]
+                 elemu := StrSplit(thisu, "|")
+                 dx := elemu[3] + 180
+                 x := (dx/360)*imgW
+                 dy := elemu[2] + 90
+                 y := ImgH - (dy/180)*imgH
+                 ; fnOutputDebug(dx "==" x "|" dy "==" y)
+                 testu := Round(x) . Round(y)
+                 If (mm[testu]!=1)
+                 {
+                    Gdip_FillEllipseC(G, broBrush, x, y, 1.5)
+                    mm[testu] := 1
+                 }
+             }
+        }
+
+        Gdip_SaveBitmapToFile(mainBitmap, cached, 95)
+    }
+
+    mm := ""
+    Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
+    Gdip_DeleteGraphics(G)
+    Gdip_DeleteBrush(bgrBrush)
+    Gdip_DeleteBrush(dotBrush)
+    Gdip_DeleteBrush(broBrush)
+    Gdip_DisposeImage(mainBitmap, 1)
+}
+
+decideJijiReadable(timeus, elevu, lat, lon, noonu:="a") {
+   dtimi := timeus 
+   dtimi += 1, Hours
+   getSunAzimuthElevation(dtimi, lat, lon, 0, azii, delev)
+   zd := (delev>elevu) ? "Dawn" : "Dusk"
+   zdu := (delev>elevu) ? "Sunrise" : "Sunset"
+
+   If (isInRange(elevu, -6.1, -0.611))
+      j := "Civil twilight. " zd
+   Else If (isInRange(elevu, -12, -6.1))
+      j := "Nautical twilight. " zd
+   Else If (isInRange(elevu, -17.9, -12))
+      j := "Astronomical twilight. " zd
+   Else If (isInRange(elevu, 0.15, -0.61))
+      j := "Daylight. " zdu
+   Else If (isInRange(elevu, -0.61, 5.9))
+      j := "Daylight. Warm sunlight"
+   Else If (elevu>5.9)
+      j := "Daylight"
+   Else
+      j := "Night"
+
+   If (isInRange(elevu, noonu - 0.25, noonu + 0.25) && isNumber(noonu))
+      j .= ". Solar noon"
+   Return j
+}
+
+extractGeoLocationInfos(p) {
+  w := StrSplit(p, "|")
+  If (allowDSTchanges!=1)
+     w[5] := w[4]
+  Return w
+}
+
+UIcityChooser() {
+  If (AnyWindowOpen!=6)
+     Return
+
+  Gui, SettingsGUIA: Default
+  GuiControlGet, uiUserCountry
+  GuiControlGet, uiUserCity
+  GuiControlGet, uiUserFullDateUTC
+  ; ToolTip, % uiUserCountry "|" uiUserCity , , , 2
+  p := geoData[uiUserCountry "|" uiUserCity]
+  If (uiUserCountry=1)
+     GuiControl, SettingsGUIA: Enable, UIbtnRemGeoLoc
+  Else
+     GuiControl, SettingsGUIA: Disable, UIbtnRemGeoLoc
+
+  w := extractGeoLocationInfos(p)
+  timeus := uiUserFullDateUTC
+  yearu := SubStr(uiUserFullDateUTC, 1, 4)
+  FormatTime, gyd, % timeus, Yday
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  timi := timeus
+  timi += gmtOffset, Hours
+  FormatTime, brr, % timi, yyyy/MM/dd HH:mm
+  FormatTime, testValid, % timeus, yyyy/MM/dd
+  If !testValid
+     brr := "--:--"
+
+  astralObj := (userAstroInfodMode!=1) ? "Sun" : "Moon"
+  GuiControl, SettingsGUIA:, BtnAstroModa, % astralObj
+  astralObj := (userAstroInfodMode=1) ? "Sun" : "Moon"
+  If testValid
+  {
+     If (userAstroInfodMode=1)
+     {
+        getSunAzimuthElevation(timeus, w[2], w[3], 0, azii, elevu)
+     } Else
+     {
+        moonPhase := MoonPhaseCalculator(timeus, 0, w[2], w[3])
+        azii := moonPhase[6], elevu := moonPhase[7]
+     }
+
+     generateGraphTodaySolar(timi, w[2], w[3], gmtOffset)
+  }
+
+  eleva := elevu ? Round(elevu, 1) "°" : "--"
+  thisu := (w[7]=1) ? "Capital. " : ""
+  thisu .= "Lat/long: " Round(w[2], 3) " / " Round(w[3], 3) ". Elevation: " w[6] " meters."
+  GuiControl, SettingsGUIA:, uiInfoGeoData, % thisu
+
+  j := (gmtOffset>=0) ? "+" : ""
+  GuiControl, SettingsGUIA:, UIastroInfoLtimeGMT, % "GMT " j Round(gmtOffset, 1) " h"
+  GuiControl, SettingsGUIA:, UIastroInfoLtimeus, % SubStr(brr, 6)
+  GuiControl, SettingsGUIA:, UIastroInfoObjElev, % astralObj " altitude: " eleva
+
+  CurrentYear := testValid ? SubStr(timi, 1, 4) : yearu
+  NextYear := CurrentYear + 1
+  If (userAstroInfodMode=1)
+  {
+      If testValid
+      {
+         obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
+         prevtimi := timeus
+         prevtimi += -1, Days
+         FormatTime, gyud, % prevtimi, Yday
+         prevgmtOffset := isinRange(gyud, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+         prevobj := wrapCalcSunInfos(prevtimi, w[2], w[3], prevgmtOffset, w[6])
+         prevTduru := Round(prevobj.cdurRaw + prevobj.durRaw)
+         thisTduru := Round(obj.cdurRaw + obj.durRaw)
+         If InStr(obj.dur, "00:00")
+            diffuZeit := prevobj.cdurRaw - obj.cdurRaw
+         Else
+            diffuZeit := prevobj.durRaw - obj.durRaw
+
+         diffuTotalZeit := prevTduru - thisTduru
+         ; ToolTip, % diffuZeit "==" diffuTotalZeit , , , 2
+         diffuZeit := transformSecondsReadable(abs(diffuZeit), 1)
+         diffuTotalZeit := transformSecondsReadable(abs(diffuTotalZeit), 1)
+         If (diffuTotalZeit!="00:00" && diffuTotalZeit!="0s" && diffuTotalZeit)
+            diffuTotalZeit := (prevTduru>thisTduru) ? " (-" diffuTotalZeit ")" : " (+" diffuTotalZeit ")"
+         Else
+            diffuTotalZeit := ""
+
+         If (diffuZeit!="00:00" && diffuZeit!="0s")
+         {
+            If InStr(obj.dur, "00:00")
+            {
+               ; diffuZeit := (prevobj.cdurRaw>obj.cdurRaw) ? "-" diffuZeit : "+" diffuZeit
+               diffuZeit := Trim(diffuTotalZeit, " ()")
+               diffuTotalZeit := ""
+            } Else
+               diffuZeit := (prevobj.durRaw>obj.durRaw) ? "-" diffuZeit : "+" diffuZeit
+         }
+      }
+      pnu := (obj.elev!="") ? Round(obj.elev, 2) : "n"
+      GuiControl, SettingsGUIA:, UIastroInfoObjInfo, % decideJijiReadable(timeus, elevu, w[2], w[3], pnu) "."
+      GuiControl, SettingsGUIA:, UIastroInfoRise, % SubStr(obj.r, 6) ? SubStr(obj.r, 6) : "--:--"
+      GuiControl, SettingsGUIA:, UIastroInfoSet, % SubStr(obj.s, 6) ? SubStr(obj.s, 6) : "--:--"
+      GuiControl, SettingsGUIA:, UIastroInfoNoon, % SubStr(obj.n, 6) ? SubStr(obj.n, 6) : "--:--"
+      GuiControl, SettingsGUIA:, UIastroInfoElevNoon, % SubStr(obj.n, 6) ? "Noon: " Round(obj.elev, 1) "°" : "Noon:"
+      GuiControl, SettingsGUIA:, UIastroInfoDawn, % SubStr(obj.twR, 6) ? SubStr(obj.twR, 6) : "--:--"
+      GuiControl, SettingsGUIA:, UIastroInfoDusk, % SubStr(obj.twS, 6) ? SubStr(obj.twS, 6) : "--:--"
+      GuiControl, SettingsGUIA:, UIastroInfoDaylight, % obj.dur ? obj.dur : "--:--"
+      GuiControl, SettingsGUIA:, UIastroInfoLightDiff, % diffuZeit ? diffuZeit : "--:--"
+      GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Rise: 0°
+      GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Set: 0°
+      baseClr := (uiDarkMode=1) ? "+c" darkControlColor : "-c"
+      daLabel := (obj.Dawn=2) ? "Twilight:" : "Dawn: -6°"
+      duLabel := (obj.Dusk=2) ? "Twilight:" : "Dusk: -6°"
+      clr1 := (obj.Dawn=2) ? "+c998899" : baseClr
+      clr2 := (obj.Dusk=2) ? "+c998899" : baseClr
+      GuiControl, SettingsGUIA: %clr1%, UIastroInfoDawn
+      GuiControl, SettingsGUIA: %clr2%, UIastroInfoDusk
+      GuiControl, SettingsGUIA:, UIastroInfoLabelDawn, % daLabel
+      GuiControl, SettingsGUIA:, UIastroInfoLabelDusk, % duLabel
+      GuiControl, SettingsGUIA: +Redraw, UIastroInfoDawn
+      GuiControl, SettingsGUIA: +Redraw, UIastroInfoDusk
+
+      If InStr(obj.dur, "00:00")
+      {
+         GuiControl, SettingsGUIA:, UIastroInfoDaylight, % obj.cdur ? obj.cdur : "--:--"
+         GuiControl, SettingsGUIA:, uiastroinfoLightMode, Civil twilight:
+      } Else
+         GuiControl, SettingsGUIA:, uiastroinfoLightMode, Sunlight:
+
+      If !testValid
+      {
+         ; GuiControl, SettingsGUIA:, UIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(1, 1009, 0, 24) "} Full"
+         GuiControl, SettingsGUIA:, UIastroInfoProgressAnnum, % CurrentYear " {" CalcTextHorizPrev(1, 366) "} " NextYear
+         GuiControl, SettingsGUIA:, UIastroInfoProgressDayu, % "0h {" CalcTextHorizPrev(1, 1442, 0, 22) "} 24h "
+         ; GuiControl, SettingsGUIA:, UIastroInfoMphase, ---
+         ; GuiControl, SettingsGUIA:, UIastroInfoMoon, ---
+         GuiControl, SettingsGUIA:, UIastroInfoAnnum, ---
+         GuiControl, SettingsGUIA:, UIastroInfoDayu, ---
+         GuiControl, SettingsGUIA:, UIastroInfoTotalLight, ---
+         Return
+      }
+
+      totalu := transformSecondsReadable(obj.durRaw + obj.cdurRaw)
+      GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % totalu diffuTotalZeit
+      GuiControl, SettingsGUIA:, UIastroInfoLabelTotalLight, Total light:
+  } Else
+  {
+      prevtimi := timeus
+      prevtimi += -1, Days
+      FormatTime, gyud, % prevtimi, Yday
+      prevgmtOffset := isinRange(gyud, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      prevobj := wrapCalcMoonRiseSet(prevtimi, w[2], w[3], prevgmtOffset, w[6])
+      prevtimi := timi
+      prevtimi += -1, Days
+      prevminant := getMoonNoonZeit(SubStr(prevtimi, 1, 8) "000105", w[2], w[3], prevgmtOffset, 1)
+      prevdur := coreCalculateLightDuration(prevminant, prevobj.r, prevobj.s, prevobj.RawR, prevobj.RawS, prevobj.yref, prevobj.ref, prevobj.tref, prevobj.trz, "Moon")
+
+      coolminant := getMoonNoonZeit(SubStr(timi, 1, 8) "000105", w[2], w[3], gmtOffset, 1)
+
+      mobj := wrapCalcMoonRiseSet(timeus, w[2], w[3], gmtOffset, w[6])
+      duration := coreCalculateLightDuration(coolminant, mobj.r, mobj.s, mobj.RawR, mobj.RawS, mobj.yref, mobj.ref, mobj.tref, mobj.trz, "Moon")
+
+      au := SubStr(mobj.r, 6) ? SubStr(mobj.r, 6) : "--:--"
+      sau := SubStr(mobj.s, 6) ? SubStr(mobj.s, 6) : "--:--"
+      mduru := duration[1] ? duration[1] : "--:--"
+      ; moonu := mobj.v ". Rises: " au ". Sets: " sau ". " mobj.dur
+      ; oldmoonPhase := oldMoonPhaseCalculator(timeus)
+      ; fnOutputDebug("o=" Round(oldmoonPhase[4],3) " | n=" Round(moonPhase[4],3))
+      moonPhaseN := moonPhase[1]
+      moonPhaseC := Round(moonPhase[3] * 100, 1)
+      moonPhaseL := Round(moonPhase[4] * 100, 1)
+      moonPhaseA := Round(moonPhase[5], 1)
+      noonLabel := SubStr(coolminant.n, 6) ? "Peak: " Round(coolminant.maxu, 1) "°" : "Peak:"
+      noonValue := SubStr(coolminant.n, 6) ? SubStr(coolminant.n, 6) : "--:--"
+      ; GuiControl, SettingsGUIA:, UIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
+      if (mobj.reverse=1)
+      {
+         If (coolminant.RawN<mobj.RawS)
+         {
+            GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Rise: 0°
+            GuiControl, SettingsGUIA:, UIastroInfoSet, % au
+            GuiControl, SettingsGUIA:, UIastroInfoLabelRise, % noonLabel
+            GuiControl, SettingsGUIA:, UIastroInfoRise, % noonValue
+            GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Set: 0°
+            GuiControl, SettingsGUIA:, UIastroInfoNoon, % sau
+         } else
+         {
+            GuiControl, SettingsGUIA:, UIastroInfoSet, % noonValue
+            GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, % noonLabel
+            GuiControl, SettingsGUIA:, UIastroInfoRise, % sau
+            GuiControl, SettingsGUIA:, UIastroInfoNoon, % au
+            GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Set: 0°
+            GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Rise: 0°
+         }
+      } else
+      {
+         GuiControl, SettingsGUIA:, UIastroInfoNoon, % noonValue
+         GuiControl, SettingsGUIA:, UIastroInfoElevNoon, % noonLabel
+         GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Rise: 0°
+         GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Set: 0°
+         GuiControl, SettingsGUIA:, UIastroInfoRise, % au
+         GuiControl, SettingsGUIA:, UIastroInfoSet, % sau
+      }
+      GuiControl, SettingsGUIA:, UIastroInfoLabelTotalLight, Next phase:
+      GuiControl, SettingsGUIA:, UIastroInfoObjInfo, %moonPhaseN% (%moonPhaseC%`%)
+      GuiControl, SettingsGUIA:, UIastroInfoLabelDusk, Age:
+      GuiControl, SettingsGUIA:, UIastroInfoDusk, %moonPhaseA%d
+      GuiControl, SettingsGUIA:, UIastroInfoLabelDawn, Fraction:
+      GuiControl, SettingsGUIA:, UIastroInfoDawn, %moonPhaseL%`%
+      GuiControl, SettingsGUIA:, UIastroInfoDaylight, % mduru
+      GuiControl, SettingsGUIA:, uiastroinfoLightMode, Moonlight:
+
+      diffuZeit := prevdur[2] - duration[2]
+      diffuZeit := transformSecondsReadable(abs(diffuZeit), 1)
+      diffuZeit := (prevdur[2]<duration[2]) ? "+" diffuZeit : "-" diffuZeit
+      GuiControl, SettingsGUIA:, UIastroInfoLightDiff, % diffuZeit ? diffuZeit : "--:--"
+
+      prevu := startDate := SubStr(uiUserFullDateUTC, 1, 8) "000325"
+      ju := SubStr(moonPhaseN, 1, InStr(moonPhaseN, A_Space))
+      ; startDate := 2022 01 01 010101
+      loopsOccured := 0
+      OutputVar := ""
+      Loop, 2160
+      {
+          pk := oldMoonPhaseCalculator(startDate)
+          xu := pk[1]
+          fg := IsInRange(pk[5], 2, 14) || IsInRange(pk[5], 16, 27) ? 120 : 10
+          startDate += fg, Minutes
+          loopsOccured++
+          If (prevu!=xu && InStr(xu, "moon") && !InStr(xu, ju))
+          {
+             prevu := xu
+             If gmtOffset
+                startDate += gmtOffset, Hours
+
+             fg := InStr(xu, "full") ? -3 : -8
+             startDate += fg, Minutes
+             FormatTime, OutputVar, % startDate, MM/dd HH:mm
+             Break
+             ; listu .= OutputVar " = " xu "`n`n"
+             ; listu .= OutputVar " = " pk[1] "`n p=" pk[3] "; f=" pk[4] "; a=" pk[5] " `n"
+          }
+      }
+      ; ToolTip, % loopsOccured , , , 2
+      pu := OutputVar ? OutputVar ". " xu "." : "----"
+      GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % pu
+       ; GuiControl, SettingsGUIA:, UIastroInfoMoonZodia, % moonZ
+  }
+
+  CurrentDateTime := timi
+  CurrentDay := SubStr(CurrentDateTime, 1, 8)
+  FirstMinOfDay := CurrentDay "000101"
+  ; ToolTip, % CurrentDateTime "`n" FirstMinOfDay , , , 2
+  EnvSub, CurrentDateTime, %FirstMinOfDay%, Minutes
+  minsPassed := CurrentDateTime + 1
+  strA := w[1] "|" w[2] "|" w[3] "|" w[4] "|" w[5] "|" w[6]
+
+  FormatTime, brrYD, % timi, YDay
+  w := brrYD/7
+  ylength := isLeapYear(CurrentYear) ? 529240 : 527825
+  percentileYear := clampInRange(Round(((brrYD*24)*60 + minsPassed)/ylength*100, 1), 0, 99.9) "%"
+  weeksPassed := clampInRange(Round(w, 1), 0, 52.2)
+  weeksPlural := (weeksPassed>1) ? "weeks" : "week"
+  weeksPlural2 := (weeksPassed>1) ? "have" : "has"
+  If (weeksPassed<1)
+  {
+     weeksPassed := brrYD
+     weeksPlural := (weeksPassed>1) ? "days" : "day"
+     weeksPlural2 := (weeksPassed>1) ? "have" : "has"
+     If (weeksPassed=0)
+     {
+        weeksPassed := "No"
+        weeksPlural := "day"
+        weeksPlural2 := "has"
+     }
+  }
+
+  percentileDay := Round((minsPassed/1441) * 100, 1) "%"
+  GuiControl, SettingsGUIA:, UIastroInfoAnnum, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
+  GuiControl, SettingsGUIA:, UIastroInfoDayu, %minsPassed% minutes (%percentileDay%) of today have elapsed.
+
+  GuiControl, SettingsGUIA:, UIastroInfoProgressAnnum, % CurrentYear " {" CalcTextHorizPrev(brrYD, 366) "} " NextYear
+  GuiControl, SettingsGUIA:, UIastroInfoProgressDayu, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 24) "} 24h "
+  INIaction(1, "uiUserCountry", "SavedSettings")
+  INIaction(1, "uiUserCity", "SavedSettings")
+  lastUsedGeoLocation := countriesArrayList[uiUserCountry] . ":" . strA
+  INIaction(1, "lastUsedGeoLocation", "SavedSettings")
+  If (AnyWindowOpen=6)
+     lastTodayPanelZeitUpdate := A_Mon A_Hour A_Min
+}
+
+UIcountryChooser() {
+   If (AnyWindowOpen!=6)
+      Return
+
+   Gui, SettingsGUIA: Default
+   GuiControlGet, uiUserCountry
+   listu := getCitiesList(uiUserCountry)
+   GuiControl, SettingsGUIA:, uiUserCity, % "|" listu
+   GuiControl, SettingsGUIA: Choose, uiUserCity, 1
+   UIcityChooser()
+}
+
+UIcountryGraphChooser() {
+   Gui, SettingsGUIA: Default
+   GuiControlGet, uiUserCountry
+   listu := getCitiesList(uiUserCountry)
+   GuiControl, SettingsGUIA:, uiUserCity, % "|" listu
+   GuiControl, SettingsGUIA: Choose, uiUserCity, 1
+   UIcityGraphChooser()
+}
+
+UIcityGraphChooser() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, uiUserCountry
+  GuiControlGet, uiUserCity
+
+  p := geoData[uiUserCountry "|" uiUserCity]
+  w := extractGeoLocationInfos(p)
+  INIaction(1, "uiUserCountry", "SavedSettings")
+  INIaction(1, "uiUserCity", "SavedSettings")
+  strA := w[1] "|" w[2] "|" w[3] "|" w[4] "|" w[5] "|" w[6]
+  lastUsedGeoLocation := countriesArrayList[uiUserCountry] ":" strA
+  INIaction(1, "lastUsedGeoLocation", "SavedSettings")
+
+  If (uiUserCountry=1)
+     GuiControl, SettingsGUIA: Enable, UIbtnRemGeoLoc
+  Else
+     GuiControl, SettingsGUIA: Disable, UIbtnRemGeoLoc
+
+  If (AnyWindowOpen=9)
+     uiPopulateTableYearMoonData()
+  Else
+     uiPopulateTableYearSolarData()
+}
+
+getCitiesList(whichCountry) {
+   listu := ""
+   counter := geoData[whichCountry "|-1"]
+   Loop, % counter
+   {
+      p := geoData[whichCountry "|" A_Index]
+      If p
+         listu .= SubStr(p, 1, InStr(p, "|") - 1) "|"
+   }
+
+   ; ToolTip, % counter "|" listu , , , 2
+   listu := Trim(listu, "|")
+   Return listu
+}
+
+BtnToggleYearGraphMode() {
+   SolarYearGraphMode := !SolarYearGraphMode
+   ; SolarYearGraphMode++
+   ; If (SolarYearGraphMode>2)
+   ;    SolarYearGraphMode := 0
+
+   INIaction(1, "SolarYearGraphMode", "SavedSettings")
+   If (AnyWindowOpen=9)
+      uiPopulateTableYearMoonData()
+   Else
+      uiPopulateTableYearSolarData()
+}
+
+helpPanelTodayTotalLight() {
+  mouseTurnOFFtooltip()
+  If (userAstroInfodMode!=1)
+     Return 
+
+  mouseCreateOSDinfoLine("Total light is sunlight plus civil twilight")
+  ; SetTimer, removeTooltip, -2000
+}
+
+helpTodayElevationNow() {
+  ; msgu := "INFO: The azimuth angle describes the angle between the north and the " astralObj " projected on the imaginary horizontal plane we are standing on, as observers.`n`nThe elevation is the angular distance between the aforementioned imaginary horizontal plane, and the " astralObj " in the sky. When the " astralObj " rises or sets, it is low in the sky, near the horizon line, which is at 0°. Solar noon is when the elevation angle is at its highest during the day.`n`nBoth angles are relative to our position on the planet."
+  mouseTurnOFFtooltip()
+  thisu := toggleTodayGraphMODE("quickie")
+  ; thisu := msgu "Click on the graph found in the bottom left corner`nfor details about the moon and the sun positions."
+  ; Gui, SettingsGUIA: +OwnDialogs
+  mouseCreateOSDinfoLine(thisu)
+  ; MsgBox, , % appName, % thisu
+}
+
+helpPanelTodayNoon() {
+  mouseTurnOFFtooltip()
+  If (userAstroInfodMode=1)
+     mouseCreateOSDinfoLine("Sun's altitude at solar noon, at the meridian passage.")
+  Else
+     mouseCreateOSDinfoLine("The meridian passage (the culminant of the moon).`nIt is the peak altitude of the moon on the sky during the given day.")
+}
+
+helpPanelTodayMoonFrac() {
+  mouseTurnOFFtooltip()
+  If (userAstroInfodMode!=1)
+     mouseCreateOSDinfoLine("The illumination fraction, from 0% (new moon) to 100% (full moon).")
+}
+
+toggleTodayGraphMODE(modus:=0) {
+  mouseTurnOFFtooltip()
+  If (modus!="quickie")
+     todaySunMoonGraphMode := !todaySunMoonGraphMode
+
+  userAstroInfodMode := !todaySunMoonGraphMode
+  INIaction(1, "userAstroInfodMode", "SavedSettings")
+  Gui, SettingsGUIA: Default
+  GuiControlGet, uiUserCountry
+  GuiControlGet, uiUserCity
+  GuiControlGet, uiUserFullDateUTC
+  ; ToolTip, % uiUserCountry "|" uiUserCity , , , 2
+  p := geoData[uiUserCountry "|" uiUserCity]
+  w := extractGeoLocationInfos(p)
+  timeus := uiUserFullDateUTC
+  yearu := SubStr(timeus, 1, 4)
+  FormatTime, gyd, % timeus, Yday
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  timi := timeus
+  timi += gmtOffset, Hours
+  If (todaySunMoonGraphMode=1)
+  {
+     If (A_PtrSize=8)
+        coolminant := getMoonNoonZeit(SubStr(timi, 1, 8) "000105", w[2], w[3], gmtOffset, 1)
+     fmax := Round(coolminant.maxu, 1)
+     fmin := Round(coolminant.minu, 1)
+     getMoonElevation(timeus, w[2], w[3], 0, azii, elevu)
+  } Else
+  {
+     getSunAzimuthElevation(timeus, w[2], w[3], 0, azii, elevu)
+     If (A_PtrSize=8)
+     {
+        obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
+        fmax := obj.elev
+        cobj := wrapCalcSunInfos(timeus, w[2], w[3] - 180, gmtOffset, w[6])
+        getSunAzimuthElevation(cobj.RawN, w[2], w[3], gmtOffset, brr, fmin)
+        fmax := Round(fmax, 1)
+        fmin := Round(fmin, 1)
+     }
+     ; fmin := cobj.elev
+     ; ToolTip, % cobj.n , , , 2
+  }
+ 
+  getCtrlCoords(hSolarGraphPic, x1, y1, x2, y2)
+  f := (todaySunMoonGraphMode=1) ? "MOON" : "SUN"
+  ; ToolTip, % x "\" y , , , 2
+  msgu := "Current " f " position on the sky:`nAltitude: " Round(elevu, 1) "°. Azimuth: " Round(azii, 1) "°."
+  If (A_PtrSize=8)
+     msgu .= "`nAltitude graph max / min:`n" fmax "° / " fmin "°."
+
+  If (modus="quickie")
+     Return msgu
+ 
+  mouseCreateOSDinfoLine(msgu, 0, x1, y2)
+  ; SetTimer, removeTooltip, -2000
+  UIcityChooser()
+}
+
+JEE_ClientToScreen(hWnd, vPosX, vPosY, ByRef vPosX2, ByRef vPosY2) {
+; function by jeeswg found on:
+; https://autohotkey.com/boards/viewtopic.php?t=38472
+
+  VarSetCapacity(POINT, 8)
+  NumPut(vPosX, &POINT, 0, "Int")
+  NumPut(vPosY, &POINT, 4, "Int")
+  DllCall("user32\ClientToScreen", "Ptr", hWnd, "Ptr", &POINT)
+  vPosX2 := NumGet(&POINT, 0, "Int")
+  vPosY2 := NumGet(&POINT, 4, "Int")
+}
+
+
+getCtrlCoords(thisHwnd, byRef x1, byRef y1, byRef x2, byRef y2) {
+   ControlGetFocus, ctrlClassNN, ahk_id %thisHwnd%
+   ControlGetPos, x, y, w, h, % ctrlClassNN, ahk_id %thisHwnd%
+
+   JEE_ClientToScreen(thisHwnd, 1, 1, x1, y1)
+   JEE_ClientToScreen(thisHwnd, w, h, x2, y2)
+}
+
+WM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
+  If (AnyWindowOpen!=6)
+     Return
+
+  If (hwnd=hDatTime)
+  {
+     mouseData := (wParam >> 16)      ; return the HIWORD -  high-order word 
+     ; TulTip(1, " == ", result, resultA, resultB, resultC, resultD, resultE)
+     stepping := Round(Abs(mouseData) / 120)
+     ; ToolTip, % msg , , , 2
+     If (msg=526) ; horizontal mouse wheel
+        direction := (mouseData>0 && mouseData<51234) ? "Right" : "Left"
+     Else
+        direction := (mouseData>0 && mouseData<51234) ? "Up" : "Down"
+     SendInput, {%direction%}
+  }
+  ; ToolTip, % hwnd , , , 2
+}
+
+NextTodayBTN(diru:=0, luping:=0) {
+   Static tz := 0, lastInvoked := 1, lastLooped := 1
+   If ((A_TickCount - lastLooped<250) && luping!=1)
+      Return
+
+   If (A_TickCount - lastInvoked<450)
+      tz++
+   Else tz := 0
+
+   f := 1
+   If (tz>50)
+      f := 24
+   Else If (tz>32)
+      f := 12
+   Else If (tz>18)
+      f := 6
+   Else If (tz>6)
+      f := 2
+
+   If (AnyWindowOpen=8)
+      f *= 3
+
+   If (diru=-1)
+      f *= -1
+
+   If (luping=1)
+      lastLooped := A_TickCount
+
+   If (luping=1 && f>2)
+      f := 2
+
+   lastInvoked := A_TickCount
+   uiUserFullDateUTC += f, Hours
+   allowAutoUpdateTodayPanel := 0
+   If (AnyWindowOpen=8)
+   {
+      generateEarthMap()
+      Return
+   }
+   GuiControl, SettingsGUIA:, uiUserFullDateUTC, % uiUserFullDateUTC
+   UIcityChooser()
+}
+
+PrevTodayBTN() {
+   NextTodayBTN(-1)
+}
+
+WM_LBUTTONDOWN(a, b, c) {
+  GuiControlGet, WhatsFocused, SettingsGUIA: FocusV
+  MouseGetPos, , , , OutputVarControl, 2
+  ; ToolTip, % OutputVarControl " | " A_GuiControl , , , 2
+  If (OutputVarControl=hBtnTodayNext || OutputVarControl=hBtnTodayPrev)
+  && (AnyWindowOpen=6 && InStr(A_GuiControl, "UIbtnToday") && InStr(WhatsFocused, "UIbtnToday"))
+  {
+     SetTimer, prolongNextTodayBTN, -10
+  }
+}
+
+prolongNextTodayBTN() {
+     If (AnyWindowOpen!=6)
+        Return
+
+     Gui, SettingsGUIA: Default
+     MouseGetPos, , , , OutputVarControl, 2
+     ControlFocus,, ahk_id %OutputVarControl%
+        ; GuiControl, SettingsGUIA: Focus, % OutputVarControl
+     Sleep, 10
+     GuiControlGet, WhatsFocused, SettingsGUIA: FocusV
+     Sleep, 10
+     startZeit := A_TickCount
+     hasLooped := 0
+     While, GetKeyState("LButton", "P")
+     {
+         If (A_TickCount - startZeit<400)
+            Continue
+         ; ToolTip, % A_GuiControl "=" AnyWindowOpen , , , 2
+         If InStr(WhatsFocused, "UIbtnTodayPrev")
+            NextTodayBTN(-1, 1)
+         Else If InStr(WhatsFocused, "UIbtnTodayNext")
+            NextTodayBTN(1, 1)
+         Sleep, 150
+         hasLooped := 1
+     }
+     ; If (InStr(WhatsFocused, "UIbtnTodayPrev") && hasLooped=1)
+     ;    NextTodayBTN(1, 1)
+     ; Else If (InStr(WhatsFocused, "UIbtnTodayNext") && hasLooped=1)
+     ;    NextTodayBTN(-1, 1)
+}
+
+UItodayPanelJumpDawn() {
+  If (userAstroInfodMode!=1)
+  {
+     helpPanelTodayMoonFrac()
+     Return
+  }
+
+  cobj := coreJumpSolarEventsToday()
+  p := cobj.RawDa
+  p += -1*cobj.lgmt, Hours
+  GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
+  UIcityChooser()
+}
+
+
+UItodayPanelJumpT1() {
+    Gui, SettingsGUIA: Default
+    GuiControlGet, l, , UIastroInfoLabelRise
+    If (userAstroInfodMode=1)
+       UItodayPanelJumpRise()
+    Else
+       UItodayPanelJumpTcore(l)
+}
+
+UItodayPanelJumpT2() {
+    Gui, SettingsGUIA: Default
+    GuiControlGet, l, , UIastroInfoElevNoon
+    If (userAstroInfodMode=1)
+       UItodayPanelJumpNoon()
+    Else
+       UItodayPanelJumpTcore(l)
+}
+
+UItodayPanelJumpT3() {
+    Gui, SettingsGUIA: Default
+    GuiControlGet, l, , UIastroInfoLabelSetu
+    If (userAstroInfodMode=1)
+       UItodayPanelJumpSet()
+    Else
+       UItodayPanelJumpTcore(l)
+}
+
+UItodayPanelJumpTcore(l) {
+    If InStr(l, "rise")
+       UItodayPanelJumpRise()
+    Else If InStr(l, "peak")
+       UItodayPanelJumpNoon()
+    Else If InStr(l, "set")
+       UItodayPanelJumpSet()
+}
+
+UItodayPanelJumpRise() {
+  cobj := coreJumpSolarEventsToday()
+  If (userAstroInfodMode=1)
+  {
+     p := cobj.RawR
+  } Else
+  {
+     mobj := wrapCalcMoonRiseSet(cobj.timeus, cobj.latu, cobj.longu, cobj.lgmt, cobj.altitude)
+     p := mobj.RawR
+  }
+
+  p += -1*cobj.lgmt, Hours
+  GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
+  UIcityChooser()
+}
+
+UItodayPanelJumpNoon() {
+  cobj := coreJumpSolarEventsToday()
+  t := cobj.timeus
+  t += cobj.lmgt, Hours
+  If (userAstroInfodMode=1)
+  {
+     p := cobj.RawN
+  } Else
+  {
+     mobj := getMoonNoonZeit(SubStr(t, 1, 8) "000105", cobj.latu, cobj.longu, cobj.lgmt, 1)
+     p := mobj.RawN
+  }
+
+  p += -1*cobj.lgmt, Hours
+  GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
+  UIcityChooser()
+}
+
+UItodayPanelJumpSet() {
+  cobj := coreJumpSolarEventsToday()
+  If (userAstroInfodMode=1)
+  {
+     p := cobj.RawS
+  } Else
+  {
+     mobj := wrapCalcMoonRiseSet(cobj.timeus, cobj.latu, cobj.longu, cobj.lgmt, cobj.altitude)
+     p := mobj.RawS
+  }
+
+  p += -1*cobj.lgmt, Hours
+  GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
+  UIcityChooser()
+}
+
+UItodayPanelJumpDusk() {
+  If (userAstroInfodMode!=1)
+     Return
+
+  cobj := coreJumpSolarEventsToday()
+  p := cobj.RawDu
+  p += -1*cobj.lgmt, Hours
+  GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
+  UIcityChooser()
+}
+
+coreJumpSolarEventsToday() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, uiUserCountry
+  GuiControlGet, uiUserCity
+  GuiControlGet, uiUserFullDateUTC
+  ; ToolTip, % uiUserCountry "|" uiUserCity , , , 2
+  p := geoData[uiUserCountry "|" uiUserCity]
+  w := extractGeoLocationInfos(p)
+  timeus := uiUserFullDateUTC
+  yearu := SubStr(timeus, 1, 4)
+  FormatTime, gyd, % timeus, Yday
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  timi := timeus
+  timi += gmtOffset, Hours
+  cobj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
+  cobj.sday := k.DaylightDateYday
+  cobj.eday := k.StandardDateYday
+  cobj.lgmt := gmtOffset
+  cobj.gmt := w[4]
+  cobj.dst := w[5]
+  cobj.altitude := w[6]
+  cobj.latu := w[2]
+  cobj.longu := w[3]
+  cobj.y := yearu
+  cobj.timeus := timeus
+  Return cobj
+}
+
+UIpanelTodayLightDiffSolstices() {
+  If (userAstroInfodMode!=1 || A_PtrSize!=8)
+     Return
+
+  cobj := coreJumpSolarEventsToday()
+  kjune := calculateEquiSols(2, cobj.y, 0)
+  kdec := calculateEquiSols(4, cobj.y, 0)
+  ; ToolTip, % kjune "`n" kdec , , , 2
+  FormatTime, gyd, % kjune, Yday
+  gmtOffset := isinRange(gyd, cobj.sday, cobj.eday - 1) ? cobj.dst : cobj.gmt
+  jobj := wrapCalcSunInfos(kjune, cobj.latu, cobj.longu, gmtOffset, cobj.altitude)
+
+  FormatTime, gyd, % kdec, Yday
+  gmtOffset := isinRange(gyd, cobj.sday, cobj.eday - 1) ? cobj.dst : cobj.gmt
+  dobj := wrapCalcSunInfos(kdec, cobj.latu, cobj.longu, gmtOffset, cobj.altitude)
+
+  durJune := jobj.durRaw - cobj.durRaw
+  durDec := dobj.durRaw - cobj.durRaw
+
+  diffuJ := transformSecondsReadable(abs(durJune), 1)
+  If (diffuJ!="00:00" && diffuJ!="0s")
+     diffuJ := (jobj.durRaw > cobj.durRaw) ? "-" diffuJ : "+" diffuJ
+
+  diffuD := transformSecondsReadable(abs(durDec), 1)
+  If (diffud!="00:00" && diffuD!="0s")
+     diffuD := (dobj.durRaw > cobj.durRaw) ? "-" diffuD : "+" diffuD
+
+  GuiControlGet, UIastroInfoLightDiff
+  GuiControlGet, OutputVar, , uiastroinfoLightMode
+  If InStr(OutputVar, "civil")
+     OutputVar := "0s"
+  Else
+     GuiControlGet, OutputVar, , UIastroInfoLightDiff
+
+  mouseCreateOSDinfoLine("Today's sunlight duration:`nYesterday: " OutputVar "`nJune solstice: " diffuJ "`nDecember solstice: " diffuD)
+}
+
+PanelTodayInfos() {
+    If reactWinOpened(A_ThisFunc, 6)
+       Return
+
+    Global UIastroInfoDaylight, UIastroInfoDawn, UIastroInfoRise, UIastroInfoNoon, UIastroInfoSet, UIastroInfoDusk, UIastroInfoMphase, UIastroInfoMoon
+         , UIastroInfoProgressAnnum, UIastroInfoAnnum, UIastroInfoProgressDayu, UIastroInfoDayu, UIastroInfoProgressMoon, UIastroInfoMoonlight
+         , uiastroinfoLightMode, UIastroInfoLtimeGMT, UIastroInfoObjElev, UIastroInfoLtimeus, UIastroInfoObjInfo, UIastroInfoObjVisibility
+         , UIastroInfoTotalLight, UIastroInfoElevNoon, UIastroInfoLabelDawn, UIastroInfoLabelDusk, UIastroInfoLightDiff, UIbtnRemGeoLoc
+         , BtnAstroModa, UIastroInfoLabelTotalLight, UIastroInfoLtimeDate, UIbtnTodayPrev, UIbtnTodayNext, UIastroInfoLabelRise, UIastroInfoLabelSetu
+
+    GenericPanelGUI(0)
+    LastWinOpened := A_ThisFunc
+    AnyWindowOpen := 6
+    INIaction(1, "LastWinOpened", "SavedSettings")
+    If (A_PtrSize!=8)
+       userAstroInfodMode := 0
+
+    todaySunMoonGraphMode := !userAstroInfodMode
+    btnWid := 100
+    txtWid := 375
+    ; Gui, Add, Text, x10 y10 h2 w2, -
+    doResetGuiFont()
+    If (PrefsLargeFonts=1)
+    {
+       btnWid := btnWid + 50
+       txtWid := txtWid + 225
+    }
 
     btnW1 := (PrefsLargeFonts=1) ? 105 : 80
     btnH := (PrefsLargeFonts=1) ? 35 : 28
@@ -4787,43 +9289,39 @@ PanelAboutWindow() {
     If !userAlarmWeekDays
        userAlarmWday7 := userAlarmWday1 := 1
 
-    Gui, Add, Tab3,xm+1, Today|Application details
-    Gui, Tab, 1
     testCelebrations()
-    zx := wrapCalculateEquiSolsDates()
-    MarchEquinox := !InStr(zx.MarchEquinox, "now") ? zx.MarchEquinox : "(" OSDsuffix " ) March equinox. The day and night are everywhere on Earth of approximately equal length."
-    JuneSolstice := !InStr(zx.JuneSolstice, "now") ? zx.JuneSolstice : "(" OSDsuffix " ) June solstice. Today is one of the longest days of the year."
-    SepEquinox := !InStr(zx.SepEquinox, "now") ? zx.SepEquinox : "(" OSDsuffix " ) September equinox. The day and night are everywhere on Earth of approximately equal length."
-    DecSolstice := !InStr(zx.DecSolstice, "now") ? zx.DecSolstice : "(" OSDsuffix " ) December solstice. Today is one of the shortest days of the year."
+    zx := wrapCalculateEquiSolsDates(A_YDay)
+    If (InStr(zx.msg, "now") && zx.r=1)
+       thisSeason := "(" OSDsuffix " ) March equinox is today. The day and night are everywhere on Earth of approximately equal length."
+    Else If (InStr(zx.msg, "now") && zx.r=2)
+       thisSeason := "(" OSDsuffix " ) June solstice. Today is one of the longest days of the year."
+    Else If (InStr(zx.msg, "now") && zx.r=3)
+       thisSeason := "(" OSDsuffix " ) September equinox is today. The day and night are everywhere on Earth of approximately equal length."
+    Else If (InStr(zx.msg, "now") && zx.r=4)
+       thisSeason := "(" OSDsuffix " ) December solstice. Today is one of the shortest days of the year."
+    Else
+       thisSeason := zx.msg
 
-    percentileYear := Round(A_YDay/366*100) "%"
-    FormatTime, CurrentYear,, yyyy
+    Global editF1, editF2, editF3, editF4, editF5, uiInfoGeoData
+    If !listedCountries
+       loadGeoData()
+
+    percentileYear := Round(A_YDay/366*100, 1) "%"
+    CurrentYear := A_Year
     NextYear := CurrentYear + 1
+    percentileDay := Round(getPercentOfToday(minsPassed) * 100, 1) "%"
+    Gui, Add, Tab3, xm+5 Section Choose2 +hwndhTabs, Events|Astronomy
 
-    percentileDay := Round(getPercentOfToday(minsPassed) * 100) "%"
-    Gui, Add, Text, x+15 y+7 w1 h1 Section, .
-    If (MarchEquinox ~= "until|here")
+    Gui, Tab, 1
+    Gui, Add, Text, xs+12 y+5 w1 h1 Section, .
+    If (thisSeason ~= "i)(two|week|since|today|until|here|tomorrow|yesterday)")
+    {
        Gui, Font, Bold
-    If !InStr(MarchEquinox, "hide")
-       Gui, Add, Text, y+7 w%txtWid%, %MarchEquinox%
-    Gui, Font, Normal
-    If (JuneSolstice ~= "until|here")
-       Gui, Font, Bold
-    If !InStr(JuneSolstice, "hide")
-       Gui, Add, Text, y+7 w%txtWid%, %JuneSolstice%
-    Gui, Font, Normal
-    If (SepEquinox ~= "until|here")
-       Gui, Font, Bold
-    If !InStr(SepEquinox, "hide")
-       Gui, Add, Text, y+7 w%txtWid%, %SepEquinox%
-    Gui, Font, Normal
-    If (DecSolstice ~= "until|here")
-       Gui, Font, Bold
-    If !InStr(DecSolstice, "hide")
-       Gui, Add, Text, y+7 w%txtWid%, %DecSolstice%
-    Gui, Font, Normal
+       Gui, Add, Text, y+7 w%txtWid%, % thisSeason
+       Gui, Font, Normal
+    }
 
-    extras := decideSysTrayTooltip()
+    extras := decideSysTrayTooltip("about")
     If extras
        Gui, Add, Text, y+7 w%txtWid%, % Trim(extras, "`n")
 
@@ -4857,18 +9355,81 @@ PanelAboutWindow() {
     }
 
     testFeast := A_Mon "." A_MDay
-    If (testFeast="01.01") || (testFeast="02.01")
-    {
-       If isLeapYear()
-          Gui, Add, Text, y+7 w%txtWid%, %A_Year% is a leap year.
-    } Else If (testFeast="02.29")
+    If isLeapYear()
+       Gui, Add, Text, y+7 w%txtWid%, %A_Year% is a leap year.
+
+    If (testFeast="02.29")
        Gui, Add, Text, y+7 w%txtWid%, Today is the 29th of February - a leap year day.
 
     Gui, Font, Normal
-    If (A_YDay>172 && A_YDay<352)
+    If isInRange(A_YDay, jSolsDay + 1, dSolsDay - 1)
        Gui, Add, Text, y+7, The days are getting shorter until the December solstice.
-    Else If (A_YDay>356 || A_YDay<167)
+    Else If (A_YDay>dSolsDay || A_YDay<jSolsDay)
        Gui, Add, Text, y+7, The days are getting longer until the June solstice.
+
+    If (ObserveHolidays=1)
+       listu := coreUpcomingEvents(0, 14, 3)
+    If listu
+       Gui, Add, Text, y+15 w%txtWid%, % "Upcoming events: `n" Trim(listu, "`n")
+ 
+    listu := "Solar seasons:`n"
+    FormatTime, OutputVar, % mEquiDate, yyyy/MM/dd
+    listu .= OutputVar ". ▀ March Equinox.`n"
+ 
+    FormatTime, OutputVar, % jSolsDate, yyyy/MM/dd
+    listu .= OutputVar ". ⬤ June Solstice.`n"
+  
+    FormatTime, OutputVar, % sEquiDate, yyyy/MM/dd
+    listu .= OutputVar ". ▃ September Equinox.`n"
+  
+    FormatTime, OutputVar, % dSolsDate, yyyy/MM/dd
+    listu .= OutputVar ". ◯ December Solstice."
+    Gui, Add, Text, y+15, % listu
+
+    Gui, Tab, 2
+    UItodayPanelResetDate("yo")
+    sml := (PrefsLargeFonts=1) ? 70 : 40
+    Gui, Add, Text, xs y+15 Section, Location:
+    Gui, Add, DropDownList, x+5 AltSubmit gUIcountryChooser Choose%uiUserCountry% vuiUserCountry, % countriesList
+    Gui, Add, DropDownList, x+5 AltSubmit gUIcityChooser Choose%uiUserCity% vuiUserCity, % getCitiesList(uiUserCountry)
+    Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
+    Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
+    Gui, Add, Button, xs y+10 hp gPrevTodayBTN vUIbtnTodayPrev +hwndhBtnTodayPrev, <<
+    Gui, Add, Button, x+5 hp gNextTodayBTN vUIbtnTodayNext +hwndhBtnTodayNext, >>
+    Gui, Add, DateTime, x+5 Choose%uiUserFullDateUTC% Right gUItodayDateCtrl vuiUserFullDateUTC +hwndhDatTime, dddd, d MMMM, yyyy; HH:mm (UTC)
+    Gui, Add, Button, x+5 hp gUItodayPanelResetDate, &Now
+    Gui, Add, Button, x+5 hp gToggleAstroInfosModa vBtnAstroModa, Moona
+    sml := (PrefsLargeFonts=1) ? 500 : 370
+    Gui, Add, Text, xs y+10 w%sml% hp +0x200 vuiInfoGeoData -wrap, Geo data.
+    sml := (PrefsLargeFonts=1) ? 100 : 60
+    zml := (PrefsLargeFonts=1) ? 300 : 150
+    Gui, Add, Text, xs y+10 w%sml% hp -wrap, Local time:
+    Gui, Add, Text, x+5 wp -wrap vUIastroInfoLtimeus, --:--
+    Gui, Add, Text, x+5 hp wp -wrap, 
+    Gui, Add, Text, x+5 hp w%zml% -wrap vUIastroInfoObjElev ghelpTodayElevationNow +hwndhCL1, Moon elevation: 92.4° 
+    Gui, Add, Text, xs y+7 hp w%sml% -wrap, 
+    Gui, Add, Text, x+5 wp hp -wrap vUIastroInfoLtimeGMT, GMT
+    Gui, Add, Text, x+5 hp wp -wrap, 
+    Gui, Add, Text, x+5 hp w%zml% -wrap vUIastroInfoObjInfo, ---
+
+    Gui, Add, Text, xs y+15 w%sml% -wrap gUIpanelTodayLightDiffSolstices vuiastroinfoLightMode +hwndhCL2, Sunlight:
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoLabelDawn ghelpPanelTodayMoonFrac +hwndhCL3, Dawn:
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoLabelRise, Rise: 0°
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoElevNoon ghelpPanelTodayNoon +hwndhCL4, Noon: --.-°
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoLabelSetu, Set: 0°
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoLabelDusk, Dusk:
+
+    Gui, Add, Text, xs y+7 wp -wrap gUIpanelTodayLightDiffSolstices vUIastroInfoDaylight +hwndhCL5, --:--
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoDawn gUItodayPanelJumpDawn +hwndhCL6, --:--
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoRise gUItodayPanelJumpT1 +hwndhCL7, --:--
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoNoon gUItodayPanelJumpT2 +hwndhCL8, --:--
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoSet gUItodayPanelJumpT3 +hwndhCL9, --:--
+    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoDusk gUItodayPanelJumpDusk +hwndhCL10, --:--
+
+    Gui, Add, Text, xs y+7 wp -Wrap vUIastroInfoLightDiff gUIpanelTodayLightDiffSolstices +hwndhCL11, --:--
+    Gui, Add, Text, x+5 wp ghelpPanelTodayTotalLight vUIastroInfoLabelTotalLight +hwndhCL12, Total light:
+    sml := (PrefsLargeFonts=1) ? 320 : 230
+    Gui, Add, Text, x+5 w%sml% -wrap vUIastroInfoTotalLight ghelpPanelTodayTotalLight +hwndhCL13, [\]\\\\\\\\\\\\\--:-- (+ --:--)
 
     If (A_OSVersion="WIN_XP")
     {
@@ -4879,61 +9440,62 @@ PanelAboutWindow() {
        Gui, Font,, DejaVu LGC Sans
     }
 
-    ; fnOutputDebug("booooooooooooooooooooom")
-    moonPhase := MoonPhaseCalculator()
-    moonPhaseN := moonPhase[1]
-    moonPhaseI := moonPhase[2]
-    moonPhaseC := Round(moonPhase[3] * 100)
-    moonPhaseL := Round(moonPhase[4] * 100)
-
-    ; startDate := 2022 01 01 010101
-    ; Loop, 983
-    ; {
-    ;     startDate += 1, Hours
-    ;     pk := MoonPhaseCalculator(startDate)
-    ;        FormatTime, OutputVar, % startDate, yyyy/MM/dd
-    ;        ; listu .= OutputVar " = " pk[1] "`n`n"
-    ;        ; If InStr(pk[1], "new")
-    ;        fnOutputDebug(OutputVar " = " pk[1] "; p=" pk[3] "; f=" pk[4] "; a=" pk[5])
-    ; }
-
-    Gui, Add, Text, xp+30 y+15 Section, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
-    Gui, Add, Text, xp+15 y+5, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
-    Gui, Add, Text, xs y+10, Moon phase: %moonPhaseN% (%moonPhaseI% / 8)
-    Gui, Add, Text, xp+15 y+10, %moonPhaseC%`% of the cycle, %moonPhaseL%`% illuminated.
-    Gui, Add, Text, xs y+10, % "0h {" CalcTextHorizPrev(minsPassed, 1440, 0, 22) "} 24h "
-    Gui, Add, Text, xp+15 y+5, %minsPassed% minutes (%percentileDay%) of today have elapsed.
+    graphW := (PrefsLargeFonts=1) ? 220 : 135
+    graphH := (PrefsLargeFonts=1) ? 110 : 80
+    Gui, Add, Text, xs y+10 w1 h2 -wrap, .
+    Gui, Add, Text, xs y+15 w%graphW% h%graphH% +0x8 +0xE gtoggleTodayGraphMODE +hwndhSolarGraphPic, Preview area
+    graphW := (PrefsLargeFonts=1) ? 260 : 150
+    Gui, Add, Text, x+8 yp Section vUIastroInfoProgressAnnum, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
+    Gui, Add, Text, xp+15 y+5 wp vUIastroInfoAnnum, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
+    ; Gui, Add, Text, xp+15 y+10 wp vUIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
+    ; Gui, Add, Text, y+10 wp vUIastroInfoMoon, %moonPhaseC%`% of the cycle, %moonPhaseL%`% illuminated.`n-
+    Gui, Add, Text, xs y+10 wp vUIastroInfoProgressDayu, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 22) "} 24h "
+    Gui, Add, Text, xp+15 y+5 wp vUIastroInfoDayu, %minsPassed% minutes (%percentileDay%) of today have elapsed.
     If (A_OSVersion="WIN_XP")
        doResetGuiFont()
 
-    Gui, Tab, 2
-    Gui, Add, Text, x+15 y+15 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
-    Gui, Add, Text, xs y+15 Section w%txtWid%, This application contains code and sounds from various entities.%newLine%You can find more details in the source code.
-    compiled := (A_IsCompiled=1) ? "Compiled. " : "Uncompiled. "
-    compiled .= (A_PtrSize=8) ? "x64. " : "x32. "
-    Gui, Add, Text, xs y+15 w%txtWid%, Current version: v%version% from %ReleaseDate%. Internal AHK version: %A_AhkVersion%. %compiled%OS: %A_OSVersion%.
-    Gui, Add, Text, y+15 +Border gOpenChangeLog, Click here to view the change log / version history.
-    If (storeSettingsREG=1)
-       Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
-    Else      
-       Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, The development page is <a href="https://github.com/marius-sucan/ChurchBellsTower">on GitHub</a>.
-    Gui, Font, Bold
-    Gui, Add, Link, xp+30 y+10 hwndhLink1, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
-    Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, paypal.png
-    doResetGuiFont()
-
-    Gui, Tab
     btnW1 := (PrefsLargeFonts=1) ? 110 : 80
     btnW2 := (PrefsLargeFonts=1) ? 80 : 55
     btnW3 := (PrefsLargeFonts=1) ? 110 : 80
     btnH := (PrefsLargeFonts=1) ? 35 : 28
-    Gui, Add, Button, xm+0 y+10 Section h%btnH% w%btnW1% Default gCloseWindowAbout hwndhBtn1, &Deus lux est
-    Gui, Add, Button, x+5 hp w%btnW2% gShowSettings hwndhBtn2, &Settings
-    If (ObserveHolidays=1)
-      Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations hwndhBtn3, &Celebrations
+    Gui, Tab
+    If (A_PtrSize!=8)
+       Gui, Add, Text, xm+0 y+10, WARNING: The astronomy features are not available on the 32 bits edition.
+    Gui, Add, Button, xm+0 y+20 Section h%btnH% w%btnW1% Default gCloseWindowAbout, &Deus lux est
+    Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations, &Celebrations
+    ; Gui, Add, Button, x+5 hp w%btnW1% gUIlistSunRiseSets , &Table
+    Gui, Add, Button, x+5 hp w%btnW1% gBTNopenYearSolarTable, &Year graph
+    ; Gui, Add, Button, x+5 hp w%btnW1% gbatchDumpTests , &Test all
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
-    Gui, Show, AutoSize, About: %appName%
+    ColorPickerHandles := ""
+    Loop, 13
+        ColorPickerHandles .= hCL%A_Index% ","
+
+    Gui, Show, AutoSize, About today: %appName%
+    UIcityChooser()
+    Settimer, regularUpdaterTodayPanel, 2500
+}
+
+regularUpdaterTodayPanel() {
+   ; Static lastInvoked := 1
+   If (AnyWindowOpen!=6)
+   {
+      Settimer, regularUpdaterTodayPanel, Off
+      Return
+   }
+
+   thisu := A_Mon A_Hour A_Min
+   If (allowAutoUpdateTodayPanel=1 && AnyWindowOpen=6 && thisu!=lastTodayPanelZeitUpdate)
+   {
+      lastTodayPanelZeitUpdate := thisu
+      UItodayPanelResetDate()
+   }
+}
+
+UItodayDateCtrl() {
+   allowAutoUpdateTodayPanel := 0
+   UIcityChooser()
 }
 
 CloseWindowAbout() {
@@ -4969,7 +9531,7 @@ setDarkWinAttribs(hwndGUI, modus:=1) {
 }
 
 OpenChangeLog() {
-  Try Run, bells-tower-change-log.txt
+  Try Run, "%A_ScriptDir%\bells-tower-change-log.txt"
 }
 
 ;================================================================
@@ -5045,6 +9607,7 @@ INIsettings(a) {
   INIaction(a, "analogMoonPhases", "SavedSettings")
   INIaction(a, "silentHours", "SavedSettings")
   INIaction(a, "silentHoursA", "SavedSettings")
+  INIaction(a, "userAstroInfodMode", "SavedSettings")
   INIaction(a, "silentHoursB", "SavedSettings")
   INIaction(a, "showTimeIdleAfter", "SavedSettings")
   INIaction(a, "showTimeWhenIdle", "SavedSettings")
@@ -5088,6 +9651,11 @@ INIsettings(a) {
   INIaction(a, "userAlarmWeekDays", "SavedSettings")
   INIaction(a, "userAlarmFreq", "SavedSettings")
   INIaction(a, "userTimerFreq", "SavedSettings")
+  INIaction(0, "uiUserCountry", "SavedSettings")
+  INIaction(0, "uiUserCity", "SavedSettings")
+  INIaction(0, "allowDSTchanges", "SavedSettings")
+  INIaction(0, "allowAltitudeSolarChanges", "SavedSettings")
+  INIaction(0, "lastUsedGeoLocation", "SavedSettings")
   ; INIaction(a, "userAlarmExceptPerso", "SavedSettings")
   ; INIaction(a, "userAlarmExceptRelu", "SavedSettings")
   ; INIaction(a, "userAlarmExceptSeculu", "SavedSettings")
@@ -5097,6 +9665,7 @@ INIsettings(a) {
   INIaction(a, "constantAnalogClock", "OSDprefs")
   INIaction(a, "analogDisplay", "OSDprefs")
   INIaction(a, "analogDisplayScale", "OSDprefs")
+  INIaction(a, "roundedClock", "OSDprefs")
   INIaction(a, "FontName", "OSDprefs")
   INIaction(a, "FontSize", "OSDprefs")
   INIaction(a, "FontSizeQuotes", "OSDprefs")
@@ -5107,10 +9676,14 @@ INIsettings(a) {
   INIaction(a, "OSDalpha", "OSDprefs")
   INIaction(a, "OSDbgrColor", "OSDprefs")
   INIaction(a, "OSDtextColor", "OSDprefs")
+  INIaction(a, "OSDastroALTcolor", "OSDprefs")
+  INIaction(a, "OSDastroALTOcolor", "OSDprefs")
+  INIaction(a, "OSDastralMode", "OSDprefs")
   INIaction(a, "OSDmarginTop", "OSDprefs")
   INIaction(a, "OSDmarginBottom", "OSDprefs")
   INIaction(a, "OSDmarginSides", "OSDprefs")
   INIaction(a, "OSDroundCorners", "OSDprefs")
+  INIaction(a, "OverrideOSDcolorsAstro", "OSDprefs")
   INIaction(a, "showOSDprogressBar", "OSDprefs")
   INIaction(a, "makeScreenDark", "SavedSettings")
   INIaction(a, "maxBibleLength", "OSDprefs")
@@ -5148,7 +9721,10 @@ CheckSettings() {
 ; verify check boxes
     BinaryVar(analogDisplay, 0)
     BinaryVar(NoWelcomePopupInfo, 0)
+    BinaryVar(userAstroInfodMode, 1)
+    BinaryVar(OverrideOSDcolorsAstro, 0)
     BinaryVar(constantAnalogClock, 0)
+    BinaryVar(roundedClock, 0)
     BinaryVar(PrefsLargeFonts, 0)
     BinaryVar(tollQuartersException, 0)
     BinaryVar(tollQuarters, 1)
@@ -5224,6 +9800,7 @@ CheckSettings() {
     MinMaxVar(userTimerFreq, 1, 99, 2)
     MinMaxVar(userAlarmFreq, 1, 99, 4)
     MinMaxVar(showOSDprogressBar, 1, 6, 2)
+    MinMaxVar(OSDastralMode, 1, 4, 1)
 
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
@@ -5233,6 +9810,8 @@ CheckSettings() {
 ; verify HEX values
    HexyVar(OSDbgrColor, "131209")
    HexyVar(OSDtextColor, "FFFEFA")
+   HexyVar(OSDastroALTcolor, "106699")
+   HexyVar(OSDastroALTOcolor, "006612")
 
 ; verify other values
    FontName := (StrLen(FontName)>2) ? FontName
@@ -5657,13 +10236,12 @@ dummyDoLoopisSoundPlayingNow() {
    isSoundPlayingNow(1)
 }
 
-calculateEquiSols(i, year, localTime:=0) {
-; Calculate and Display a single event for a single year (Either a Equiniox or Solstice)
+AHKcalculateEquiSols(k, year, localTime:=0) {
+; Calculate and Display a single event for a single year (an equinox or solstice)
 ; Meeus Astronomical Algorithms Chapter 27
 ; 4 events for param i: 1=AE, 2=SS, 3-VE, 4=WS
 
-   k := i - 1
-   JDEzero := calcInitialEquiSols(k, year)           ; Initial estimate of date of event
+   JDEzero := calcInitialEquiSols(k - 1, year)           ; Initial estimate of date of event
    ; fnOutputDebug("JDE0=" JDEzero)
    ; T := (JDEzero - 2451545.0) / 36525
    T := SM_Divide(JDEzero - 2451545, 36525)
@@ -5677,6 +10255,9 @@ calculateEquiSols(i, year, localTime:=0) {
    JDE := SM_Add( JDEzero,  SM_Divide( SM_Multiply(0.00001, S), dL ) )  ; This is the answer in Julian Emphemeris Days
    ; JDE := JDEzero + ( (0.00001*S) / dL )   ; This is the answer in Julian Emphemeris Days
    TDT := fromJDtoUTC(JDE)                   ; Convert Julian Days to TDT in a Date Object
+
+  ; fnOutputDebug("tdt=" tdt)
+  ; fnOutputDebug("std=" std)
    If (localTime=1)
       Return convertUTCtoLocalTime(TDT)
    Else
@@ -5807,14 +10388,15 @@ fromJDtoUTC( JD ) {
     return theDate
 }
 
-TZI_GetTimeZoneInformation() {
+TZI_GetTimeZoneInformation(y:=0, gyd:=0) {
    ; source https://gist.github.com/hoppfrosch/6882628
    ; and  https://www.autohotkey.com/board/topic/68856-sample-dealing-with-time-zones-ahk-l/
 
    ; GetTimeZoneInformationForYear -> msdn.microsoft.com/en-us/library/bb540851(v=vs.85).aspx (Win Vista+)
    ; cmd.exe w32tm /tz
 
-   Year := A_Year
+   Year := y ? y : A_Year
+   gyd := gyd ? gyd : A_YDay
    VarSetCapacity(TZI, 172, 0)
    If !DllCall("GetTimeZoneInformationForYear", "UShort", Year, "Ptr", 0, "Ptr", &TZI, "Int")
    {
@@ -5856,7 +10438,8 @@ TZI_GetTimeZoneInformation() {
    UTCDate := R.DaylightDate
    UTCDate += UTCBias, M
    R.DaylightDateUTC := UTCDate
-   R.TotalCurrentBias := isinRange(A_YDay, R.DaylightDateYday, R.StandardDateYday) ? R.Bias + R.DaylightBias + R.StandardBias : R.Bias + R.StandardBias
+   R.isDST := isinRange(gyd, R.DaylightDateYday, R.StandardDateYday - 1) ? 1 : 0
+   R.TotalCurrentBias := (R.isDST) ? R.Bias + R.DaylightBias + R.StandardBias : R.Bias + R.StandardBias
    ; ToolTip, % R.TotalCurrentBias "`n" R.StandardDateYday "==" R.StandardDate "`n" R.DaylightDateYday "==" R.DaylightDateUTC "`n" R.StandardName "=" NumGet(TZI, 84, "Int") "==" NumGet(TZI, 168, "Int") , , , 2
    Return R
 }
@@ -5902,7 +10485,93 @@ Class TZI_SYSTEMTIME {
    }
 }
 
-MoonPhaseCalculator(t:=0, calcDetails:=0) {
+MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
+
+  Static phaseNames := {1:"New moon", 2:"Waxing Crescent", 3:"First Quarter"
+           , 4: "Waxing Gibbous", 5:"Full moon", 6:"Waning Gibbous"
+           , 7:"Last Quarter", 8:"Waning Crescent"}
+
+  If !initCBTdll()
+     Return
+
+  If !t
+     t := A_NowUTC
+
+  If gmtOffset
+     t += gmtOffset, Hours
+
+  t -= 19700101000000, S   ; convert to Unix TimeStamp
+  IDphase := azimuth := eleva := latitude := longitude := age := phase := fraction := ""
+  r := DllCall(callCBTdllFunc("getMoonPhase"), "double", t, "double", latu, "double", longu, "double*", phase, "int*", IDphase, "double*", age, "double*", fraction, "double*", latitude, "double*", longitude, "double*", azimuth, "double*", eleva, "Int")
+  If !r 
+     Return
+
+  IDphase++
+  phaseName := phaseNames[IDphase]
+  ; If (fraction>0.994 && IDphase=5)
+  ;    phaseName .= " (peak)"
+  ; Else if (fraction<0.016 && IDphase=1)
+  ;    phaseName .= " (peak)"
+
+  ; fnOutputDebug(IDphase "|" phaseName "|" fraction, 1)
+  Return [phaseName, IDphase, phase, fraction/100, age, azimuth, eleva]
+}
+
+oldMoonPhaseCalculator(t:=0, gmtOffset:=0, calcDetails:=0) {
+; Calculate the phase and position of the moon for a given date.
+; The algorithm is simple and adequate for many purposes.
+;
+; This software was originally adapted to Javascript by Stephen R. Schmitt
+; from a BASIC program from the 'Astronomical Computing' column of Sky & Telescope,
+; April 1994, page 86, written by Bradley E. Schaefer.
+;
+; Subsequently adapted from Stephen R. Schmitt's Javascript to C++ for the Arduino
+; by Cyrus Rahman.
+;
+; This work is/was subjected to Stephen Schmitt's copyright:
+; Copyright 2004 Stephen R. Schmitt
+; You may use or modify this source code in any way you find useful, provided
+; that you agree that the author(s) have no warranty, obligations or liability.  You
+; must determine the suitability of this source code for your use.
+;
+; source https://github.com/signetica/MoonPhase
+
+  Static phaseNames := {1:"New moon", 2:"Waxing Crescent", 3:"First Quarter"
+           , 4: "Waxing Gibbous", 5:"Full moon", 6:"Waning Gibbous"
+           , 7:"Last Quarter", 8:"Waning Crescent"}
+       , zodiacNames := {0:"Pisces", 1:"Pisces", 2:"Aries", 3:"Taurus", 4:"Gemini", 5:"Cancer", 6:"Leo"
+                       , 7:"Virgo", 8:"Libra", 9:"Scorpio", 10:"Sagittarius", 11:"Capricorn", 12:"Aquarius"}
+
+  If !initCBTdll()
+     Return
+
+  If (t="now" || !t)
+     t := A_NowUTC
+
+  If gmtOffset
+     t += gmtOffset, Hours
+
+  t -= 19700101000000, S   ; convert to Unix TimeStamp
+  zdc := latitude := longitude := age := phase := fraction := ""
+  r := DllCall(callCBTdllFunc("oldgetMoonPhase"), "double", t, "Int", 1, "double*", phase, "int*", IDphase, "double*", age, "double*", fraction, "double*", latitude, "double*", longitude, "int*", zdc, "Int")
+  If !r 
+     Return
+
+  zodiac := zodiacNames[zdc + 1]
+  If !zodiac
+     zodiac := zodiacNames[0]
+
+  IDphase++
+  phaseName := phaseNames[IDphase]
+  ; If (fraction>0.994 && IDphase=5)
+  ;    phaseName .= " (peak)"
+  ; Else if (fraction<0.006 && IDphase=1)
+  ;    phaseName .= " (peak)"
+
+  Return [phaseName, IDphase, phase, fraction, age, zodiac, latitude, longitude]
+}
+
+AHKmoonPhaseCalculator(t:=0, gmtOffset:=0, calcDetails:=0) {
 ; Calculate the phase and position of the moon for a given date.
 ; The algorithm is simple and adequate for many purposes.
 ;
@@ -5937,12 +10606,19 @@ MoonPhaseCalculator(t:=0, calcDetails:=0) {
        , phaseNames := {1:"New moon", 2:"Waxing Crescent", 3:"First Quarter"
            , 4: "Waxing Gibbous", 5:"Full moon", 6:"Waning Gibbous"
            , 7:"Last Quarter", 8:"Waning Crescent"}
+       , zodiacNames := {1:"Pisces", 2:"Aries", 3:"Taurus", 4:"Gemini", 5:"Cancer", 6:"Leo"
+                       , 7:"Virgo", 8:"Libra", 9:"Scorpio", 10:"Sagittarius", 11:"Capricorn", 12:"Aquarius"}
+
+  ; If !initCBTdll()
+  ;    Return
 
   If (t="now" || !t)
      t := A_NowUTC
 
-  ; MsgBox, % NowUTC
-  t -= 19700101000000, S
+  If gmtOffset
+     t += gmtOffset, Hours
+
+  t -= 19700101000000, S   ; convert to Unix TimeStamp
 
   ; jDate := getJulianDate(t)
   ; jDate := (t - LEAP_SECONDS) / SECONDS_PER_DAY + JULIAN_UNIX_EPOCH ; Julian day from Unix time
@@ -5959,32 +10635,32 @@ MoonPhaseCalculator(t:=0, calcDetails:=0) {
   ; age := SM_Multiply(phase, MOON_SYNODIC_PERIOD)
   fraction := (1.0 - cos(2 * M_PI * phase)) * 0.5
   ; fraction := SM_Multiply(SM_Add(1.0, -cos(SM_Multiply(2, SM_Multiply(M_PI, phase) ) ) ), 0.5)
-  ; phaseID := mod(round(floor(phase * 8) + 0.51), 8) + 1
 
-  If (age<1.307)
+  phaseID := mod(round(floor(phase * 8) + 0.51), 8) + 1
+  If (age<1.351)
     phaseID := 1
-  Else If (age<6.382)
+  Else If (age<6.592)
     phaseID := 2
-  Else If (age<8.382)
+  Else If (age<8.282)
     phaseID := 3
-  Else If (age<13.565)
+  Else If (age<13.675)
     phaseID := 4
-  Else If (age<15.965)
+  Else If (age<15.915)
     phaseID := 5
-  Else If (age<21.148)
+  Else If (age<21.387)
     phaseID := 6
-  Else If (age<23.148)
+  Else If (age<22.913)
     phaseID := 7
-  Else If (age<28.215)
+  Else If (age<28.201)
     phaseID := 8
   Else
     phaseID := 1
 
   phaseName := phaseNames[phaseID]
-  If (fraction>0.994 && phaseID=5)
-     phaseName .= " (peak)"
-  Else if (fraction<0.006 && phaseID=1)
-     phaseName .= " (peak)"
+  ; If (fraction>0.994 && phaseID=5)
+  ;    phaseName .= " (peak)"
+  ; Else if (fraction<0.006 && phaseID=1)
+  ;    phaseName .= " (peak)"
 
   If (calcDetails=1)
   {
@@ -6006,7 +10682,8 @@ MoonPhaseCalculator(t:=0, calcDetails:=0) {
         longitude := longitude - 360
   }
   ; fnOutputDebug("jd=" jDate "; phase=" phase "; fraction=" fraction "; " phaseName)
-  Return [phaseName, phaseID, phase, fraction, age, distance, latitude, longitude]
+
+  Return [phaseName, phaseID, phase, fraction, age, zodiac, distance, latitude, longitude]
 }
 
 MixARGB(color1, color2, t := 0.5, gamma := 1) {
@@ -6024,73 +10701,26 @@ MixARGB(color1, color2, t := 0.5, gamma := 1) {
    Return thisColor := Format("{1:#x}", thisColor)
 }
 
-decideFadeColor() {
-  newColor := MixARGB("0xFF" OSDbgrColor, "0xFF" OSDtextColor)
-  OSDfadedColor := SubStr(newColor, 5)
+decideFadeColor(coloru) {
+  newColor := MixARGB("0xFF" coloru, "0xFF" OSDtextColor)
+  Return SubStr(newColor, 5)
 }
-
-GetWindowBounds(hWnd) {
-   ; function by GeekDude: https://gist.github.com/G33kDude/5b7ba418e685e52c3e6507e5c6972959
-   ; W10 compatible function to find a window's visible boundaries
-   ; modified by Marius Șucan to return an array
-   size := VarSetCapacity(rect, 16, 0)
-   er := DllCall("dwmapi\DwmGetWindowAttribute"
-      , "UPtr", hWnd  ; HWND  hwnd
-      , "UInt", 9     ; DWORD dwAttribute (DWMWA_EXTENDED_FRAME_BOUNDS)
-      , "UPtr", &rect ; PVOID pvAttribute
-      , "UInt", size  ; DWORD cbAttribute
-      , "UInt")       ; HRESULT
-
-   If er
-      DllCall("GetWindowRect", "UPtr", hwnd, "UPtr", &rect, "UInt")
-
-   r := []
-   r.x1 := NumGet(rect, 0, "Int"), r.y1 := NumGet(rect, 4, "Int")
-   r.x2 := NumGet(rect, 8, "Int"), r.y2 := NumGet(rect, 12, "Int")
-   r.w := Abs(max(r.x1, r.x2) - min(r.x1, r.x2))
-   r.h := Abs(max(r.y1, r.y2) - min(r.y1, r.y2))
-   ; ToolTip, % r.w " --- " r.h , , , 2
-   Return r
-}
-
-GetWinClientSize(ByRef w, ByRef h, hwnd, mode) {
-; by Lexikos http://www.autohotkey.com/forum/post-170475.html
-; modified by Marius Șucan
-    Static prevW, prevH, prevHwnd, lastInvoked := 1
-    If (A_TickCount - lastInvoked<95) && (prevHwnd=hwnd)
-    {
-       W := prevW, H := prevH
-       Return
-    }
-
-    prevHwnd := hwnd
-    VarSetCapacity(rc, 16, 0)
-    If (mode=1)
-    {
-       r := GetWindowBounds(hwnd)
-       prevW := W := r.w
-       prevH := H := r.h
-       lastInvoked := A_TickCount
-       Return
-    } Else DllCall("GetClientRect", "uint", hwnd, "uint", &rc)
-
-    prevW := W := NumGet(rc, 8, "int")
-    prevH := H := NumGet(rc, 12, "int")
-    lastInvoked := A_TickCount
-} 
 
 mouseTurnOFFtooltip() {
    Gui, mouseToolTipGuia: Destroy
    mouseToolTipWinCreated := 0
 }
 
-mouseCreateOSDinfoLine(msg:=0, largus:=0) {
+mouseCreateOSDinfoLine(msg:=0, largus:=0, gX:=0, gY:=0) {
     Critical, On
     Static prevMsg, lastInvoked := 1
     Global TippyMsg
 
-    thisHwnd := hSetWinGui
-    If (StrLen(msg)<3) || (prevMsg=msg && mouseToolTipWinCreated=1) || (A_TickCount - lastInvoked<100) || !thisHwnd
+    thisHwnd := hSetWinGui 
+    If (!thisHwnd && hCelebsMan && windowManageCeleb=1)
+       thisHwnd := hCelebsMan
+
+    If ((StrLen(msg)<3) || (prevMsg=msg && mouseToolTipWinCreated=1) || (A_TickCount - lastInvoked<100) || !thisHwnd)
        Return
 
     lastInvoked := A_TickCount
@@ -6098,6 +10728,7 @@ mouseCreateOSDinfoLine(msg:=0, largus:=0) {
     thisFntSize := (largus=1) ? Round(LargeUIfontValue*1.55) : LargeUIfontValue
     If (thisFntSize<12)
        thisFntSize := 12
+
     bgrColor := OSDbgrColor
     txtColor := OSDtextColor
     Sleep, 25
@@ -6108,19 +10739,25 @@ mouseCreateOSDinfoLine(msg:=0, largus:=0) {
     Gui, mouseToolTipGuia: Font, s%thisFntSize% Bold Q5, %FontName%
     Gui, mouseToolTipGuia: Add, Text, 0x80 c%txtColor% gmouseTurnOFFtooltip vTippyMsg, %msg%
     Gui, mouseToolTipGuia: Show, NoActivate AutoSize Hide x1 y1, QPVOguiTipsWin
-
-    GetPhysicalCursorPos(mX, mY)
-    tipX := mX + 15
-    tipY := mY + 15
-    ResWidth := adjustWin2MonLimits(hGuiTip, tipX, tipY, Final_x, Final_y, Wid, Heig)
-    MaxWidth := Floor(ResWidth*0.85)
-    If (MaxWidth<Wid && MaxWidth>10)
+    If (gX=0 && gY=0)
     {
-       GuiControl, mouseToolTipGuia: Move, TippyMsg, w1 h1
-       GuiControl, mouseToolTipGuia:, TippyMsg,
-       Gui, mouseToolTipGuia: Add, Text, 0x80 xp yp c%txtColor% gmouseTurnOFFtooltip w%MaxWidth%, %msg%
-       Gui, mouseToolTipGuia: Show, NoActivate AutoSize Hide x1 y1, QPVguiTipsWin
-       ResWidth := adjustWin2MonLimits(hGuiTip, tipX, tipY, Final_x, Final_y, Wid, Heig)
+      GetPhysicalCursorPos(mX, mY)
+      tipX := mX + 15
+      tipY := mY + 15
+      ResWidth := adjustWin2MonLimits(hGuiTip, tipX, tipY, Final_x, Final_y, Wid, Heig)
+      MaxWidth := Floor(ResWidth*0.85)
+      If (MaxWidth<Wid && MaxWidth>10)
+      {
+         GuiControl, mouseToolTipGuia: Move, TippyMsg, w1 h1
+         GuiControl, mouseToolTipGuia:, TippyMsg,
+         Gui, mouseToolTipGuia: Add, Text, 0x80 xp yp c%txtColor% gmouseTurnOFFtooltip w%MaxWidth%, %msg%
+         Gui, mouseToolTipGuia: Show, NoActivate AutoSize Hide x1 y1, QPVguiTipsWin
+         ResWidth := adjustWin2MonLimits(hGuiTip, tipX, tipY, Final_x, Final_y, Wid, Heig)
+      }
+    } Else 
+    {
+      Final_x := gX
+      Final_y := gY
     }
 
     prevMsg := msg
@@ -6152,7 +10789,6 @@ adjustWin2MonLimits(winHwnd, winX, winY, ByRef rX, ByRef rY, ByRef Wid, ByRef He
 
    Return ResWidth
 }
-
 
 GetPhysicalCursorPos(ByRef mX, ByRef mY) {
 ; function from: https://github.com/jNizM/AHK_DllCall_WinAPI/blob/master/src/Cursor%20Functions/GetPhysicalCursorPos.ahk
@@ -6189,22 +10825,26 @@ WM_RBUTTONUP() {
     thisWin := WinActive("A")
     If (mouseToolTipWinCreated=1)
        mouseTurnOFFtooltip()
-    Else If ((AnyWindowOpen || PrefOpen=1) && !InStr(A_GuiControl, "lview"))
+    Else If ((AnyWindowOpen || PrefOpen=1 || windowManageCeleb=1) && !InStr(A_GuiControl, "lview"))
        SettingsToolTips()
 }
 
 SettingsToolTips() {
    ActiveWin := WinActive("A")
-   If (ActiveWin!=hSetWinGui)
+   If (ActiveWin!=hSetWinGui && ActiveWin!=hCelebsMan)
       Return
-
    If (mouseToolTipWinCreated=1)
       mouseTurnOFFtooltip()
  
-   Gui, SettingsGUIA: Default
+   If (ActiveWin=hCelebsMan && windowManageCeleb=1)
+      Gui, CelebrationsGuia: Default
+   Else
+      Gui, SettingsGUIA: Default
+
    GuiControlGet, value, , %A_GuiControl%
    If (A_GuiControl="holiListu")
       Return
+
    ; MouseGetPos, , , , hwnd, 1 ; |2|3]
    GuiControlGet, hwnd, hwnd, %A_GuiControl%
    ControlGetText, info,, ahk_id %hwnd%
@@ -6297,6 +10937,18 @@ SettingsToolTips() {
    Return msg2show
 }
 
+
+cRound(n, j:=0) {
+   Return Round(n)
+   k := Round(n, 1)
+   d := Floor(n)
+   If IsInRange(k, d + 0.4, d + 0.6)
+      Return d + 0.5
+   Else
+      Return d
+}
+
+
 #If, (WinActive( "ahk_id " hFaceClock) && constantAnalogClock=1 && hFaceClock)
     Escape::
       hideAnalogClock()
@@ -6311,3 +10963,6 @@ SettingsToolTips() {
       toggleMoonPhasesAnalog()
     Return
 #If
+
+
+

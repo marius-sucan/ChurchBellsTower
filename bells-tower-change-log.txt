@@ -5,6 +5,22 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.2.5 - 2022 / 11 / 23
+  - [new] astronomy panel; information about the sun and the moon
+    - display when the sun and the moon rise and set, solar noon
+    - and position on the sky (altitude, azimuth)
+    - display moonlight and daylight durations, moon phases and more
+    - generate detailed tables and graphs for any given year for the moon or the sun
+    - earth map with dynamically generated moonlit or sunlit areas on the planet
+    - option to search for cities/locations; up to 54300 locations available
+    - dynamically updatable index of locations, based on user provided population threshold
+    - user custom defined locations that works as a favourites list as well
+    - recolorize the OSD based on the time of day, if it is daylight or moonlight, or night.
+  - [new] option to have the analog clock widget rounded
+  - optimized the algorithm to calculate the equinoxes and solstices
+  - reorganized main menu [system tray]
+  - various bug fixes
+
 v3.1.7 - 2022 / 09 / 08
   - [new] option to display a progress bar in the OSD; users have the ability to choose from several time related progress bars
   - [new] option to mark full moon by wolves howling [audio]

@@ -40,8 +40,8 @@ InitClockFace() {
    }
 
    ClockCenter := Round(ClockWinSize/2)
-   If (OSDroundCorners!=1)
-      roundsize := 1
+   ; If (OSDroundCorners!=1)
+   ;    roundsize := 1
 
    SetFormat, Integer, H
    faceOpacity+=0
@@ -49,12 +49,14 @@ InitClockFace() {
    SetFormat, Integer, D
 
    Width := Height := ClockWinSize + 2      ; make width and height slightly bigger to avoid cut away edges
+   rsz := roundsize*2 ; (width + height)//4
    Gui, ClockGui: Destroy
    Sleep, 25
    Gui, ClockGui: -DPIScale -Caption -Border +E0x80000 +AlwaysOnTop +ToolWindow +hwndHfaceClock
    Gui, ClockGui: Show, NoActivate x%ClockPosX% y%ClockPosY% w%Width% h%height%
    Gui, ClockGui: Hide
-   ; WinSet, Region, 0-0 R%roundedCsize%-%roundedCsize% w%Width% h%Height%, ahk_id %hFaceClock%
+   If (roundedClock=1)
+      WinSet, Region, 0-0 R%rsz%-%rsz% w%Width% h%Height%, ahk_id %hFaceClock%
    CenterX := CenterY := ClockCenter
 
 ; Prepare our pGraphic so we have a 'canvas' to work upon
@@ -62,12 +64,14 @@ InitClockFace() {
    globalobm := SelectObject(globalhdc, globalhbm), globalG := Gdip_GraphicsFromHDC(globalhdc)
    Gdip_SetSmoothingMode(globalG, 4)
    Gdip_SetInterpolationMode(globalG, 7)
+   ; Gdip_TranslateWorldTransform(globalG, ClockWinSize/4, ClockWinSize/4s)
 
 ; Draw outer circle
    Diameter := Round(ClockDiameter * 1.35)
    pBrush := Gdip_BrushCreateSolid(faceOpacityBgr faceElements)      ; clock face background 
-   Gdip_FillRectangle(globalG, pBrush, 0, 0, Ceil(ClockWinSize), Ceil(ClockWinSize))
-   Gdip_FillRoundedRectangle(globalG, pBrush, 0, 0, Ceil(ClockWinSize), Ceil(ClockWinSize), Ceil(roundsize))
+   Gdip_FillRectangle(globalG, pBrush, 0, 0, Ceil(ClockWinSize)*1.5, Ceil(ClockWinSize)*1.5)
+   Gdip_FillRectangle(globalG, pBrush, 0, 0, Ceil(ClockWinSize)*1.5, Ceil(ClockWinSize)*1.5)
+   ; Gdip_FillRoundedRectangle(globalG, pBrush, 0, 0, Ceil(ClockWinSize), Ceil(ClockWinSize), Ceil(roundsize//2))
    Gdip_DeleteBrush(pBrush)
 
    Diameter := ClockDiameter - 2*Floor((ClockDiameter//100)*1.2)
@@ -111,7 +115,7 @@ InitClockFace() {
    If (ClockDiameter>250)
       DrawClockMarks(4, R1, R2, globalG, pPen)                  ; we have 4 quarters
    Gdip_DeletePen(pPen)
-   
+
    UpdateLayeredWindow(hFaceClock, globalhdc, , , , , mainOSDopacity)
    moduleAnalogClockInit := 1
    Return
@@ -166,22 +170,32 @@ UpdateEverySecond() {
    Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
    Gdip_DeleteBrush(pBrush)
 
-   Diameter := Round(ClockDiameter*0.08, 2)
-   pBrush := Gdip_BrushCreateSolid("0x66" faceElements)
-   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
-   Gdip_DeleteBrush(pBrush)
-
-   Diameter := Round(ClockDiameter*0.04, 2)
-   pBrush := Gdip_BrushCreateSolid("0x95" faceElements)
-   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
-   Gdip_DeleteBrush(pBrush)
-
+   Gdip_SetSmoothingMode(globalG, 4)   ; turn on antialiasing
 ; draw moon phase
    If (analogMoonPhases=1)
    {
-     moonPhase := MoonPhaseCalculator()
+     Static moonPhase := [], elevu := 1, lastCalcZeit := 1, lastCoords := 0, lastAngleMoon := 0
+
+     If (A_TickCount - lastCalcZeit>98501) || (lastCoords!=lastUsedGeoLocation)
+     {
+        If InStr(lastUsedGeoLocation, "|")
+           w := StrSplit(lastUsedGeoLocation, "|")
+
+        If (w.Count()>5)
+           getMoonElevation(A_NowUTC, w[2], w[3], 0, azii, elevu)
+        Else
+           elevu := 20
+
+        moonPhase := MoonPhaseCalculator()
+        lastCalcZeit := A_TickCount
+        ; lastAngleMoon := getMoonLichtAngle(A_NowUTC, w[2], w[3], w[6])
+        ; ToolTip, % lastAngleMoon , , , 2
+        lastCoords := lastUsedGeoLocation
+     }
+
      o_moonCycle := Round(moonPhase[3], 3)
-     darkFace := mixARGB("0xFF" faceElements, "0xFF" faceBgrColor, 0.4)
+     fu := (elevu<0) ? 0.05 : 0.3
+     darkFace := mixARGB("0xFF" faceElements, "0xFF" faceBgrColor, fu)
      brightFace := "0xFF" faceBgrColor
 
      ; Static o_moonCycle := 0
@@ -210,6 +224,7 @@ UpdateEverySecond() {
      Gdip_SetClipPath(globalG, pPath)
      DiameterZ := (flip=1) ? Diameter*(moonCycle*2) : Diameter*(1 - moonCycle*2)
      ; DiameterZ := (moonCycle<0.5) ? Diameter*(1 - moonCycle*2) : Diameter*(moonCycle/1.25)
+
      If (flap=2)
         Gdip_FillRectangle(globalG, bDark, CenterX, CenterY + diameter/2.18, Diameter//2, Diameter)
      Else If (flap=1)
@@ -220,21 +235,41 @@ UpdateEverySecond() {
         Gdip_FillRectangle(globalG, bDark, CenterX, CenterY + diameter/2.18, Diameter//2, Diameter)
     
      Gdip_FillEllipse(globalG, bDark, CenterX - (DiameterZ/2), CenterY + diameter/2.18, DiameterZ, Diameter)
-     Gdip_DeleteBrush(bBright)
-     Gdip_DeleteBrush(bDark)
      Gdip_ResetClip(globalG)
      Gdip_DeletePath(pPath)
     
      Diameter := Round(ClockDiameter*0.20, 2)
      pPen := Gdip_CreatePen("0x66" faceElements, Round((ClockDiameter/100)*1.3, 2))
      Gdip_DrawEllipse(globalG, pPen, CenterX - (Diameter/2), CenterY + diameter/2.18,Diameter, Diameter)
+     If (elevu<0)
+     {
+        thisBrush := Gdip_BrushCreateSolid("0x77" faceElements)
+        Gdip_FillEllipse(globalG, thisBrush, CenterX - (Diameter/2), CenterY + diameter/2.18,Diameter, Diameter)
+        Gdip_DeleteBrush(thisBrush)
+     }
+     ; mainBitmap := Gdip_CreateBitmapFromFileSimplified("resources\earth-surface-map.jpg")
+     ; pBitmap := Gdip_RotateBitmapAtCenter(mainBitmap, -lastAngleMoon)
+     ; Gdip_DrawImage(globalG, pBitmap, ClockCenter, ClockCenter, 100, 100)
+     ; Gdip_DisposeImage(pBitmap)
+     ; Gdip_DisposeImage(mainBitmap)
+
      Gdip_DeletePen(pPen)
+     Gdip_DeleteBrush(bDark)
+     Gdip_DeleteBrush(bBright)
    }
 
 ; Draw HoursPointer
-   Gdip_SetSmoothingMode(globalG, 4)   ; turn on antialiasing
    t := (A_Hour*360//12) + ((A_Min//15*15)*360//60)//12 + 90
    R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.50, 2) ; outer position
+   If (analogMoonPhases=1 && isInRange(A_Hour, 16, 20))
+   {
+      pPen := Gdip_CreatePen("0x88" faceBgrColor, Round((ClockDiameter/100)*4.6, 2))
+      Gdip_DrawLine(globalG, pPen, CenterX, CenterY
+         , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 2)
+         , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 2))
+      Gdip_DeletePen(pPen)
+   }
+
    pPen := Gdip_CreatePen("0xaa" faceElements, Round((ClockDiameter/100)*3.3, 2))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
       , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 2)
@@ -273,6 +308,17 @@ UpdateEverySecond() {
       , Round(CenterX + (R1 * Cos(t * Atan(1) * 4 / 180)), 2)
       , Round(CenterY + (R1 * Sin(t * Atan(1) * 4 / 180)), 2))
    Gdip_DeletePen(pPen)
+
+; draw center
+   Diameter := Round(ClockDiameter*0.08, 2)
+   pBrush := Gdip_BrushCreateSolid("0x66" faceElements)
+   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
+   Gdip_DeleteBrush(pBrush)
+
+   Diameter := Round(ClockDiameter*0.04, 2)
+   pBrush := Gdip_BrushCreateSolid("0x95" faceElements)
+   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
+   Gdip_DeleteBrush(pBrush)
 
    UpdateLayeredWindow(hFaceClock, globalhdc, , , , , mainOSDopacity)
    Return
@@ -364,25 +410,31 @@ ClockGuiGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
     pk := MoonPhaseCalculator()
     Menu, ClockSizesMenu, Check, %analogDisplayScale%x
     Menu, ContextMenu, Add, Sc&ale, :ClockSizesMenu
-    Menu, ContextMenu, Add, 
+    Menu, ContextMenu, Add
     Menu, ContextMenu, Add, &Hide the clock, toggleAnalogClock
+    Menu, ContextMenu, Add, Rounded &widget, toggleRoundedWidget
+    If (roundedClock=1)
+       Menu, ContextMenu, Check, Rounded &widget
     Menu, ContextMenu, Add, Show &moon phases, toggleMoonPhasesAnalog
-    Menu, ContextMenu, Add, % pk[1], dummy
-    Menu, ContextMenu, Disable, % pk[1]
+    Try Menu, ContextMenu, Add, % pk[1], dummy
+    Try Menu, ContextMenu, Disable, % pk[1]
     If (analogMoonPhases=1)
        Menu, ContextMenu, Check, Show &moon phases
 
-    Menu, ContextMenu, Add, 
+    Menu, ContextMenu, Add
     If (PrefOpen=0)
     {
        Menu, ContextMenu, Add, &Tick/tock sounds, ToggleTickTock
        If (tickTockNoise=1)
           Menu, ContextMenu, Check, &Tick/tock sounds
-       Menu, ContextMenu, Add, 
+       Menu, ContextMenu, Add
+       Menu, ContextMenu, Add, Astronom&y / Today, PanelTodayInfos
        Menu, ContextMenu, Add, Set &alarm or timer, PanelSetAlarm
        Menu, ContextMenu, Add, Stop&watch, PanelStopWatch
+       Menu, ContextMenu, Add, &Celebrations, PanelIncomingCelebrations
+       Menu, ContextMenu, Add
        Menu, ContextMenu, Add, &Settings, ShowSettings
-       Menu, ContextMenu, Add, 
+       Menu, ContextMenu, Add
        Menu, ContextMenu, Add, &About, PanelAboutWindow
     }
 
