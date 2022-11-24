@@ -342,7 +342,7 @@ Gdip_SetPbitmapCtrl(hwnd, pBitmap, w:=0, h:=0, quality:=7) {
    hBitmap := Gdip_CreateHBITMAPFromBitmap(fbmp)
    E := SetImage(hwnd, hBitmap)
    DeleteObject(hBitmap)
-   Gdip_DisposeImage(fbmb)
+   Gdip_DisposeImage(fbmp)
    return E
 }
 
