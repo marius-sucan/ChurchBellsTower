@@ -162,8 +162,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.2.5"
-, ReleaseDate            := "2022 / 11 / 23"
+, Version                := "3.2.6"
+, ReleaseDate            := "2022 / 11 / 24"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0
@@ -213,7 +213,7 @@ Global CSthin      := "░"   ; light gray
 , FontChangedTimes := 0, AnyWindowOpen := 0, CurrentPrefWindow := 0
 , mEquiDay := 79, jSolsDay := 172, sEquiDay := 266, dSolsDay := 356
 , mEquiDate := A_Year "0320010203", jSolsDaTe := A_Year "0621010203", sEquiDate := A_Year "0923010203", dSolsDate := A_Year "1222010203"
-, LastBibleQuoteDisplay := 1, hSolarGraphPic
+, LastBibleQuoteDisplay := 1, hSolarGraphPic, gDllType := 0
 , LastBibleQuoteDisplay2 := 1, countriesArrayList := []
 , LastBibleMsg := "", AllowDarkModeForWindow := ""
 , celebYear := A_Year, userAlarmIsSnoozed := 0
@@ -1837,7 +1837,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
   Static lastInvoked := 1
   MouseGetPos, xu, yu, OutputVarWin, OutputVarControl, 2
   ; ToolTip, % AnyWindowOpen "=" OutputVarWin "=" OutputVarControl "=" hSolarGraphPic , , , 2
-  If (AnyWindowOpen=7 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
+  If (AnyWindowOpen=7 && generatingEarthMapNow=0 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
   {
      GetPhysicalCursorPos(xu, yu)
      GetWinClientSize(w, h, hSolarGraphPic, 0)
@@ -1873,7 +1873,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
      }
      lastInvoked := A_TickCount
      ; tooltip, % nx "=" ny "=" w "=" h "=" zp
-  } Else If (AnyWindowOpen=9 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
+  } Else If (AnyWindowOpen=9 && generatingEarthMapNow=0 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
   {
      GetPhysicalCursorPos(xu, yu)
      GetWinClientSize(w, h, hSolarGraphPic, 0)
@@ -1904,7 +1904,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
      }
      lastInvoked := A_TickCount
      ; tooltip, % nx "=" ny "=" w "=" h "=" zp
-  } Else If (AnyWindowOpen=8 && generatingEarthMapNow!=1 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
+  } Else If (AnyWindowOpen=8 && generatingEarthMapNow=0 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
   {
      GetPhysicalCursorPos(xu, yu)
      GetWinClientSize(w, h, hSolarGraphPic, 0)
@@ -5368,7 +5368,10 @@ PanelSunYearGraphTable() {
     Gui, Tab
     btnW := (PrefsLargeFonts=1) ? 80 : 55
     btnH := (PrefsLargeFonts=1) ? 35 : 28
-    Gui, Add, Text, xm+0 y+10 wp Section -wrap vuiInfoGeoData, Please wait...
+    If (A_PtrSize!=8)
+       Gui, Add, Text, xm+0 y+10, WARNING: The astronomy features are not available on the 32 bits edition.
+    Else
+       Gui, Add, Text, xm+0 y+10 wp Section -wrap vuiInfoGeoData, Please wait...
     Gui, Add, Text, xp y+5 wp -wrap vUIastroInfoAnnum, -
     Gui, Add, Button, xp y+20 h%btnH% w%btnW% Default gCloseWindow, &Close
     Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
@@ -5426,7 +5429,10 @@ PanelMoonYearGraphTable() {
     Gui, Tab
     btnW := (PrefsLargeFonts=1) ? 80 : 55
     btnH := (PrefsLargeFonts=1) ? 35 : 28
-    Gui, Add, Text, xm+0 y+10 wp Section -wrap vuiInfoGeoData, Please wait...
+    If (A_PtrSize!=8)
+       Gui, Add, Text, xm+0 y+10, WARNING: The astronomy features are not available on the 32 bits edition.
+    Else
+       Gui, Add, Text, xm+0 y+10 wp Section -wrap vuiInfoGeoData, Please wait...
     Gui, Add, Text, xp y+5 wp -wrap vUIastroInfoAnnum, -
     Gui, Add, Button, xp y+20 h%btnH% w%btnW% Default gCloseWindow, &Close
     Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
@@ -6965,9 +6971,11 @@ timeSpanInSeconds(x, y) {
 
 initCBTdll() {
    DllPath := A_ScriptDir "\cbt-main.dll"
-   If !A_IsCompiled
-      DllPath := "cpp-dll\cbt-main.dll"
+   If (!A_IsCompiled && InStr(A_ScriptDir, "\sucan twins\"))
+      DllPath := A_ScriptDir "\cpp-dll\cbt-main.dll"
 
+   FileGetSize, OutputVar, % DllPath , K
+   gDllType := (OutputVar<300) ? 1 : 0
    If !hCbtDLL
       hCbtDLL := DllCall("LoadLibraryW", "WStr", DllPath, "UPtr")
    Else
@@ -6979,9 +6987,13 @@ initCBTdll() {
 callCBTdllFunc(funcu) {
   Static oldie := {"calculateEquiSols":24, "getMoonElevation":32, "getMoonNoon":44, "getMoonPhase":56, "getSolarCalculatorData":48, "getSunAzimuthElevation":52, "getSunMoonRiseSet":48, "getTwilightDuration":36, "oldgetMoonPhase":40}
   If (A_PtrSize=8)
+  {
      Return "cbt-main.dll\" funcu
-  Else
-     Return "cbt-main.dll\" funcu "@" oldie[funcu]
+  } Else
+  {
+     p := (gDllType=1) ? "_" : ""
+     Return "cbt-main.dll\_" funcu "@" oldie[funcu]
+  }
 }
 
 getSunAzimuthElevation(t, latu, longu, gmtOffset, ByRef azimuth, ByRef elevation) {
@@ -7094,7 +7106,10 @@ calculateEquiSols(k, yearu, l:=0) {
    mm := d := hh := m := ""
    r := DllCall(callCBTdllFunc("calculateEquiSols"), "int", k - 1, "int", yearu, "int*", mm, "int*", d, "int*", hh, "int*", m, "Int")
    If !r
-      Return
+   {
+      r := AHKcalculateEquiSols(k, yearu, l)
+      Return r
+   }
 
    theDate := yearu Format("{:02}", mm) Format("{:02}", d) Format("{:02}", hh) Format("{:02}", m) Format("{:02}", 14)
    If (l=1)
@@ -7621,7 +7636,9 @@ uiPopulateTableYearSolarData() {
   debugMode := !A_IsCompiled
   ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
   ; ToolTip, % A_TickCount - startoperation , , , 2
+  generatingEarthMapNow := 1
   generateGraphYearSunData(graphArraySun, graphArrayElev, loopsu, graphArrayTimes)
+  generatingEarthMapNow := 0
   ToolTip
 }
 
@@ -7809,7 +7826,9 @@ uiPopulateTableYearMoonData() {
   debugMode := !A_IsCompiled
   ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
   ; ToolTip, % A_TickCount - startoperation , , , 2
+  generatingEarthMapNow := 1
   generateGraphYearMoonData(graphArrayMoon, graphArrayElev, loopsu, graphArrayTimes, intervalsList)
+  generatingEarthMapNow := 0
   ToolTip
 }
 
@@ -9717,6 +9736,10 @@ MinMaxVar(ByRef givenVar, miny, maxy, defy) {
 }
 
 CheckSettings() {
+    if !isNumber(uiUserCountry)
+       uiUserCountry := 1
+    if !isNumber(uiUserCity)
+       uiUserCity := 1
 
 ; verify check boxes
     BinaryVar(analogDisplay, 0)
@@ -9726,6 +9749,8 @@ CheckSettings() {
     BinaryVar(constantAnalogClock, 0)
     BinaryVar(roundedClock, 0)
     BinaryVar(PrefsLargeFonts, 0)
+    BinaryVar(allowDSTchanges, 1)
+    BinaryVar(allowAltitudeSolarChanges, 1)
     BinaryVar(tollQuartersException, 0)
     BinaryVar(tollQuarters, 1)
     BinaryVar(tollNoon, 1)
@@ -9760,7 +9785,7 @@ CheckSettings() {
     BinaryVar(analogMoonPhases, 1)
 
 ; verify numeric values: min, max and default values
-    If (InStr(analogDisplayScale, "err") || !analogDisplayScale)
+    If (!analogDisplayScale || !isNumber(analogDisplayScale))
        analogDisplayScale := 1
     Else If (analogDisplayScale<0.3)
        analogDisplayScale := 0.25
@@ -10497,6 +10522,7 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
   If !t
      t := A_NowUTC
 
+  ot := t
   If gmtOffset
      t += gmtOffset, Hours
 
@@ -10504,7 +10530,10 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
   IDphase := azimuth := eleva := latitude := longitude := age := phase := fraction := ""
   r := DllCall(callCBTdllFunc("getMoonPhase"), "double", t, "double", latu, "double", longu, "double*", phase, "int*", IDphase, "double*", age, "double*", fraction, "double*", latitude, "double*", longitude, "double*", azimuth, "double*", eleva, "Int")
   If !r 
-     Return
+  {
+     r := AHKmoonPhaseCalculator(ot, gmtOffset)
+     Return r
+  }
 
   IDphase++
   phaseName := phaseNames[IDphase]
@@ -10548,6 +10577,7 @@ oldMoonPhaseCalculator(t:=0, gmtOffset:=0, calcDetails:=0) {
   If (t="now" || !t)
      t := A_NowUTC
 
+  ot := t
   If gmtOffset
      t += gmtOffset, Hours
 
@@ -10555,7 +10585,10 @@ oldMoonPhaseCalculator(t:=0, gmtOffset:=0, calcDetails:=0) {
   zdc := latitude := longitude := age := phase := fraction := ""
   r := DllCall(callCBTdllFunc("oldgetMoonPhase"), "double", t, "Int", 1, "double*", phase, "int*", IDphase, "double*", age, "double*", fraction, "double*", latitude, "double*", longitude, "int*", zdc, "Int")
   If !r 
-     Return
+  {
+     r := AHKmoonPhaseCalculator(ot, gmtOffset, calcDetails)
+     Return r
+  }
 
   zodiac := zodiacNames[zdc + 1]
   If !zodiac
