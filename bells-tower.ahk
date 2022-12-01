@@ -158,14 +158,13 @@ Global displayTimeFormat := 1
 , ClockWinSize  := ClockDiameter + 2
 , ClockCenter   := Round(ClockWinSize/2)
 , roundedCsize  := Round(ClockDiameter/4)
-, EquiSolsCache := 0
 
 ; Release info
 , ThisFile               := A_ScriptName
 , Version                := "3.2.6"
 , ReleaseDate            := "2022 / 11 / 24"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
-, ScriptInitialized, FirstRun := 1
+, ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0
 , LastNoonAudio := 0, appName := "Church Bells Tower"
 , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-1"
@@ -204,7 +203,7 @@ Global CSthin      := "░"   ; light gray
 , windowManageCeleb := 0, hBtnTodayPrev, hBtnTodayNext
 , stopStrikesNow := 0, mouseToolTipWinCreated := 0
 , ClockVisibility := 0, quoteDisplayTime := 100
-, stopAdditionalStrikes := 0, lastUsedGeoLocation
+, stopAdditionalStrikes := 0
 , strikingBellsNow := 0, generatingEarthMapNow := 0
 , DoGuiFader := 1, showEarthSunMapModus := 1
 , lastFaded := 1, geoData := new hashtable()
@@ -242,7 +241,7 @@ Global CSthin      := "░"   ; light gray
 , SNDmedia_hours1, SNDmedia_hours2, SNDmedia_hours3, SNDmedia_hours4, SNDmedia_hours5
 , SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
 , hFaceClock, lastShowTime := 1, pToken, scriptStartZeit := A_TickCount
-, globalG, globalhbm, globalhdc, globalobm, uiUserCountry, uiUserCity, uiUserFullDateUTC
+, globalG, globalhbm, globalhdc, globalobm, uiUserFullDateUTC
 , moduleAnalogClockInit := 0, darkWindowColor := 0x202020, darkControlColor := 0xEDedED
 , debugMode := !A_IsCompiled
 
@@ -1429,7 +1428,7 @@ decideOSDcolorBGR() {
      If (elevu<6)
         moonPhase := MoonPhaseCalculator(timeus, 0, w[2], w[3])
 
-     mf := moonPhase[4] ? clampInRange(moonPhase[4] + 0.1, 0, 1) : 0
+     mf := moonPhase[4] ? clampInRange(moonPhase[4] + 0.2, 0, 1) : 0
      ju := decideJiji(elevu)
      ja := decideJiji(moonPhase[7]) * mf
      j := ju
