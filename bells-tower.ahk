@@ -8491,7 +8491,7 @@ decideJijiReadable(timeus, elevu, lat, lon, noonu:="a") {
    Else
       j := "Night"
 
-   If (isInRange(elevu, noonu - 0.25, noonu + 0.25) && isNumber(noonu))
+   If (isInRange(elevu, noonu - 0.35, noonu + 0.35) && isNumber(noonu))
       j .= ". Solar noon"
    Return j
 }
@@ -9320,7 +9320,7 @@ PanelTodayInfos() {
     Else
        thisSeason := zx.msg
 
-    Global editF1, editF2, editF3, editF4, editF5, uiInfoGeoData
+    Global editF1, editF2, editF3, editF4, editF5, uiInfoGeoData, AstroTabsWin
     If !listedCountries
        loadGeoData()
 
@@ -9328,7 +9328,7 @@ PanelTodayInfos() {
     CurrentYear := A_Year
     NextYear := CurrentYear + 1
     percentileDay := Round(getPercentOfToday(minsPassed) * 100, 1) "%"
-    Gui, Add, Tab3, xm+5 Section Choose2 +hwndhTabs, Events|Astronomy
+    Gui, Add, Tab3, xm+5 Section Choose2 AltSubmit vAstroTabsWin +hwndhTabs, Events|Astronomy
 
     Gui, Tab, 1
     Gui, Add, Text, xs+12 y+5 w1 h1 Section, .
@@ -9502,6 +9502,11 @@ regularUpdaterTodayPanel() {
       Settimer, regularUpdaterTodayPanel, Off
       Return
    }
+
+   Gui, SettingsGUIA: Default
+   GuiControlGet, AstroTabsWin
+   If (AstroTabsWin!=2)
+      Return
 
    thisu := A_Mon A_Hour A_Min
    If (allowAutoUpdateTodayPanel=1 && AnyWindowOpen=6 && thisu!=lastTodayPanelZeitUpdate)
