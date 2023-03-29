@@ -4,9 +4,9 @@
 
 <p>An application that can toll quarters, on the hour, display astronomic details about the sun and moon, show random Bible verses, remind the user of Christian feasts and... reproduce semantron drumming sounds. Dedicated to bell lovers and Christians.</p>
 
-<p width="620" height="490"><img width="620" height="490" alt="Church Bells Tower - screenshot" src="https://marius.sucan.ro/media/files/blog/ahk-scripts/images/bells-tower-screenshot.jpg"></p>
+<p width="620" height="490"><img width="620" height="490" alt="Church Bells Tower - screenshot" src="https://files.sucan.ro/marius/blog/ahk-scripts/images/bells-tower-screenshot.jpg"></p>
 
-<h2><a href="https://marius.sucan.ro/media/files/blog/ahk-scripts/bells-tower.zip">Downloaded latest version</a> (compiled for x64/x32, Windows binary)</h2>
+<h2><a href="https://files.sucan.ro/marius/blog/ahk-scripts/bells-tower.zip">Downloaded latest version</a> (compiled for x64/x32, Windows binary)</h2>
 
 <h2>Application also <a href="https://www.microsoft.com/en-us/p/church-bells-tower/9pfqbhn18h4k">available on Windows Store</a>.</h2>
 
@@ -21,7 +21,7 @@
 <li>option to display time when it chimes/strikes/toll ;-)</li>
 <li>... with an analog clock display (optional)</li>
 <li>tick/tock background sound</li>
-<li>display a random Bible verse in English, French or Spanish, at a specified interval (e.g., every three hours)</li>
+<li>display a random Bible verse in English, French, Spanish, or in other languages, at a user-defined frequency (e.g., every three hours)</li>
 <li>astronomy basics: sun and moon positions on the sky, sun rises and sets, moon phases, moon rises and sets, equinoxes and solstices, and tables and graph for sunlight and moonlight lengths through-out the year, and much more</li>
 <li>option to display / observe Christian feast days - for Orthodox and Catholic worshippers; automatically calculates the dates for Easter and related celebrations</li>
 <li>options to set an alarm or a timer</li>

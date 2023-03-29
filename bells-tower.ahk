@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2022)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.1.7
+;@Ahk2Exe-SetVersion 3.3.0
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -39,10 +39,12 @@
 #Include, Lib\va.ahk                   ; vista audio APIs wrapper by Lexikos
 #Include, Lib\mci.ahk
 #Include, Lib\gdip_all.ahk
+#Include, Lib\gdi.ahk
 #Include, Lib\analog-clock-display.ahk
 #Include, Lib\Class_CtlColors.ahk
 #Include, Lib\Maths.ahk
 #Include, Lib\hashtable.ahk
+#Include, Lib\Class_ImageButton.ahk
 
 DetectHiddenWindows, On
 ComObjError(false)
@@ -161,8 +163,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.2.6"
-, ReleaseDate            := "2022 / 11 / 24"
+, Version                := "3.3.0"
+, ReleaseDate            := "2023 / 03 / 29"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0
@@ -221,7 +223,7 @@ Global CSthin      := "░"   ; light gray
 , hMain := A_ScriptHwnd, stopWatchIntervalInfos := []
 , lastOSDredraw := 1, stopWatchHumanStartTime := 0
 , semtr2play := 0, stopWatchRealStartZeit := 0, attempts2Quit := 0
-, stopWatchBeginZeit := 0, stopWatchLapBeginZeit := 0
+, stopWatchBeginZeit := 0, stopWatchLapBeginZeit := 0, combosDarkModus := ""
 , stopWatchPauseZeit := 0.001, stopWatchLapPauseZeit := 0.001
 , aboutTheme, GUIAbgrColor, AboutTitleColor, hoverBtnColor, BtnTxtColor, GUIAtxtColor
 , listedExtendedLocations := 0, extendedGeoData := []
@@ -229,7 +231,7 @@ Global CSthin      := "░"   ; light gray
 , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
 , hBibleTxt, hBibleOSD, hSetWinGui, ColorPickerHandles, hDatTime
-, CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gsetColors"
+, CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gInvokeSeetNewColor"
 , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
 , SNDmedia_ticktok, quartersTotalTime := 0, hoursTotalTime := 0
 , SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas, todaySunMoonGraphMode := 0
@@ -244,6 +246,10 @@ Global CSthin      := "░"   ; light gray
 , globalG, globalhbm, globalhdc, globalobm, uiUserFullDateUTC
 , moduleAnalogClockInit := 0, darkWindowColor := 0x202020, darkControlColor := 0xEDedED
 , debugMode := !A_IsCompiled
+
+; initDLLhack()
+If !pToken
+   pToken := Gdip_Startup()
 
 If (roundCornerSize<20)
    roundCornerSize := 20
@@ -398,7 +404,7 @@ ShowWelcomeWindow() {
     Global BtnSilly0, BtnSilly1, BtnSilly2
     GenericPanelGUI()
     AnyWindowOpen := 2
-    Gui, Font, s20 Bold, Arial, -wrap
+    Gui, Font, c%AboutTitleColor% s20 Bold, Arial, -wrap
     Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section hwndhIcon, %A_ScriptDir%\resources\bell-image.png
     Gui, Add, Text, x+7 y10, %appName%
     Gui, Font, s12 Bold, Arial, -wrap
@@ -415,7 +421,7 @@ ShowWelcomeWindow() {
 
     sm := (PrefsLargeFonts=1) ? 40 : 28
     Gui, Add, Text, xs y+10 w%txtWid%, %appName% is currently running in background. To configure it or exit, please locate its icon in the system tray area, next to the system clock in the taskbar. To access the settings double click or right click on the bell icon.
-    Gui, Add, Button, xs y+15 w%btnWid% h%sm% gShowSettings, &Settings panel
+    Gui, Add, Button, xs y+15 w%btnWid% h%sm% gPanelShowSettings, &Settings panel
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleLargeFonts Checked%PrefsLargeFonts% vPrefsLargeFonts, Large UI font sizes
     Gui, Add, Button, xs y+10 w%btnWid% hp gPanelTodayInfos, &About today
     Gui, Add, Checkbox, x+5 w%btnWid% hp +0x1000 gToggleAnalogClock Checked%constantAnalogClock% vconstantAnalogClock, &Analog clock display
@@ -427,8 +433,9 @@ ShowWelcomeWindow() {
 ToggleWelcomeInfos() {
   Gui, SettingsGUIA: Default
   GuiControlGet, NoWelcomePopupInfo
-;  NoWelcomePopupInfo := !NoWelcomePopupInfo
+  ; NoWelcomePopupInfo := !NoWelcomePopupInfo
   INIaction(1, "NoWelcomePopupInfo", "SavedSettings")
+/*
   CloseWindow()
   Sleep, 10
   If (NoWelcomePopupInfo=1)
@@ -437,6 +444,7 @@ ToggleWelcomeInfos() {
      IfMsgBox, Yes
        ShowWelcomeWindow()
   } Else ShowWelcomeWindow()
+*/
 }
 
 analogClockStarter() {
@@ -617,11 +625,20 @@ InvokeBibleQuoteNow() {
         lang := "fra"
      Else If (BibleQuotesLang=3)
         lang := "esp"
-     Else
+     Else If (BibleQuotesLang=1)
         lang := "eng"
+     Else If (BibleQuotesLang=4)
+        lang := "lat"
+     Else If (BibleQuotesLang=5)
+        lang := "ger"
+     Else If (BibleQuotesLang=6)
+        lang := "grk"
+     Else If (BibleQuotesLang=7)
+        lang := "rus"
+
      Try FileRead, bibleQuotesFile, %A_ScriptDir%\resources\bible-quotes-%lang%.txt
      lastLoaded := A_TickCount
-     If ErrorLevel
+     If (ErrorLevel || !bibleQuotesFile || !lang)
      {
         bibleQuotesFile := ""
         Return
@@ -642,14 +659,17 @@ InvokeBibleQuoteNow() {
 
      Loop
      {
-       Random, Line2Read, 1, %countLines%
-       If !InStr(QuotesAlreadySeen, "a" Line2Read "a")
-          stopLoop := 1
+         Random, Line2Read, 1, %countLines%
+         If !InStr(QuotesAlreadySeen, "a" Line2Read "a")
+            stopLoop := 1
      } Until (stopLoop=1 || A_Index>912)
   } Else Line2Read := "R"
   ; Line2Read := 670
 
   bibleQuote := ST_ReadLine(bibleQuotesFile, Line2Read)
+  If (p := InStr(bibleQuote, "▪"))
+     bibleQuote := SubStr(bibleQuote, p + 1)
+  
   If InStr(bibleQuote, " || ")
   {
      lineArr := StrSplit(bibleQuote, " || ")
@@ -657,7 +677,7 @@ InvokeBibleQuoteNow() {
   }
 
   If (ST_Count(bibleQuote, """")=1)
-     StringReplace, bibleQuote, bibleQuote, "
+     bibleQuote := StrReplace(bibleQuote, """")
 
   If (BibleQuotesLang=1)
   {
@@ -668,16 +688,17 @@ InvokeBibleQuoteNow() {
   }
 
   bibleQuote := RegExReplace(bibleQuote, "i)(\;|\,|\:)$")
-  If (StrLen(bibleQuote)>6)
+  lineArr := StrSplit(bibleQuote, " | ")
+  bibleQuote := Trim(lineArr[2]) " (" Trim(lineArr[1]) ")"
+  If (StrLen(bibleQuote)>8)
   {
      LastBibleMsg := bibleQuote
      QuotesAlreadySeen .= "a" Line2Read "a"
-     StringReplace, QuotesAlreadySeen, QuotesAlreadySeen, aa, a
+     QuotesAlreadySeen := :=  StrReplace(QuotesAlreadySeen, "aa", "a")
      StringRight, QuotesAlreadySeen, QuotesAlreadySeen, 91550
      LastBibleQuoteDisplay := LastBibleQuoteDisplay2 := A_TickCount
      Sleep, 2
      CreateBibleGUI(bibleQuote, 1, 1)
-
      If (PrefOpen!=1)
      {
         SetMyVolume(1)
@@ -1371,7 +1392,7 @@ GuiFader(guiName,toggle,alphaLevel) {
    lastEvent := toggle
 }
 
-decideJiji(elevu) {
+decideJiji(elevu, m:=0) {
    If (isInRange(elevu, -6.1, -0.611))
       j := 0.45
    Else If (isInRange(elevu, -12, -6.1))
@@ -1385,12 +1406,12 @@ decideJiji(elevu) {
    Else
       j := 0 ; night
  
-   If (OSDastralMode=2 && j<0.5)
+   If (m=1 && j<0.5)
       j := 0 
-   Else If (OSDastralMode=2 && j=0.7)
-      j := 0.3
-   Else If (OSDastralMode=2 && j=0.8)
-      j := 0.65
+   Else If (m=1 && j=0.7)
+      j := 0.25
+   Else If (m=1 && j=0.8)
+      j := (elevu>3.9) ? 0.75 : 0.5
    Return j
 }
 
@@ -1415,9 +1436,12 @@ decideOSDcolorBGR() {
   Else If (OSDastralMode=3)
      moonPhase := oldMoonPhaseCalculator(timeus)
 
-  If (OSDastralMode=1 || OSDastralMode=2)
+  If (OSDastralMode=1)
   {
-     j := decideJiji(elevu)
+     j := decideJiji(elevu, 0)
+  } Else If (OSDastralMode=2)
+  {
+     j := decideJiji(elevu, 1)
   } Else If (OSDastralMode=3)
   {
      j := Round(moonPhase[4], 1)
@@ -1429,8 +1453,8 @@ decideOSDcolorBGR() {
         moonPhase := MoonPhaseCalculator(timeus, 0, w[2], w[3])
 
      mf := moonPhase[4] ? clampInRange(moonPhase[4] + 0.2, 0, 1) : 0
-     ju := decideJiji(elevu)
-     ja := decideJiji(moonPhase[7]) * mf
+     ju := decideJiji(elevu, 0)
+     ja := decideJiji(moonPhase[7], 1) * mf
      j := ju
   }
   ; ToolTip, % j "==" elevu "=" w[2] "=" w[3] "=" w[1] , , , 2
@@ -1970,7 +1994,6 @@ WM_MouseMove(wP, lP, msg, hwnd) {
      DestroyBibleGui(A_ThisFunc, 1)
 }
 
-
 trackMouseAnalogClockDragging() {
      defAnalogClockPosChanged := 1
      WinGetPos, ClockPosX, ClockPosY,,, ahk_id %hFaceClock%
@@ -2166,7 +2189,7 @@ InitializeTrayMenu() {
 
     Menu, moreOpts, Add, Reset analog clock position, ResetAnalogClickPosition
     Menu, moreOpts, Add
-    Menu, moreOpts, Add, &Customize, ShowSettings
+    Menu, moreOpts, Add, &Customize, PanelShowSettings
 
     Menu, Tray, NoStandard
 
@@ -2467,10 +2490,12 @@ GenericPanelGUI(themed:=0) {
    Gui, SettingsGUIA: Default
    Gui, SettingsGUIA: -MaximizeBox -MinimizeBox +hwndhSetWinGui
    Gui, SettingsGUIA: Margin, 15, 15
+   combosDarkModus := (uiDarkMode=1) ? "-theme -border " : ""
    applyDarkMode2guiPre(hSetWinGui)
 }
 
 applyDarkMode2guiPre(hThisWin) {
+   combosDarkModus := (uiDarkMode=1) ? "-theme -border " : ""
    If (uiDarkMode=1)
    {
       Gui, Color, % darkWindowColor, % darkWindowColor
@@ -2541,10 +2566,15 @@ LinkUseDefaultColor(hLink, Use, whichGui) {
 }
 
 applyDarkMode2winPost(whichGui, hwndGUI) {
-    Static BS_CHECKBOX := 0x2, BS_RADIOBUTTON := 0x8
+    Static lastAsked := 1, BS_PUSHLIKE := 0x1000, WS_CLIPSIBLINGS := 0x4000000
+         , BS_CHECKBOX := 0x2, BS_RADIOBUTTON := 0x8, BS_AUTORADIOBUTTON := 0x09
+         , RCBUTTONS := BS_CHECKBOX | BS_RADIOBUTTON | BS_AUTORADIOBUTTON
+
     If (uiDarkMode=1)
     {
-       if !whichGui
+       Static clrBG := "303030"
+       clrTX := SubStr(darkControlColor, 3)
+       If !whichGui
           whichGui := "SettingsGUIA"
        if !hwndGUI
           hwndGUI := hSetWinGui
@@ -2565,13 +2595,32 @@ applyDarkMode2winPost(whichGui, hwndGUI) {
             doAttachCtlColor := -2
          } Else If InStr(CtrlClass, "Button")
          {
-            IF (CtrlStyle & BS_RADIOBUTTON) || (CtrlStyle & BS_CHECKBOX)
-               doAttachCtlColor := 2
-            IF (CtrlStyle & 0x1000)
-               doAttachCtlColor := 1
+              doAttachCtlColor := -2
+              If (CtrlStyle & BS_PUSHLIKE)
+              {
+                 doAttachCtlColor := 0
+                 WinSet, Style, +%WS_CLIPSIBLINGS%, ahk_id %strControlhwnd%
+                 GetWinClientSize(w, h, strControlHwnd, 1)
+                 WinSet, Region, % "1-1 w" w - 2 " h" h - 2, ahk_id %strControlhwnd%
+              } Else IF (CtrlStyle & BS_RADIOBUTTON) || ((CtrlStyle & RCBUTTONS) > 1)
+              {
+                 Sleep, -1
+              } Else 
+              {
+                 doAttachCtlColor := 0
+                 ; SetImgButtonStyle(strControlHwnd)
+                 WinSet, Style, +%WS_CLIPSIBLINGS%, ahk_id %strControlhwnd%
+                 GetWinClientSize(w, h, strControlHwnd, 1)
+                 WinSet, Region, % "1-1 w" w - 2 " h" h - 2, ahk_id %strControlhwnd%
+              }
          } Else If InStr(CtrlClass, "ComboBox")
-            doAttachCtlColor := 1
-         Else If InStr(CtrlClass, "Edit")
+         {
+            doAttachCtlColor := -2
+            CtlColors.Attach(strControlHwnd, clrBG, clrTX)
+            WinSet, Style, +%WS_CLIPSIBLINGS%, ahk_id %strControlhwnd%
+            GetWinClientSize(w, h, strControlHwnd, 1)
+            WinSet, Region, % "1-1 w" w - 3 " h" h - 2, ahk_id %strControlhwnd%
+         } Else If InStr(CtrlClass, "Edit")
             doAttachCtlColor := -1
          Else If (InStr(CtrlClass, "Static") || InStr(CtrlClass, "syslink"))
             doAttachCtlColor := -2 
@@ -2597,7 +2646,7 @@ SwitchPreferences(forceReopenSame:=0) {
     Sleep, 25
     GenericPanelGUI()
     CheckSettings()
-    ShowSettings()
+    PanelShowSettings()
     VerifyTheOptions(ApplySettingsBTN)
 }
 
@@ -2640,11 +2689,21 @@ CloseSettings() {
    ReloadScript()
 }
 
+isVarEqualTo(value, vals*) {
+   yay := 0
+   for index, param in vals
+   {
+       If (value=param)
+       {
+          yay := 1
+          Break
+       }
+   }
+   Return yay
+}
+
 SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
     Static lastInvoked := 1
-    Menu, ContextMenu, UseErrorLevel
-    Menu, ContextMenu, Delete
-    Sleep, 25
     If (CtrlHwnd && IsRightClick=1) || (mouseToolTipWinCreated=1)
     || ((A_TickCount-lastInvoked>250) && IsRightClick=0)
     {
@@ -2652,6 +2711,15 @@ SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
        Return
     }
 
+    coreSettingsContextMenu()
+    lastInvoked := A_TickCount
+    Return
+}
+
+coreSettingsContextMenu() {
+    Menu, ContextMenu, UseErrorLevel
+    Menu, ContextMenu, Delete
+    Sleep, 25
     Menu, ContextMenu, Add, L&arge UI fonts, ToggleLargeFonts
     If (PrefsLargeFonts=1)
        Menu, ContextMenu, Check, L&arge UI fonts
@@ -2701,15 +2769,13 @@ SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
     Menu, ContextMenu, Add
     If (PrefOpen=0)
     {
-        Menu, ContextMenu, Add, &Settings, ShowSettings
+        Menu, ContextMenu, Add, &Settings, PanelShowSettings
         Menu, ContextMenu, Add
     }
 
     Menu, ContextMenu, Add, Donate now, DonateNow
     Menu, ContextMenu, Add, &Restart app, ReloadScriptNow
     Menu, ContextMenu, Show
-    lastInvoked := A_TickCount
-    Return
 }
 
 toggleOSDastralColors() {
@@ -2763,7 +2829,7 @@ hexRGB(c) {
   Return c
 }
 
-Dlg_Color(Color,hwnd) {
+Standard_Dlg_Color(Color,hwnd) {
 ; Function by maestrith 
 ; from: [AHK 1.1] Font and Color Dialogs 
 ; https://autohotkey.com/board/topic/94083-ahk-11-font-and-color-dialogs/
@@ -2787,7 +2853,7 @@ Dlg_Color(Color,hwnd) {
   Return Color
 }
 
-setColors(hC, event, c, err=0) {
+InvokeSeetNewColor(hC, event, c, err=0) {
 ; Function by Drugwash
 ; Critical MUST be disabled below! If that's not done, script will enter a deadlock !
   Static
@@ -2796,10 +2862,12 @@ setColors(hC, event, c, err=0) {
   If (event != "Normal")
      Return
   g := A_Gui, ctrl := A_GuiControl
-  r := %ctrl% := hexRGB(Dlg_Color(%ctrl%, hC))
+  r := %ctrl% := hexRGB(Standard_Dlg_Color(%ctrl%, hC))
   Critical, %oc%
-  GuiControl, %g%:+Background%r%, %ctrl%
-  GuiControl, %g%:Enable, ApplySettingsBTN
+  updateColoredRectCtrl(r, ctrl, g, hC)
+
+  ; GuiControl, %g%:+Background%r%, %ctrl%
+  ; GuiControl, %g%:Enable, ApplySettingsBTN
   Sleep, 100
   OSDpreview()
 }
@@ -2919,7 +2987,7 @@ BtnHelpOrderedDisplay() {
   MsgBox, , % "Help: " appName, Please select the option "Define start point" to set the index of the verse from which to begin displaying verses at the specified frequency. If the option is activated`, the verses will be displayed in the order they appear in the selected Bible`, otherwise the verse to be displayed will be chosen randomly.
 }
 
-ShowSettings() {
+PanelShowSettings() {
     doNotOpen := initSettingsWindow()
     If (doNotOpen=1)
     {
@@ -2959,11 +3027,11 @@ ShowSettings() {
     Gui, Add, Checkbox, xs y+10 wp gcheckBoxStrikeHours Checked%tollHours% vtollHours, Strike on the hour
     Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%tollHoursAmount% vtollHoursAmount, ... and the number of hours
     Gui, Add, Checkbox, xs y+10 gcheckBoxStrikeAdditional Checked%AdditionalStrikes% vAdditionalStrikes, Additional strike every (in minutes)
-    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38, %strikeEveryMin%
+    GuiAddEdit("x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38", strikeEveryMin, "Additional strike every (in minutes)")
     Gui, Add, UpDown, gVerifyTheOptions vstrikeEveryMin Range1-720, %strikeEveryMin%
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%markFullMoonHowls% vmarkFullMoonHowls, Mark full moon by wolves howling
     Gui, Add, Text, xs y+10, Interval between tower strikes (in miliseconds):
-    Gui, Add, Edit, x+5 w70 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37, %strikeInterval%
+    GuiAddEdit("x+5 w70 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37", strikeInterval)
     Gui, Add, UpDown, gVerifyTheOptions vstrikeInterval Range900-5500, %strikeInterval%
 
     wu := (PrefsLargeFonts=1) ? 125 : 95
@@ -2971,19 +3039,20 @@ ShowSettings() {
     mf := (PrefsLargeFonts=1) ? 260 : 193
     Gui, Tab, 2 ; extras
     Gui, Add, Checkbox, x+15 y+15 Section gVerifyTheOptions Checked%showBibleQuotes% vshowBibleQuotes, Show a Bible verse every (in hours)
-    Gui, Add, Edit, x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF40, %BibleQuotesInterval%
+    GuiAddEdit("x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF40", BibleQuotesInterval, "Show a Bible verse every (in hours)")
     Gui, Add, UpDown, gVerifyTheOptions vBibleQuotesInterval Range1-12, %BibleQuotesInterval%
-    Gui, Add, DropDownList, xs+15 y+7 w%mf% gVerifyTheOptions AltSubmit Choose%BibleQuotesLang% vBibleQuotesLang, World English Bible (2000)|Français: Louis Segond (1910)|Español: Reina Valera (1909)
+    GuiAddDropDownList("xs+15 y+7 w" mf " gVerifyTheOptions AltSubmit Choose" BibleQuotesLang " vBibleQuotesLang", "World English Bible (2000)|Français: La Bible de Jérusalem (1998?)|Español: Reina Valera (1989)|Latin: Clementine Vulgate (1598)|German: Lutherbibel (1912)|Greek: Revised Vamvas (1994?)|Russian: Synodal edition (1956)", "Bible edition and language")
     Gui, Add, Checkbox, x+5 hp gVerifyTheOptions Checked%orderedBibleQuotes% vorderedBibleQuotes, Define the start point
     Gui, Add, Text, xs+15 y+10 vTxt10, Font size
-    Gui, Add, Edit, x+10 w%vu% geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF73, %FontSizeQuotes%
+    GuiAddEdit("x+10 w" vu " geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF73", FontSizeQuotes, "Font size for Bible quotes")
     Gui, Add, UpDown, gVerifyTheOptions vFontSizeQuotes Range10-200, %FontSizeQuotes%
     Gui, Add, Button, x+10 hp w%wu% gInvokeBibleQuoteNow vBtn2, Preview verse
-    Gui, Add, Edit, x+10 w%vu% r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF4, % userBibleStartPoint
+    GuiAddEdit("x+10 w" vu " r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF4", userBibleStartPoint, "Bible verse starting point")
     Gui, Add, UpDown, gVerifyTheOptions vuserBibleStartPoint Range1-27400, % userBibleStartPoint
-    Gui, Add, Button, x+5 hp w40 gBtnHelpOrderedDisplay vBtn5, ?
+    ml := (PrefsLargeFonts=1) ? 40 : 32
+    GuiAddButton("x+5 hp w" ml " gBtnHelpOrderedDisplay vBtn5", " ?", "Help")
     Gui, Add, Text, xs+15 y+10 vTxt4, Maximum line length (in characters)
-    Gui, Add, Edit, x+10 w%vu% geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60, %maxBibleLength%
+    GuiAddEdit("x+10 w" vu " geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60", maxBibleLength)
     Gui, Add, UpDown, vmaxBibleLength gVerifyTheOptions Range20-130, %maxBibleLength%
     Gui, Add, Checkbox, xs+15 y+10 gVerifyTheOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen when displaying Bible verses
     Gui, Add, Checkbox, y+10 gVerifyTheOptions Checked%noBibleQuoteMhidden% vnoBibleQuoteMhidden, Do not show Bible verses when the mouse cursor is hidden`n(e.g., when watching videos on full-screen)
@@ -2993,32 +3062,33 @@ ShowSettings() {
     Gui, Add, Button, xs+15 y+7 h30 gOpenListCelebrationsBtn vBtn3, Manage list of holidays
 
     Gui, Tab, 3 ; restrictions
+    widu := (PrefsLargeFonts=1) ? 270 : 210
     Gui, Add, Text, x+15 y+15 Section, When other sounds are playing (e.g., music or movies)
-    Gui, Add, DropDownList, xs+15 y+7 w270 gVerifyTheOptions AltSubmit Choose%noTollingBgrSounds% vnoTollingBgrSounds, Ignore|Strike the bells at half the volume|Do not strike the bells
+    GuiAddDropDownList("xs+15 y+7 w" widu " gVerifyTheOptions AltSubmit Choose" noTollingBgrSounds " vnoTollingBgrSounds", "Ignore|Strike the bells at half the volume|Do not strike the bells")
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%noTollingWhenMhidden% vnoTollingWhenMhidden, Do not toll bells when mouse cursor is hidden`neven if no sounds are playing (e.g., when watching`na video or an image slideshow on full-screen)
-    Gui, Add, DropDownList, xs y+25 w270 gVerifyTheOptions AltSubmit Choose%silentHours% vsilentHours, Limit chimes to specific periods...|Play chimes only...|Keep silence...
+    GuiAddDropDownList("xs y+25 w" widu " gVerifyTheOptions AltSubmit Choose" silentHours " vsilentHours", "Toll through-out the end day|Toll only in the defined interval|Keep silence in the defined interval", "Bell tolling interval")
     Gui, Add, Text, xp+15 y+6 hp +0x200 vtxt1, from
-    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF35, %silentHoursA%
+    GuiAddEdit("x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF35", silentHoursA, "Start hour")
     Gui, Add, UpDown, gVerifyTheOptions vsilentHoursA Range0-23, %silentHoursA%
     Gui, Add, Text, x+2 hp +0x200 vtxt2, :00   to
-    Gui, Add, Edit, x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF36, %silentHoursB%
+    GuiAddEdit("x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF36", silentHoursB, "End hour")
     Gui, Add, UpDown, gVerifyTheOptions vsilentHoursB Range0-23, %silentHoursB%
     Gui, Add, Text, x+1 hp +0x200 vtxt3, :59
 
     Gui, Tab, 4 ; style
     Gui, Add, Text, x+15 y+15 Section, OSD position (x, y)
-    Gui, Add, Edit, xs+%columnBpos2% ys w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF1, %GuiX%
+    GuiAddEdit("xs+" columnBpos2 " ys w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF1", GuiX, "OSD position on X")
     Gui, Add, UpDown, vGuiX gVerifyTheOptions 0x80 Range-9995-9998, %GuiX%
-    Gui, Add, Edit, x+5 w70 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF2, %GuiY%
+    GuiAddEdit("x+5 w70 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF2", GuiY, "OSD position on Y")
     Gui, Add, UpDown, vGuiY gVerifyTheOptions 0x80 Range-9995-9998, %GuiY%
     Gui, Add, Button, x+5 w60 hp gLocatePositionA vBtn4, Locate
 
     Gui, Add, Text, xm+15 ys+30 Section, Margins (top, bottom, sides)
-    Gui, Add, Edit, xs+%columnBpos2% ys+0 Section w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF11, %OSDmarginTop%
+    GuiAddEdit("xs+" columnBpos2 " ys+0 w65 Section geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF11", OSDmarginTop, "Top margin")
     Gui, Add, UpDown, gVerifyTheOptions vOSDmarginTop Range1-900, %OSDmarginTop%
-    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF9 , %OSDmarginBottom%
+    GuiAddEdit("x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF9 ", OSDmarginBottom, "Bottom margin")
     Gui, Add, UpDown, gVerifyTheOptions vOSDmarginBottom Range1-900, %OSDmarginBottom%
-    Gui, Add, Edit, x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF13, %OSDmarginSides%
+    GuiAddEdit("x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF13", OSDmarginSides, "Sides margin")
     Gui, Add, UpDown, gVerifyTheOptions vOSDmarginSides Range10-900, %OSDmarginSides%
 
     Gui, Add, Text, xm+15 y+10 Section, Font name
@@ -3033,17 +3103,17 @@ ShowSettings() {
     Gui, Add, Checkbox, x+5 hp gVerifyTheOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date
 
     mf := (PrefsLargeFonts=1) ? 170 : 143
-    Gui, Add, DropDownList, xs+%columnBpos2% ys+0 section w205 gVerifyTheOptions Sort Choose1 vFontName, %FontName%
-    Gui, Add, ListView, xp+0 yp+30 w55 h25 %CCLVO% Background%OSDtextColor% vOSDtextColor hwndhLV1,
-    Gui, Add, ListView, x+5 yp w55 h25 %CCLVO% Background%OSDbgrColor% vOSDbgrColor hwndhLV2,
-    Gui, Add, Edit, x+5 yp+0 w55 hp geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF10, %OSDalpha%
+    GuiAddDropDownList("xs+" columnBpos2 " ys+0 section w205 gVerifyTheOptions Sort Choose1 vFontName", FontName, "OSD font name")
+    hLV1 := GuiAddColor("xp+0 yp+30 w55 h25", "OSDtextColor", "OSD text color")
+    hLV2 := GuiAddColor("x+5 wp hp", "OSDbgrColor", "OSD background color")
+    GuiAddEdit("x+5 yp+0 w55 hp geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF10", OSDalpha, "OSD opacity")
     Gui, Add, UpDown, vOSDalpha gVerifyTheOptions Range75-250, %OSDalpha%
-    Gui, Add, Edit, xp-120 yp+30 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5, %FontSize%
+    GuiAddEdit("xp-120 yp+30 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5", FontSize, "OSD font size")
     Gui, Add, UpDown, gVerifyTheOptions vFontSize Range12-295, %FontSize%
-    Gui, Add, Edit, xp yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99, %showTimeIdleAfter%
+    GuiAddEdit("xp yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99", showTimeIdleAfter, "Idle time in minutes")
     Gui, Add, UpDown, vshowTimeIdleAfter gVerifyTheOptions Range1-950, %showTimeIdleAfter%
     Gui, Add, Text, x+5 vtxt100, idle time (in min.)
-    Gui, Add, Edit,  xs yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6, %DisplayTimeUser%
+    GuiAddEdit("xs yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6", DisplayTimeUser, "OSD display duration in seconds")
     Gui, Add, UpDown, vDisplayTimeUser gVerifyTheOptions Range1-99, %DisplayTimeUser%
     If !FontList._NewEnum()[k, v]
     {
@@ -3064,14 +3134,14 @@ ShowSettings() {
 
     Gui, Tab, 5 ; more
     Gui, Add, Text, x+15 y+15 Section , OSD progress bar line:
-    Gui, Add, DropDownList, x+5 wp+20 gVerifyTheOptions AltSubmit Choose%showOSDprogressBar% vshowOSDprogressBar, None|Current day|Moon`'s synodic period|Current month|Astronomical seasons|Current year
+    GuiAddDropDownList("x+5 wp+20 gVerifyTheOptions AltSubmit Choose" showOSDprogressBar " vshowOSDprogressBar", "None|Current day|Moon's synodic period|Current month|Astronomical seasons|Current year")
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners for the OSD
     Gui, Add, Checkbox, xs y+15 gVerifyTheOptions Checked%overrideOSDcolorsAstro% vOverrideOSDcolorsAstro, Override OSD colors based on:
-    Gui, Add, DropDownList, xs+15 y+5 gVerifyTheOptions AltSubmit Choose%OSDastralMode% vOSDastralMode, Daylight|Moonlight|Moon phase|Automatic
-    Gui, Add, Button, x+5 hp ghelpOSDastroColors, &Quick help
+    GuiAddDropDownList("xp+15 y+5 wp gVerifyTheOptions AltSubmit Choose" OSDastralMode " vOSDastralMode", "Daylight|Moonlight|Moon phase|Automatic", "OSD colors based on")
+    Gui, Add, Button, x+5 hp ghelpOSDastroColors, &Help
     Gui, Add, Text, xs+15 y+10 hp +0x200, Astro colors:
-    Gui, Add, ListView, x+10 w55 hp %CCLVO% Background%OSDastroALTcolor% vOSDastroALTcolor hwndhLV6,
-    Gui, Add, ListView, x+10 wp hp %CCLVO% Background%OSDastroALTOcolor% vOSDastroALTOcolor hWndhLV7,
+    hLV6 := GuiAddColor("x+10 w55 h25", "OSDastroALTcolor", "Daylight color")
+    hLV7 := GuiAddColor("x+10 wp hp", "OSDastroALTOcolor", "Moonlight color")
     Gui, Add, Text, xs+15 y+10 hp, Currently defined location:`n%ppl%
     If (A_PtrSize!=8)
        Gui, Add, Text, xs+15 y+10 wp, WARNING: The astronomy features are not available on the 32 bits edition.
@@ -3702,33 +3772,36 @@ PanelManageCelebrations(tabChoice:=1) {
   doResetGuiFont()
   windowManageCeleb := 1
   Gui, Add, Checkbox, x15 y10 gupdateOptionsLVsGui Checked%ObserveReligiousDays% vObserveReligiousDays, Observe religious feasts / holidays
-  Gui, Add, DropDownList, x+2 w100 gupdateOptionsLVsGui AltSubmit Choose%UserReligion% vUserReligion, Catholic|Orthodox
+  GuiAddDropDownList("x+2 w100 gupdateOptionsLVsGui AltSubmit Choose" UserReligion " vUserReligion", "Catholic|Orthodox", "Religion",,"CelebrationsGuia")
   btnWid := (PrefsLargeFonts=1) ? 70 : 50
   lstWid2 := lstWid - btnWid
   Gui, Add, Button, xs+%lstWid2% yp+0 gPaneladdNewEntryWindow w%btnWid% h30, &Add
-  Gui, Add, Tab3, xs+0 y+0 AltSubmit Choose%tabChoice% vCurrentTabLV, Christian|Easter related|Secular|Personal
+  Gui, Add, Tab3, xs+0 y+0 AltSubmit Choose%tabChoice% vCurrentTabLV, Religious|Easter related|Secular|Personal
 
   Gui, Tab, 1
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r9 Grid NoSort -Hdr vLViewOthers, Index|Date|Detailz
+  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r9 Grid NoSort -Hdr vLViewOthers", "Date|Details|Index", "Religious celebrations", "CelebrationsGuia")
   Gui, Tab, 2
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r9 Grid NoSort -Hdr vLViewEaster, Index|Date|Detailz
+  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r9 Grid NoSort -Hdr vLViewEaster", "Date|Details|Index", "Easter related celebrations", "CelebrationsGuia")
   Gui, Tab, 3
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r9 Grid NoSort -Hdr vLViewSecular, Index|Date|Detailz
+  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r9 Grid NoSort -Hdr vLViewSecular", "Date|Details|Index", "Secular celebrations", "CelebrationsGuia")
   Gui, Tab, 4
-  Gui, Add, ListView, y+10 w%lstWid% gActionListViewKBDs r9 Grid NoSort -Hdr vLViewPersonal, Index|Date|Detailz
+  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r9 Grid NoSort -Hdr vLViewPersonal", "Date|Details|Index", "User defined celebrations", "CelebrationsGuia")
 
   Gui, Tab
   Gui, Add, Checkbox, y+15 Section gupdateOptionsLVsGui Checked%ObserveSecularDays% vObserveSecularDays, Observe secular holidays
   Gui, Add, Checkbox, x+5 gupdateOptionsLVsGui Checked%PreferSecularDays% vPreferSecularDays, Prefer these holidays over religious ones
 
-  btnWid := (PrefsLargeFonts=1) ? 50 : 30
-  Gui, Add, Button, xs y+15 w%btnWid% h30 gPrevYearList , &<<
-  Gui, Add, Button, x+1 w60 hp gResetYearList vResetYearBTN, %celebYear%
-  Gui, Add, Button, x+1 w%btnWid% hp gNextYearList , &>>
+  btnWid := (PrefsLargeFonts=1) ? 55 : 45
   If (PrefOpen=1 && hSetWinGui)
-     Gui, Add, Button, x+20 wp+15 hp gCloseCelebListWin, &Back
+     Gui, Add, Button, xs y+15 w%btnWid% h30 gCloseCelebListWin, &Back
   Else
-     Gui, Add, Button, x+20 wp+15 hp gPanelIncomingCelebrations, &Back
+     Gui, Add, Button, xs y+15 w%btnWid% h30 gPanelIncomingCelebrations, &Back
+
+  btnWid := (PrefsLargeFonts=1) ? 42 : 32
+  GuiAddButton("x+5 w" btnWid " h30 gPrevYearList", "<<", "Previous year", 0, "CelebrationsGuia")
+  Gui, Add, Button, x+1 wp+15 hp gResetYearList vResetYearBTN +hwndhTemp, %celebYear%
+  ToolTip2ctrl(hTemp, "Reset to current year")
+  GuiAddButton("x+1 wp-15 hp gNextYearList", ">>", "Next year", 0, "CelebrationsGuia")
   applyDarkMode2winPost("CelebrationsGuia", hCelebsMan)
   Gui, Show, AutoSize, Celebrations list: %appName%
   updateOptionsLVsGui()
@@ -3939,6 +4012,7 @@ updateHolidaysLVs() {
            CheckMonth := "0" CheckMonth
      } Else If (CheckDay<10)
         CheckDay := "0" CheckDay
+
      testFeast := CheckMonth "." CheckDay
      PersonalDay := INIactionNonGlobal(0, testFeast, 0, "Celebrations")
      If (StrLen(PersonalDay)>2)
@@ -3948,7 +4022,7 @@ updateHolidaysLVs() {
         If (StrLen(PersonalDate)<3) || InStr(PersonalDay, "default disabled")
            Continue
 
-        LV_Add(A_Index, testFeast, PersonalDate, PersonalDay)
+        LV_Add(A_Index, PersonalDate, PersonalDay, testFeast)
         loopsOccured++
      }
   }
@@ -3958,48 +4032,50 @@ updateHolidaysLVs() {
   Loop, 3
      LV_ModifyCol(A_Index, "AutoHdr Left")
   If (loopsOccured>0)
-     LV_ModifyCol(1, 1)
+     LV_ModifyCol(3, 1)
 
   Gui, ListView, LViewEaster
   Loop, 3
      LV_ModifyCol(A_Index, "AutoHdr Left")
   If (ObserveReligiousDays=1)
-     LV_ModifyCol(1, 1)
+     LV_ModifyCol(3, 1)
   Gui, ListView, LViewOthers
   Loop, 3
      LV_ModifyCol(A_Index, "AutoHdr Left")
   If (ObserveReligiousDays=1)
-     LV_ModifyCol(1, 1)
+     LV_ModifyCol(3, 1)
 
   Gui, ListView, LViewSecular
   Loop, 3
      LV_ModifyCol(A_Index, "AutoHdr Left")
   If (ObserveSecularDays=1)
-     LV_ModifyCol(1, 1)
+     LV_ModifyCol(3, 1)
   GuiControl, CelebrationsGuia:, ResetYearBTN, %celebYear%
 }
 
 PaneladdNewEntryWindow() {
-
   Global newDay, newMonth, newEvent
   Gui, CelebrationsGuia: Destroy
   Sleep, 15
   Gui, CelebrationsGuia: Default
-  Gui, CelebrationsGuia: -MaximizeBox -MinimizeBox
+  Gui, CelebrationsGuia: -MaximizeBox -MinimizeBox +hwndhCelebsMan
   Gui, CelebrationsGuia: Margin, 15, 15
+  applyDarkMode2guiPre(hCelebsMan)
   If (PrefsLargeFonts=1)
      Gui, Font, s%LargeUIfontValue%
 
+  doResetGuiFont()
+  windowManageCeleb := 2
   btnWid := (PrefsLargeFonts=1) ? 125 : 90
   drpWid := (PrefsLargeFonts=1) ? 75 : 50
   drpWid2 := (PrefsLargeFonts=1) ? 125 : 100
-  windowManageCeleb := 2
   Gui, Add, Text, x15 y10 Section, Please enter the day month, and event name.
-  Gui, Add, DropDownList, y+10 Choose%A_MDay% w%drpWid% vnewDay, 01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31
-  Gui, Add, DropDownList, x+5 Choose%A_Mon% w%drpWid2% vnewMonth, 01 January|02 February|03 March|04 April|05 May|06 June|07 July|08 August|09 September|10 October|11 November|12 December
-  Gui, Add, Edit, xs y+7 w400 r1 limit90 -multi -wantReturn -wantTab -wrap vnewEvent, 
+  GuiAddDropDownList("y+10 Choose" A_MDay " w" drpWid " vnewDay", "01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31", "Day of month",, "CelebrationsGuia")
+  GuiAddDropDownList("x+5 Choose" A_Mon " w" drpWid2 " vnewMonth", "01 January|02 February|03 March|04 April|05 May|06 June|07 July|08 August|09 September|10 October|11 November|12 December", "Month of year",, "CelebrationsGuia")
+  GuiAddEdit("xs y+7 w400 r1 limit90 -multi -wantReturn -wantTab -wrap vnewEvent", "", "Event name", "CelebrationsGuia")
   Gui, Add, Button, xs y+15 w%btnWid% h30 Default gSaveNewEntryBtn , &Add entry
   Gui, Add, Button, x+5 wp-25 hp gCancelNewEntryBtn, &Cancel
+  applyDarkMode2winPost("CelebrationsGuia", hCelebsMan)
   Gui, Show, AutoSize, Add new celebration: %appName%
   If (PrefOpen=1 && hSetWinGui)
      SetTimer, AutoDestroyCelebList, 200
@@ -4051,7 +4127,7 @@ processHolidaysList(theList) {
 
       PersonalDay := INIactionNonGlobal(0, miniDate, 0, "Celebrations")
       byeFlag := (StrLen(PersonalDay)>2) ? "(*) " : ""
-      LV_Add(A_Index, miniDate, byeFlag LongaData, lineArr[1])
+      LV_Add(A_Index, byeFlag LongaData, lineArr[1], miniDate)
    }
 }
 
@@ -4070,10 +4146,11 @@ ActionListViewKBDs() {
      Else If (CurrentTabLV=4)
         Gui, CelebrationsGuia:ListView, LViewPersonal
 
-     LV_GetText(dateSelected, A_EventInfo, 1)
-     LV_GetText(eventusName, A_EventInfo, 3)
-     If (eventusName="Detailz") || StrLen(dateSelected)>5
+     LV_GetText(dateSelected, A_EventInfo, 3)
+     LV_GetText(eventusName, A_EventInfo, 2)
+     If (eventusName="Detailz" || !eventusName || !dateSelected || StrLen(dateSelected)>5)
         Return
+
      DisableMsg := "default disabled"
      If (CurrentTabLV<4)
      {
@@ -4091,6 +4168,7 @@ ActionListViewKBDs() {
            reactivate := 2
            questionMsg := "Do you want to no longer observe " eventusName " ?"
         }
+questionMsg .= " | " dateSelected
         If (A_TickCount - lastAsked>4000)
         {
            answerPositive := 0
@@ -4403,12 +4481,12 @@ PanelIncomingCelebrations() {
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     Gui, Add, Button, xs+1 y+15 w1 h1, L
     doResetGuiFont()
-    Gui, Add, Edit, xp+1 yp+1 ReadOnly r15 w%txtWid% vholiListu, % listu
+    GuiAddEdit("xp+1 yp+1 ReadOnly r15 w" txtWid " vholiListu", listu, "Celebrations list")
     Gui, Add, Checkbox, xs y+8 gToggleObsHoliEvents Checked%ObserveHolidays% vObserveHolidays, &Observe Christian and/or secular holidays
 
     Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn vbtn1, &Manage
     Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Today
-    Gui, Add, Button, x+5 hp wp+15 gShowSettings, &Settings
+    Gui, Add, Button, x+5 hp wp+15 gPanelShowSettings, &Settings
     Gui, Add, Button, x+5 hp wp-15 gCloseWindow, &Close
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Celebrations list: %appName%
@@ -4532,13 +4610,25 @@ SetPresetTimers(a, b, c) {
    Static lastInvoked := 1, prevu := 0
    ControlGetText, info, , ahk_id %a%
    info := StrReplace(info, "&")
-   info := info := Trim(StrReplace(info, "m"))
-   If (A_TickCount - lastInvoked<450) && (prevu=info)
-      info := info*3
+   info := Trim(StrReplace(info, "m"))
+   If !info
+      Return
+
+   If (info=90)
+   {
+      info := 30
+      hu := 1
+   } Else If (info=120)
+   {
+      info := 60
+      hu := 1
+   }
+   ; If (A_TickCount - lastInvoked<450) && (prevu=info)
+   ;    info := info*3
 
    Gui, SettingsGUIA: Default
    GuiControl, SettingsGUIA: , userMustDoTimer, 1
-   GuiControl, SettingsGUIA: , userTimerHours, 0
+   GuiControl, SettingsGUIA: , userTimerHours, % hu
    GuiControl, SettingsGUIA: , userTimerMins, % info
    prevu := info
    updateUIalarmsPanel()
@@ -4564,7 +4654,7 @@ PanelSetAlarm() {
     txtWid := 360
     Global btn1, editF1, editF2, editF4, editF5, userTimerInfos, UItimerInfoz
          , userAlarmWday1, userAlarmWday2, userAlarmWday3, userAlarmWday4
-         , userAlarmWday5, userAlarmWday6, userAlarmWday7, txt1
+         , userAlarmWday5, userAlarmWday6, userAlarmWday7, txt1, userUItimerQuickSet
          , userAlarmExceptPerso, userAlarmExceptRelu, userAlarmExceptSeculu
 
     If (PrefsLargeFonts=1)
@@ -4591,46 +4681,42 @@ PanelSetAlarm() {
     If !userAlarmWeekDays
        userAlarmWday7 := userAlarmWday1 := 1
 
+    doResetGuiFont()
     Gui, Add, Tab3,, Timer|Alarm
     Gui, Tab, 1
-    Gui, Add, Button, x+15 y+15 Section gSetPresetTimers, &1m
-    Gui, Add, Button, x+2 wp+2 gSetPresetTimers, &2m
-    Gui, Add, Button, x+2 wp+2 gSetPresetTimers, &3m
-    Gui, Add, Button, x+2 wp+2 gSetPresetTimers, &5m
-    Gui, Add, Button, x+2 wp+3 gSetPresetTimers, &10m
-    Gui, Add, Button, x+2 wp+3 gSetPresetTimers, &15m
-    Gui, Add, Button, x+2 wp+3 gSetPresetTimers, &30m
-    doResetGuiFont()
+    Gui, Add, Text, x+15 y+15 Section +hwndhTemp, Set timer to (in minutes):
+    ml := (PrefsLargeFonts=1) ? 60 : 50
+    GuiAddDropDownList("x+5 w" ml " Choose1 vuserUItimerQuickSet gSetPresetTimers", "0|1|2|3|4|5|10|15|30|45|60|90|120", [hTemp])
     Gui, Add, Checkbox, xs y+10 Section gupdateUIalarmsPanel Checked%userMustDoTimer% vuserMustDoTimer, Set timer duration (in hours`, mins):
     Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
-    Gui, Add, Edit, xs+15 y+10 w%nW% h%nH% Center number -multi limit2 gupdateUIalarmsPanel veditF1, % userTimerHours
+    GuiAddEdit("xs+15 y+10 w" nW " h" nH " Center number -multi limit2 gupdateUIalarmsPanel veditF1", userTimerHours, "Hours")
     Gui, Add, UpDown, vuserTimerHours Range0-12 gupdateUIalarmsPanel, % userTimerHours
-    Gui, Add, Edit, x+5 w%nW% h%nH% Center number -multi limit2 veditF2 gupdateUIalarmsPanel, % userTimerMins
+    GuiAddEdit("x+5 w" nW " h" nH " Center number -multi limit2 veditF2 gupdateUIalarmsPanel", userTimerMins, "Minutes")
     Gui, Add, UpDown, vuserTimerMins Range-1-60 gupdateUIalarmsPanel, % userTimerMins
     Gui, Add, Text, x+10 hp +0x200 vuserTimerInfos, 00:00.
     doResetGuiFont()
-    Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserTimerMsg, % userTimerMsg
+    GuiAddEdit("xs+15 y+10 w255 -multi limit512 vuserTimerMsg", userTimerMsg, "Timer message")
     timerDetails := (userTimerExpire && userMustDoTimer=1) ? "Current timer expires at: " userTimerExpire "." : "Press Apply to start the timer."
-    Gui, Add, Text, xs+15 y+10 wp vUItimerInfoz, % timerDetails
-    ml := (PrefsLargeFonts=1) ? 180 : 95
+    ml := (PrefsLargeFonts=1) ? 170 : 115
     zl := (PrefsLargeFonts=1) ? 55 : 45
-    Gui, Add, DropDownList, xs+15 y+10 w%ml% AltSubmit Choose%userTimerSound% vuserTimerSound, Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert
-    Gui, Add, Edit, x+5 w%zl% hp Center number -multi limit2 veditF10 gupdateUIalarmsPanel, % userTimerFreq
+    GuiAddDropDownList("xs+15 y+10 w" ml " AltSubmit Choose" userTimerSound " vuserTimerSound", "Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert", "Audio alert for the timer")
+    GuiAddEdit("x+5 w" zl " hp Center number -multi limit2 veditF10 gupdateUIalarmsPanel", userTimerFreq, "Timer chiming frequency in seconds")
     Gui, Add, UpDown, vuserTimerFreq Range1-99 gupdateUIalarmsPanel, % userTimerFreq
     Gui, Add, Button, x+5 wp hp gBtnTestTimerAudio vbtn1, Test
+    Gui, Add, Text, xs+15 y+15 w255 vUItimerInfoz, % timerDetails
 
     Gui, Tab, 2
     Gui, Add, Checkbox, x+15 y+15 Section gupdateUIalarmsPanel Checked%userMustDoAlarm% vuserMustDoAlarm, Set alarm at (hours`, mins`, snooze mins.):
     Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
-    Gui, Add, Edit, xs+15 y+10 w%nW% h%nH% Center number -multi limit2 veditF3 hwndhEdit, % userAlarmHours
+    GuiAddEdit("xs+15 y+10 w" nW " h" nH " Center number -multi limit2 veditF3 hwndhEdit", userAlarmHours, "Hours")
     Gui, Add, UpDown, vuserAlarmHours Range0-23, % userAlarmHours
-    Gui, Add, Edit, x+5 w%nW% h%nH% gupdateUIalarmsPanel Center number -multi limit2 veditF4, % userAlarmMins
+    GuiAddEdit("x+5 w" nW " h" nH " gupdateUIalarmsPanel Center number -multi limit2 veditF4", userAlarmMins, "Minutes")
     Gui, Add, UpDown, vuserAlarmMins gupdateUIalarmsPanel Range-1-60, % userAlarmMins
-    Gui, Add, Edit, x+35 w%nW% h%nH% Center number -multi limit2 veditF5, % userAlarmSnooze
+    GuiAddEdit("x+35 w" nW " h" nH " Center number -multi limit2 veditF5", userAlarmSnooze, "Snooze duration in minutes")
     Gui, Add, UpDown, vuserAlarmSnooze Range1-59, % userAlarmSnooze
     doResetGuiFont()
 
-    Gui, Add, Edit, xs+15 y+10 w255 -multi limit512 vuserAlarmMsg, % userAlarmMsg
+    GuiAddEdit("xs+15 y+10 w255 -multi limit512 vuserAlarmMsg", userAlarmMsg, "Alarm message")
     Gui, Add, Checkbox, xs y+10 gupdateUIalarmsPanel Checked%userAlarmRepeated% vuserAlarmRepeated, &Repeat alarm on...
     Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 Checked%userAlarmWday1% vuserAlarmWday1, Sun
     Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday2% vuserAlarmWday2, Mon
@@ -4644,8 +4730,8 @@ PanelSetAlarm() {
     Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 Checked%userAlarmExceptRelu% vuserAlarmExceptRelu, Religious
     Gui, Add, Checkbox, x+1 hp +0x1000 Checked%userAlarmExceptSeculu% vuserAlarmExceptSeculu, Secular
     Gui, Add, Checkbox, x+1 hp +0x1000 Checked%userAlarmExceptPerso% vuserAlarmExceptPerso, Personal
-    Gui, Add, DropDownList, xs+15 y+10 w%ml% AltSubmit Choose%userAlarmSound% vuserAlarmSound, Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert
-    Gui, Add, Edit, x+5 w%zl% hp Center number -multi limit2 veditF6 gupdateUIalarmsPanel, % userAlarmFreq
+    GuiAddDropDownList("xs+15 y+10 w" ml " AltSubmit Choose" userAlarmSound " vuserAlarmSound", "Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert", "Audio alert for the alarm")
+    GuiAddEdit("x+5 w" zl " hp Center number -multi limit2 veditF6 gupdateUIalarmsPanel", userAlarmFreq, "Alarm audio alert frequency in seconds")
     Gui, Add, UpDown, vuserAlarmFreq Range1-99 gupdateUIalarmsPanel, % userAlarmFreq
     Gui, Add, Button, x+5 wp hp gBtnTestAlarmAudio vBtn2, Test
 
@@ -4724,7 +4810,7 @@ PanelStopWatch() {
     
     Gui, Tab, 2
     nW := (PrefsLargeFonts=1) ? 265 : 240
-    Gui, Add, ListView, x+15 y+15 Section w%nW% r8 Grid vLViewStopWatch, Index|Lap|Laps total|Total
+    GuiAddListView("x+15 y+15 Section w" nW " r8 Grid -multi +ReadOnly vLViewStopWatch", "Index|Lap|Laps total|Total", "Recorded time intervals")
 
     Gui, Tab
     Gui, Add, Checkbox, xm+0 y+15 gToggleAlwaysOnTopSettingsWindow  Checked%setAlwaysOnTop% vsetAlwaysOnTop, Always on top
@@ -5315,7 +5401,7 @@ PanelAboutWindow() {
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     Gui, Add, Button, xm+0 y+20 Section h%btnH% w%btnW1% Default gCloseWindowAbout, &Deus lux est
     Gui, Add, Button, x+5 hp wp-10 gPanelTodayInfos, &Today
-    Gui, Add, Button, x+5 hp w%btnW2% gShowSettings, &Settings
+    Gui, Add, Button, x+5 hp w%btnW2% gPanelShowSettings, &Settings
     Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations, &Celebrations
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
@@ -5348,21 +5434,23 @@ PanelSunYearGraphTable() {
     Global LViewSets, LViewRises, uiInfoGeoYear, LViewMuna, LViewSunCombined, GraphInfoLine
     Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Summary|Rise|Set|Durations|Graph
     Gui, Tab, 1
-    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewSunCombined, Day|Date|Dawn|Sunrise|Noon|Altitude|Sunset|Dusk|Sunlight
+    GuiAddListView("x+5 y+10 w" lstWid " r15 -multi +ReadOnly Grid vLViewSunCombined", "Day|Date|Dawn|Sunrise|Noon|Altitude|Sunset|Dusk|Sunlight", "Entire year sun events")
     Gui, Tab, 2
-    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewRises, Day|Dawn|Rise|Civil twilight length
+    GuiAddListView("x+5 y+10 w" lstWid " r15 -multi +ReadOnly Grid vLViewRises", "Day|Dawn|Rise|Civil twilight length", "Entire year sun rises")
     Gui, Tab, 3
-    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewSets, Day|Sunset|Dusk|Civil twilight length
+    GuiAddListView("x+5 y+10 w" lstWid " r15 -multi +ReadOnly Grid vLViewSets", "Day|Sunset|Dusk|Civil twilight length", "Entire year sunsets")
     Gui, Tab, 4
-    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewOthers, Day|Date|Sunlight|Diff|Twilight|Diff|Total light|Difference
+    GuiAddListView("x+5 y+10 w" lstWid " r15 -multi +ReadOnly Grid vLViewOthers", "Day|Date|Sunlight|Diff|Twilight|Diff|Total light|Difference", "Daylight time differences")
     Gui, Tab, 5
     Gui, Add, Text, x+10 y+10 Section, Location:
-    Gui, Add, DropDownList, x+5 AltSubmit gUIcountryGraphChooser Choose%uiUserCountry% vuiUserCountry, % countriesList
-    Gui, Add, DropDownList, x+5 AltSubmit gUIcityGraphChooser Choose%uiUserCity% vuiUserCity, % getCitiesList(uiUserCountry)
+    widu := (PrefsLargeFonts=1) ? 190 : 120
+    GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryGraphChooser Choose" uiUserCountry " vuiUserCountry", countriesList, "Country")
+    GuiAddDropDownList("x+5 wp AltSubmit gUIcityGraphChooser Choose" uiUserCity " vuiUserCity", getCitiesList(uiUserCountry), "City")
     Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
     Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
     Gui, Add, Text, xs y+10 w%graphW% -wrap vGraphInfoLine, Hover graph for more information.`n-
-    Gui, Add, Text, xs y+10 w%graphW% h%graphH% Section +0x1000 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
+    Gui, Add, Text, xs y+10 w1 h1, Sunlight duration graph for entire year
+    Gui, Add, Text, xp yp w%graphW% h%graphH% Section +0x1000 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
 
     Gui, Tab
     btnW := (PrefsLargeFonts=1) ? 80 : 55
@@ -5376,15 +5464,16 @@ PanelSunYearGraphTable() {
     Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
     Gui, Add, Button, x+5 hp wp gbtnCopySolarData, &Copy
     Gui, Add, Button, x+5 hp wp gbtnHelpYearSolarGraph, &Help
-    Gui, Add, Button, x+5 hp wp-30 guiPrevSolarDataYear, &<<
-    Gui, Add, Text, x+5 hp wp+15 +Border Center +0x200 guiThisSolarDataYear vuiInfoGeoYear, % SubStr(uiUserFullDateUTC, 1, 4)
-    Gui, Add, Button, x+5 hp wp-15 guiNextSolarDataYear, &>>
+    widu := (PrefsLargeFonts=1) ? 40 : 32
+    GuiAddButton("x+5 hp w" widu " guiPrevSolarDataYear", "<<", "Previous year")
+    Gui, Add, Button, x+1 hp wp+15 guiThisSolarDataYear vuiInfoGeoYear +hwndhTemp, % SubStr(uiUserFullDateUTC, 1, 4)
+    ToolTip2ctrl(hTemp, "Reset to current year")
+    GuiAddButton("x+1 hp wp-15 guiNextSolarDataYear", ">>", "Next year")
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Year graph and table (sun): %appName%
     uiPopulateTableYearSolarData()
 }
-
 
 PanelMoonYearGraphTable() {
     If reactWinOpened(A_ThisFunc, 1)
@@ -5412,18 +5501,20 @@ PanelMoonYearGraphTable() {
     Global LViewSets, LViewRises, uiInfoGeoYear, LViewMuna, LViewSunCombined, GraphInfoLine
     Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Summary|Graph|Moon phases
     Gui, Tab, 1
-    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewSunCombined, Day|Date|Rise|Culminant|Altitude|Set|Moonlight|Diff
+    GuiAddListView("x+5 y+10 w" lstWid " r15 -multi +ReadOnly Grid vLViewSunCombined", "Day|Date|Rise|Culminant|Altitude|Set|Moonlight|Diff", "Entire year moon events")
     Gui, Tab, 2
+    widu := (PrefsLargeFonts=1) ? 190 : 120
     Gui, Add, Text, x+10 y+10 Section, Location:
-    Gui, Add, DropDownList, x+5 AltSubmit gUIcountryGraphChooser Choose%uiUserCountry% vuiUserCountry, % countriesList
-    Gui, Add, DropDownList, x+5 AltSubmit gUIcityGraphChooser Choose%uiUserCity% vuiUserCity, % getCitiesList(uiUserCountry)
+    GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryGraphChooser Choose" uiUserCountry " vuiUserCountry", countriesList, "Country")
+    GuiAddDropDownList("x+5 wp AltSubmit gUIcityGraphChooser Choose" uiUserCity " vuiUserCity", getCitiesList(uiUserCountry), "City")
     Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
     Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
     Gui, Add, Text, xs y+10 w%graphW% -wrap vGraphInfoLine, Hover graph for more information.`n-
-    Gui, Add, Text, xs y+10 w%graphW% h%graphH% Section +0x1000 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
+    Gui, Add, Text, xs y+10 w1 h1, Moonlight duration graph for entire year
+    Gui, Add, Text, xp yp w%graphW% h%graphH% Section +0x1000 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
 
     Gui, Tab, 3
-    Gui, Add, ListView, x+5 y+10 w%lstWid% r15 Grid vLViewMuna, Day|Date|Lunar phase|Age|Constellation
+    GuiAddListView("x+5 y+10 w" lstWid " r15 -multi +ReadOnly Grid vLViewMuna", "Day|Date|Lunar phase|Age|Constellation", "Entire year moon phases")
 
     Gui, Tab
     btnW := (PrefsLargeFonts=1) ? 80 : 55
@@ -5437,9 +5528,11 @@ PanelMoonYearGraphTable() {
     Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
     Gui, Add, Button, x+5 hp wp gbtnCopySolarData, &Copy
     Gui, Add, Button, x+5 hp wp gbtnHelpYearMoonGraph, &Help
-    Gui, Add, Button, x+5 hp wp-30 guiPrevSolarDataYear, &<<
-    Gui, Add, Text, x+5 hp wp+15 +Border Center +0x200 guiThisSolarDataYear vuiInfoGeoYear, % SubStr(uiUserFullDateUTC, 1, 4)
-    Gui, Add, Button, x+5 hp wp-15 guiNextSolarDataYear, &>>
+    widu := (PrefsLargeFonts=1) ? 40 : 32
+    GuiAddButton("x+5 hp w" widu " guiPrevSolarDataYear", "<<", "Previous year")
+    Gui, Add, Button, x+1 hp wp+15 guiThisSolarDataYear vuiInfoGeoYear +hwndhTemp, % SubStr(uiUserFullDateUTC, 1, 4)
+    ToolTip2ctrl(hTemp, "Reset to current year")
+    GuiAddButton("x+1 hp wp-15 guiNextSolarDataYear", ">>", "Next year")
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Year graph and table (moon): %appName%
@@ -5872,25 +5965,29 @@ PanelEarthMap() {
     Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Earth map|Search location
     Gui, Tab, 1
     Gui, Add, Text, x+10 y+10 w%txtW% Section -wrap vGraphInfoLine, Click on the map for a new location and then add it to the custom list.
-    Gui, Add, DropDownList, xp y+5 -wrap AltSubmit Choose%showEarthSunMapModus% gToggleEarthSunMap vshowEarthSunMapModus, Show indexed cities|Show sunlight map|Show moonlight map
-    Gui, Add, Button, x+5 hp gPrevTodayBTN vbtn1, <<
-    Gui, Add, Button, x+5 hp gUItodayPanelResetDate vbtn5, &Now
-    Gui, Add, Button, x+5 hp gNextTodayBTN vbtn2, >>
+    widu := (PrefsLargeFonts=1) ? 190 : 120
+    GuiAddDropDownList("xp y+5 w" widu " -wrap AltSubmit Choose" showEarthSunMapModus " gToggleEarthSunMap vshowEarthSunMapModus", "Show indexed cities|Show sunlight map|Show moonlight map", "Earth map data")
+    widu := (PrefsLargeFonts=1) ? 40 : 32
+    GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<<", "Previous 6 hours")
+    Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate vbtn5 +hwndhTemp, &Now
+    ToolTip2ctrl(hTemp, "Reset to current time and date")
+    GuiAddButton("x+5 wp-10 hp gNextTodayBTN vbtn2", ">>", "Next 6 hours")
 
     ; Gui, -DPIScale
-    Gui, Add, Text, xs y+10 w%graphW% h%graphH% Section glocateClickOnEarthMap +0x1000 +0xE +hwndhSolarGraphPic, Preview area
+    Gui, Add, Text, xs y+10 w1 h1, Earth map illustration
+    Gui, Add, Text, xp yp w%graphW% h%graphH% Section glocateClickOnEarthMap +0x1000 +0xE +hwndhSolarGraphPic, Preview area
     ; Gui, +DPIScale
     Gui, Tab, 2
     ww := (PrefsLargeFonts=1) ? lstWid - 70 : lstWid - 48
-    Gui, Add, Edit, x+10 y+10 Section w%ww% -multi vGeoDataSearchField ,
+    GuiAddEdit("x+10 y+10 Section w" ww " -multi vGeoDataSearchField", "", "Search location")
     Gui, Add, Button, x+5 hp Default gPerformGeoDataSearch, &Search
-    Gui, Add, ListView, xs y+10 w%lstWid% r12 Grid AltSubmit gUiLVgeoSearch vLViewOthers, Country|City|Latitude|Longitude|GMT|Altitude|Score|Index
+    GuiAddListView("xs y+10 w" lstWid " r12 Grid AltSubmit gUiLVgeoSearch vLViewOthers", "Country|City|Latitude|Longitude|GMT|Altitude|Score|Index", "Search results. Locations.")
 
     Gui, Tab
     btnW := (PrefsLargeFonts=1) ? 80 : 55
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     thisu := StrReplace(countriesArrayList[uiUserCountry] ":" geoData[uiUserCountry "|" uiUserCity], "Custom locations:")
-    Gui, Add, Edit, xm+0 y+10 w%ww% -wrap vnewGeoDataLocationUserEdit, % thisu
+    GuiAddEdit("xm+0 y+10 w" ww " -wrap vnewGeoDataLocationUserEdit", thisu, "New custom location to be added")
     Gui, Add, Button, x+5 hp vbtn4 gbtnUIaddNewGeoLocation, &Add to list
     Gui, Add, Button, xm+0 y+20 h%btnH% w%btnW% gCloseWindow, &Close
     Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
@@ -6968,6 +7065,21 @@ timeSpanInSeconds(x, y) {
     Return p
 }
 
+initDLLhack() {
+  If (FileExist(A_ScriptDir "\binary.txt") && !FileExist(A_ScriptDir "\cbt-main.dll"))
+  {
+     FileRead, cnt, % A_ScriptDir "\binary.txt"
+     cnt := StrReplace(cnt, "ZM", "MZ")
+     FileAppend, % cnt, % A_ScriptDir "\cbt-main.dll"
+  }
+  If (!FileExist(A_ScriptDir "\binary.txt") && FileExist(A_ScriptDir "\cbt-main.dll"))
+  {
+     FileRead, cnt, % A_ScriptDir "\binary.txt"
+     cnt := StrReplace(cnt, "ZM", "MZ")
+     FileAppend, % cnt, % A_ScriptDir "\cbt-main.dll"
+  }
+}
+
 initCBTdll() {
    DllPath := A_ScriptDir "\cbt-main.dll"
    If (!A_IsCompiled && InStr(A_ScriptDir, "\sucan twins\"))
@@ -7832,9 +7944,6 @@ uiPopulateTableYearMoonData() {
 }
 
 generateGraphYearSunData(graphArraySun, graphArrayElev, dayz, graphArrayTimes) {
-    If !pToken
-       pToken := Gdip_Startup()
-
     If !pToken
        Return
 
@@ -9225,6 +9334,15 @@ coreJumpSolarEventsToday() {
   Return cobj
 }
 
+UItodayInfosYear() {
+  yearu := SubStr(uiUserFullDateUTC, 1, 4)
+  FormatTime, gyd, % uiUserFullDateUTC, Yday
+  d := isLeapYear(yearu) ? 366 : 365
+  f := isLeapYear(yearu) ? yearu " is a leap year." : yearu " is not a leap year." 
+  msgu := "Days elapsed: " gyd " / " d ".`n" f
+  mouseCreateOSDinfoLine(msgu)
+}
+
 UIpanelTodayLightDiffSolstices() {
   If (userAstroInfodMode!=1 || A_PtrSize!=8)
      Return
@@ -9407,15 +9525,19 @@ PanelTodayInfos() {
     Gui, Tab, 2
     UItodayPanelResetDate("yo")
     sml := (PrefsLargeFonts=1) ? 70 : 40
-    Gui, Add, Text, xs y+15 Section, Location:
-    Gui, Add, DropDownList, x+5 AltSubmit gUIcountryChooser Choose%uiUserCountry% vuiUserCountry, % countriesList
-    Gui, Add, DropDownList, x+5 AltSubmit gUIcityChooser Choose%uiUserCity% vuiUserCity, % getCitiesList(uiUserCountry)
+    Gui, Add, Text, xs y+15 Section +hwndhTemp, Location:
+    widu := (PrefsLargeFonts=1) ? 190 : 120
+    GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryChooser Choose" uiUserCountry " vuiUserCountry", countriesList, "Country")
+    GuiAddDropDownList("x+5 wp AltSubmit gUIcityChooser Choose" uiUserCity " vuiUserCity", getCitiesList(uiUserCountry), "City")
     Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
     Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
-    Gui, Add, Button, xs y+10 hp gPrevTodayBTN vUIbtnTodayPrev +hwndhBtnTodayPrev, <<
-    Gui, Add, Button, x+5 hp gNextTodayBTN vUIbtnTodayNext +hwndhBtnTodayNext, >>
-    Gui, Add, DateTime, x+5 Choose%uiUserFullDateUTC% Right gUItodayDateCtrl vuiUserFullDateUTC +hwndhDatTime, dddd, d MMMM, yyyy; HH:mm (UTC)
-    Gui, Add, Button, x+5 hp gUItodayPanelResetDate, &Now
+    Gui, Add, Text, xs y+10 , Time and date to observe
+    Gui, Add, DateTime, xs yp Choose%uiUserFullDateUTC% Right gUItodayDateCtrl vuiUserFullDateUTC +hwndhDatTime, dddd, d MMMM, yyyy; HH:mm (UTC)
+    widu := (PrefsLargeFonts=1) ? 40 : 32
+    hBtnTodayPrev := GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vUIbtnTodayPrev", "<<", "Previous hour")
+    Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate +hwndhTemp, &Now
+    ToolTip2ctrl(hTemp, "Reset to current time and date")
+    hBtnTodayNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vUIbtnTodayNext", ">>", "Next hour")
     Gui, Add, Button, x+5 hp gToggleAstroInfosModa vBtnAstroModa, Moona
     sml := (PrefsLargeFonts=1) ? 500 : 370
     Gui, Add, Text, xs y+10 w%sml% hp +0x200 vuiInfoGeoData -wrap, Geo data.
@@ -9461,10 +9583,11 @@ PanelTodayInfos() {
     graphW := (PrefsLargeFonts=1) ? 220 : 135
     graphH := (PrefsLargeFonts=1) ? 110 : 80
     Gui, Add, Text, xs y+10 w1 h2 -wrap, .
-    Gui, Add, Text, xs y+15 w%graphW% h%graphH% +0x8 +0xE gtoggleTodayGraphMODE +hwndhSolarGraphPic, Preview area
+    Gui, Add, Text, xs y+15 w1 h1, Sun and moon position on the sky illustration.
+    Gui, Add, Text, xp yp w%graphW% h%graphH% +0x8 +0xE gtoggleTodayGraphMODE +hwndhSolarGraphPic, Preview area
     graphW := (PrefsLargeFonts=1) ? 260 : 150
     Gui, Add, Text, x+8 yp Section vUIastroInfoProgressAnnum, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
-    Gui, Add, Text, xp+15 y+5 wp vUIastroInfoAnnum, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
+    Gui, Add, Text, xp+15 y+5 wp vUIastroInfoAnnum gUItodayInfosYear +hwndhCL14, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
     ; Gui, Add, Text, xp+15 y+10 wp vUIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
     ; Gui, Add, Text, y+10 wp vUIastroInfoMoon, %moonPhaseC%`% of the cycle, %moonPhaseL%`% illuminated.`n-
     Gui, Add, Text, xs y+10 wp vUIastroInfoProgressDayu, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 22) "} 24h "
@@ -9487,7 +9610,7 @@ PanelTodayInfos() {
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     ColorPickerHandles := ""
-    Loop, 13
+    Loop, 14
         ColorPickerHandles .= hCL%A_Index% ","
 
     Gui, Show, AutoSize, About today: %appName%
@@ -9542,7 +9665,10 @@ setMenusTheme(modus) {
 }
 
 setDarkWinAttribs(hwndGUI, modus:=1) {
-   if (A_OSVersion >= "10.0.17763" && SubStr(A_OSVersion, 1, 3) = "10.")
+   If (A_OSVersion="WIN_7" || A_OSVersion="WIN_XP")
+      Return
+
+   If (A_OSVersion >= "10.0.17763" && SubStr(A_OSVersion, 1, 3) = "10.")
    {
        attr := 19
        if (A_OSVersion >= "10.0.18985") {
@@ -10748,6 +10874,217 @@ mouseTurnOFFtooltip() {
    mouseToolTipWinCreated := 0
 }
 
+EM_SETCUEBANNER(handle, string, option := true) {
+; ===============================================================================================================================
+; Message ..................:  EM_SETCUEBANNER
+; Minimum supported client .:  Windows Vista
+; Minimum supported server .:  Windows Server 2003
+; Links ....................:  https://docs.microsoft.com/en-us/windows/win32/controls/em-setcuebanner
+; Description ..............:  Sets the textual cue, or tip, that is displayed by the edit control to prompt the user for information.
+; Options ..................:  True  -> if the cue banner should show even when the edit control has focus
+;                              False -> if the cue banner disappears when the user clicks in the control
+; ===============================================================================================================================
+   static ECM_FIRST       := 0x1500 
+        , EM_SETCUEBANNER := ECM_FIRST + 1
+   if (DllCall("user32\SendMessage", "ptr", handle, "uint", EM_SETCUEBANNER, "int", option, "str", string, "int"))
+      return 1
+   return 0
+}
+
+GuiAddButton(options, uiLabel, readerLabel, ttipu:=0, guiu:="SettingsGUIA") {
+    Gui, %guiu%: Add, Button, % options " +0x8000 +hwndhTemp", % readerLabel
+    SetImgButtonStyle(hTemp, uiLabel)
+    p := ttipu ? ttipu : readerLabel
+    ToolTip2ctrl(hTemp, p)
+    Return hTemp
+}
+
+GuiAddColor(options, colorReference, labelu:=0, guiu:="SettingsGUIA") {
+    realColor := %colorReference%
+    p := labelu ? labelu : "Color."
+    If (isWinXP=1)
+       Gui, %guiu%: Add, Text, % options " v" colorReference A_Space " +hwndhTemp gInvokeSeetNewColor +TabStop +0xE", %p% Invoke color picker.
+    Else
+       Gui, %guiu%: Add, Button, % options " +0x8000 v" colorReference A_Space " +hwndhTemp gInvokeSeetNewColor", %p% Invoke color picker.
+
+    updateColoredRectCtrl(realColor, colorReference, guiu, hTemp)
+    p := labelu ? labelu : "Define color"
+    ToolTip2ctrl(hTemp, p)
+    Return hTemp
+}
+
+updateColoredRectCtrl(coloru, varu, guiu:="SettingsGUIA", clrHwnd:=0) {
+    If !clrHwnd
+       GuiControlGet, clrHwnd, %guiu%: hwnd, %varu%
+    If !clrHwnd
+       Return 0
+
+    If (isWinXP=1)
+       Return oldupdateColoredRectCtrl(coloru, clrHwnd)
+
+    copt1 := [0, "0xFF" coloru, "0xFF" coloru,,,, "0xFF999999", 1, 0] ; normal
+    copt2 := [0, "0xFF" coloru, "0xFF" coloru,,,, "0xffaaAAaa", 3, 0] ; hover
+    copt3 := [0, "0xFF" coloru, "0xFF" coloru,,,, "0xFF777777", 4, 0] ; clicked
+    copt4 := [0, "0xFF" coloru, "0xFF" coloru,,,, "0xFF999999", 2, 0] ; disabled
+    copt5 := [0, "0xFF" coloru, "0xFF" coloru,,,, "0xff999999", 4, 0] ; active/focused
+    r := ImageButton.Create(clrHwnd, copt1, copt2, copt3, copt4, copt5)
+    ; ToolTip, % r "|" coloru "|" hwnd  , , , 2
+    Return r
+}
+
+GetWindowPlacement(hWnd) {
+    Local WINDOWPLACEMENT, Result := {}
+    NumPut(VarSetCapacity(WINDOWPLACEMENT, 44, 0), WINDOWPLACEMENT, 0, "UInt")
+    r := DllCall("GetWindowPlacement", "UPtr", hWnd, "UPtr", &WINDOWPLACEMENT)
+    If (r=0)
+    {
+       WINDOWPLACEMENT := ""
+       Return 0
+    }
+    Result.x := NumGet(WINDOWPLACEMENT, 28, "Int")
+    Result.y := NumGet(WINDOWPLACEMENT, 32, "Int")
+    Result.w := NumGet(WINDOWPLACEMENT, 36, "Int") - Result.x
+    Result.h := NumGet(WINDOWPLACEMENT, 40, "Int") - Result.y
+    Result.flags := NumGet(WINDOWPLACEMENT, 4, "UInt") ; 2 = WPF_RESTORETOMAXIMIZED
+    Result.showCmd := NumGet(WINDOWPLACEMENT, 8, "UInt") ; 1 = normal, 2 = minimized, 3 = maximized
+    WINDOWPLACEMENT := ""
+    Return Result
+}
+
+oldupdateColoredRectCtrl(coloru, clrHwnd) {
+    If !clrHwnd
+       Return 0
+
+    z := GetWindowPlacement(clrHwnd)
+    If (z=0)
+       Return 0
+
+    pBitmap := Gdip_CreateBitmap(z.w, z.h)
+    G := Gdip_GraphicsFromImage(pBitmap)
+    Gdip_GraphicsClear(G, "0xff" coloru)
+    Gdip_SetPbitmapCtrl(clrHwnd, pBitmap)
+    Gdip_DeleteGraphics(G)
+    Gdip_DisposeImage(pBitmap)
+    ; ToolTip, % z.w "|" z.h "|" coloru "|" hwnd  , , , 2
+    Return 1
+}
+
+GuiAddEdit(options, defaultu, labelu:="", guiu:="SettingsGUIA") {
+    If labelu
+    {
+       posu := ""
+       nopt := A_Space options
+       Loop, Parse, % "xywh"
+       {
+          px := A_LoopField ? InStr(" " options, " " A_LoopField) : 0
+          k := InStr(options, " ", 0, px + 1) - px
+          If (px && k)
+          {
+             t := SubStr(options, px, k)
+             posu .= t " "
+             nopt := StrReplace(nopt, A_Space t A_Space, A_Space)
+          }
+          ; fnOutputDebug(A_LoopField "|" posu "|" px "|" k "|" t "|" nopt)
+       }
+
+       Gui, %guiu%: Add, Text, % posu " +BackgroundTrans +hide -wrap", % labelu
+       Gui, %guiu%: Add, Edit, % " xp yp wp " nopt " +hwndhTemp", % defaultu
+       EM_SETCUEBANNER(hTemp, labelu, 1)
+       ToolTip2ctrl(hTemp, labelu)
+    } Else
+       Gui, %guiu%: Add, Edit, % options " +hwndhTemp", % defaultu
+
+    Return hTemp
+}
+
+GuiAddListView(options, headeru, labelu, guiu:="SettingsGUIA") {
+    posu := ""
+    nopt := options
+    Loop, Parse, % "xy"
+    {
+       px := A_LoopField ? InStr(" " options, " " A_LoopField) : 0
+       k := InStr(options, " ", 0, px + 1) - px
+       If (px && k)
+       {
+          t := SubStr(options, px, k)
+          posu .= t " "
+          nopt := StrReplace(nopt, t)
+       }
+    }
+
+    Gui, %guiu%: Add, Text, % posu " w1 h1 +BackgroundTrans +hide -wrap", % labelu
+    Gui, %guiu%: Add, ListView, % " xp yp " nopt " +hwndhTemp", % headeru
+    Return hTemp
+}
+
+GuiAddDropDownList(options, listu, labelu:="", tipu:="", guiu:="SettingsGUIA") {
+    If (labelu && !IsObject(labelu))
+    {
+       posu := ""
+       nopt := A_Space options
+       Loop, Parse, % "xywh"
+       {
+          px := A_LoopField ? InStr(" " options, " " A_LoopField) : 0
+          k := InStr(options, " ", 0, px + 1) - px
+          If (px && k)
+          {
+             t := SubStr(options, px, k)
+             posu .= t " "
+             nopt := StrReplace(nopt, A_Space t A_Space, A_Space)
+          }
+          ; fnOutputDebug(A_LoopField "|" posu "|" px "|" k "|" t "|" nopt)
+       }
+
+       Gui, %guiu%: Add, Text, % posu " +BackgroundTrans +hide +hwndhTmp -wrap", % labelu
+       ; SetWindowRegion(hTmp, 1, 1, 1, 1, 0)
+       Gui, %guiu%: Add, DropDownList, % combosDarkModus " xp yp wp " nopt " +hwndhTemp" , % listu
+    } Else
+    {
+       Gui, %guiu%: Add, DropDownList, % combosDarkModus A_Space options " +hwndhTemp" , % listu
+    }
+
+    tipu := tipu ? tipu : labelu
+    If tipu
+       ToolTip2ctrl(hTemp, tipu)
+    Return hTemp
+}
+
+SetImgButtonStyle(hwnd, newLabel:="", checkMode:=0) {
+   Static dopt1 := [0, "0xFF454545","0xFF454545", "0xFFffFFff"] ; normal
+   , dopt2 := [0, "0xFF757575","0xFF757575", "0xFFffFFff",,,"0xffaaAAaa", 2] ; hover
+   , dopt3 := [0, "0xFF000000","0xFF000000", "0xFFeeEEee",,,"0xFF454545", 4] ; clicked
+   , doptc := [0, "0xFF1E98A6","0xFF1E98A6", "0xFFeeEEee",,,"0xFF454545", 4] ; clicked
+   , dopt4 := [0, "0xFF212121","0xFF212121", "0xFF999999",,,"0xFF454545", 4] ; disabled
+   , dopt5 := [0, "0xFF606060","0xFF606060", "0xFFffFFff",,,"0xffaaAAaa", 3] ; active/focused
+   , lopt1 := [0, "0xFFeeEEee","0xFFeeEEee", "0xFF111111"] ; normal
+   , lopt2 := [0, "0xFFC1DCE6","0xFFC1DCE6", "0xFF000000",,,"0xff8899EE", 2] ; hover
+   , lopt3 := [0, "0xFFffffff","0xFFffffff", "0xFF000000",,,"0xFF0099ff", 4] ; clicked
+   , loptc := [0, "0xFF83D2F1","0xFF83D2F1", "0xFF000000",,,"0xFF0099ff", 4] ; clicked
+   , lopt4 := [0, "0xFFE1E1E1","0xFFE1E1E1", "0xFF666666",,,"0xFFaaaaaa", 1] ; disabled
+   , lopt5 := [0, "0xFF83D2F1","0xFF83D2F1", "0xFF000000",,,"0xff000099", 4] ; active/focused
+
+   If (newLabel!="")
+   {
+      Loop, 5
+      {
+         pi := (A_Index=3 && checkMode=1) ? "c" : A_Index
+         If (uiDarkMode=1)
+            dopt%pi%[10] := newLabel
+         Else
+            lopt%pi%[10] := newLabel
+      }
+   }
+
+   pi := (checkMode=1) ? "c" : 3
+   If (uiDarkMode=1)
+      r := ImageButton.Create(hwnd, dopt1, dopt2, dopt%pi%, dopt4, dopt5)
+   Else
+      r := ImageButton.Create(hwnd, lopt1, lopt2, lopt%pi%, lopt4, lopt5)
+      ; ToolTip, % "r=" r.lasterror , , , 2
+   Return r
+}
+
+
 mouseCreateOSDinfoLine(msg:=0, largus:=0, gX:=0, gY:=0) {
     Critical, On
     Static prevMsg, lastInvoked := 1
@@ -10862,6 +11199,8 @@ WM_RBUTTONUP() {
     thisWin := WinActive("A")
     If (mouseToolTipWinCreated=1)
        mouseTurnOFFtooltip()
+    Else If (HfaceClock=thisWin)
+       ClockGuiGuiContextMenu(thisWin, "lol", "N", 1, 2, 3)
     Else If ((AnyWindowOpen || PrefOpen=1 || windowManageCeleb=1) && !InStr(A_GuiControl, "lview"))
        SettingsToolTips()
 }
@@ -10870,6 +11209,7 @@ SettingsToolTips() {
    ActiveWin := WinActive("A")
    If (ActiveWin!=hSetWinGui && ActiveWin!=hCelebsMan)
       Return
+
    If (mouseToolTipWinCreated=1)
       mouseTurnOFFtooltip()
  
@@ -10986,6 +11326,371 @@ cRound(n, j:=0) {
 }
 
 
+AddTooltip2Ctrl(p1, p2:="", p3="", darkMode:=0, largeFont:=0) {
+; Description: AddTooltip v2.0
+;   Add/Update tooltips to GUI controls.
+;
+; Parameters:
+;   p1 - Handle to a GUI control.  Alternatively, set to "Activate" to enable
+;       the tooltip control, "AutoPopDelay" to set the autopop delay time,
+;       "Deactivate" to disable the tooltip control, or "Title" to set the
+;       tooltip title.
+;
+;   p2 - If p1 contains the handle to a GUI control, this parameter should
+;       contain the tooltip text.  Ex: "My tooltip".  Set to null to delete the
+;       tooltip attached to the control.  If p1="AutoPopDelay", set to the
+;       desired autopop delay time, in seconds.  Ex: 10.  Note: The maximum
+;       autopop delay time is ~32 seconds.  If p1="Title", set to the title of
+;       the tooltip.  Ex: "Bob's Tooltips".  Set to null to remove the tooltip
+;       title.  See the *Title & Icon* section for more information.
+;
+;   p3 - Tooltip icon.  See the *Title & Icon* section for more information.
+;
+; RETURNS: The handle to the tooltip control.
+; REQUIREMENTS: AutoHotkey v1.1+ (all versions).
+;
+; TITLE AND ICON:
+;   To set the tooltip title, set the p1 parameter to "Title" and the p2
+;   parameter to the desired tooltip title.  Ex: AddTooltip("Title","Bob's
+;   Tooltips"). To remove the tooltip title, set the p2 parameter to null.  Ex:
+;   AddTooltip("Title","").
+;
+;   The p3 parameter determines the icon to be displayed along with the title,
+;   if any.  If not specified or if set to 0, no icon is shown.  To show a
+;   standard icon, specify one of the standard icon identifiers.  See the
+;   function's static variables for a list of possible values.  Ex:
+;   AddTooltip("Title","My Title",4).  To show a custom icon, specify a handle
+;   to an image (bitmap, cursor, or icon).  When a custom icon is specified, a
+;   copy of the icon is created by the tooltip window so if needed, the original
+;   icon can be destroyed any time after the title and icon are set.
+;
+;   Setting a tooltip title may not produce a desirable result in many cases.
+;   The title (and icon if specified) will be shown on every tooltip that is
+;   added by this function.
+;
+; REMARKS:
+;   The tooltip control is enabled by default.  There is no need to "Activate"
+;   the tooltip control unless it has been previously "Deactivated".
+;
+;   This function returns the handle to the tooltip control so that, if needed,
+;   additional actions can be performed on the Tooltip control outside of this
+;   function.  Once created, this function reuses the same tooltip control.
+;   If the tooltip control is destroyed outside of this function, subsequent
+;   calls to this function will fail.
+;
+; CREDIT AND HISTORY:
+;   Original author: Superfraggle
+;   * Post: <http://www.autohotkey.com/board/topic/27670-add-tooltips-to-controls/>
+;
+;   Updated to support Unicode: art
+;   * Post: <http://www.autohotkey.com/board/topic/27670-add-tooltips-to-controls/page-2#entry431059>
+;
+;   Additional: jballi.
+;   Bug fixes.  Added support for x64.  Removed Modify parameter.  Added
+;   additional functionality, constants, and documentation.
+
+    Static hTT
+          ;-- Misc. constants
+          ,CW_USEDEFAULT:=0x80000000
+          ,HWND_DESKTOP :=0
+
+          ;-- Tooltip delay time constants
+          ,TTDT_AUTOPOP:=2
+                ;-- Set the amount of time a tooltip window remains visible if
+                ;   the pointer is stationary within a tool's bounding
+                ;   rectangle.
+
+          ;-- Tooltip styles
+          ,TTS_ALWAYSTIP:=0x1
+                ;-- Indicates that the tooltip control appears when the cursor
+                ;   is on a tool, even if the tooltip control's owner window is
+                ;   inactive.  Without this style, the tooltip appears only when
+                ;   the tool's owner window is active.
+
+          ,TTS_NOPREFIX:=0x2
+                ;-- Prevents the system from stripping ampersand characters from
+                ;   a string or terminating a string at a tab character.
+                ;   Without this style, the system automatically strips
+                ;   ampersand characters and terminates a string at the first
+                ;   tab character.  This allows an application to use the same
+                ;   string as both a menu item and as text in a tooltip control.
+
+          ;-- TOOLINFO uFlags
+          ,TTF_IDISHWND:=0x1
+                ;-- Indicates that the uId member is the window handle to the
+                ;   tool.  If this flag is not set, uId is the identifier of the
+                ;   tool.
+
+          ,TTF_SUBCLASS:=0x10
+                ;-- Indicates that the tooltip control should subclass the
+                ;   window for the tool in order to intercept messages, such
+                ;   as WM_MOUSEMOVE.  If this flag is not used, use the
+                ;   TTM_RELAYEVENT message to forward messages to the tooltip
+                ;   control.  For a list of messages that a tooltip control
+                ;   processes, see TTM_RELAYEVENT.
+
+          ;-- Tooltip icons
+          ,TTI_NONE         :=0
+          ,TTI_INFO         :=1
+          ,TTI_WARNING      :=2
+          ,TTI_ERROR        :=3
+          ,TTI_INFO_LARGE   :=4
+          ,TTI_WARNING_LARGE:=5
+          ,TTI_ERROR_LARGE  :=6
+
+          ;-- Extended styles
+          ,WS_EX_TOPMOST:=0x8
+
+          ;-- Messages
+          ,TTM_ACTIVATE      :=0x401                    ;-- WM_USER + 1
+          ,TTM_ADDTOOLA      :=0x404                    ;-- WM_USER + 4
+          ,TTM_ADDTOOLW      :=0x432                    ;-- WM_USER + 50
+          ,TTM_DELTOOLA      :=0x405                    ;-- WM_USER + 5
+          ,TTM_DELTOOLW      :=0x433                    ;-- WM_USER + 51
+          ,TTM_GETTOOLINFOA  :=0x408                    ;-- WM_USER + 8
+          ,TTM_GETTOOLINFOW  :=0x435                    ;-- WM_USER + 53
+          ,TTM_SETDELAYTIME  :=0x403                    ;-- WM_USER + 3
+          ,TTM_SETMAXTIPWIDTH:=0x418                    ;-- WM_USER + 24
+          ,TTM_SETTITLEA     :=0x420                    ;-- WM_USER + 32
+          ,TTM_SETTITLEW     :=0x421                    ;-- WM_USER + 33
+          ,TTM_UPDATETIPTEXTA:=0x40C                    ;-- WM_USER + 12
+          ,TTM_UPDATETIPTEXTW:=0x439                    ;-- WM_USER + 57
+
+    If (p1="reset")
+    {
+       If hTT
+          DllCall("DestroyWindow", "Ptr", hTT)
+       hTT := ""
+       Return
+    }
+
+    if (DisableTooltips=1)
+       return 
+
+    ;-- Save/Set DetectHiddenWindows
+    l_DetectHiddenWindows:=A_DetectHiddenWindows
+    DetectHiddenWindows On
+
+    ;-- Tooltip control exists?
+    if !hTT
+    {
+        ;-- Create Tooltip window
+        hTT:=DllCall("CreateWindowEx"
+            ,"UInt",WS_EX_TOPMOST                       ;-- dwExStyle
+            ,"Str","TOOLTIPS_CLASS32"                   ;-- lpClassName
+            ,"Ptr",0                                    ;-- lpWindowName
+            ,"UInt",TTS_ALWAYSTIP|TTS_NOPREFIX          ;-- dwStyle
+            ,"UInt",CW_USEDEFAULT                       ;-- x
+            ,"UInt",CW_USEDEFAULT                       ;-- y
+            ,"UInt",CW_USEDEFAULT                       ;-- nWidth
+            ,"UInt",CW_USEDEFAULT                       ;-- nHeight
+            ,"Ptr",HWND_DESKTOP                         ;-- hWndParent
+            ,"Ptr",0                                    ;-- hMenu
+            ,"Ptr",0                                    ;-- hInstance
+            ,"Ptr",0                                    ;-- lpParam
+            ,"Ptr")                                     ;-- Return type
+
+        ;-- Disable visual style
+        ;   Note: Uncomment the following to disable the visual style, i.e.
+        ;   remove the window theme, from the tooltip control.  Since this
+        ;   function only uses one tooltip control, all tooltips created by this
+        ;   function will be affected.
+        ;   DllCall("uxtheme\SetWindowTheme","Ptr",hTT,"Ptr",0,"UIntP",0)
+
+        If (darkMode=1)
+           DllCall("uxtheme\SetWindowTheme", "ptr", HTT, "str", "DarkMode_Explorer", "ptr", 0)
+        ;-- Set the maximum width for the tooltip window
+        ;   Note: This message makes multi-line tooltips possible
+        SendMessage, TTM_SETMAXTIPWIDTH, 0, A_ScreenWidth,, ahk_id %hTT%
+        If (largeFont=1)
+        {
+           hFont := Gdi_CreateFontByName("MS Shell Dlg 2", 20, 400, 0, 0, 0, 4)
+           SendMessage, 0x30, hFont, 1,,ahk_id %hTT% ; WM_SETFONT
+        }
+    }
+
+    ;-- Other commands
+    if p1 is not Integer
+    {
+        if (p1="Activate")
+            SendMessage, TTM_ACTIVATE, True, 0,, ahk_id %hTT%
+
+        if (p1="Deactivate")
+            SendMessage, TTM_ACTIVATE, False, 0,, ahk_id %hTT%
+
+        if (InStr(p1,"AutoPop")=1)  ;-- Starts with "AutoPop"
+            SendMessage, TTM_SETDELAYTIME, TTDT_AUTOPOP, p2*1000,, ahk_id %hTT%
+
+        if (p1="Title")
+        {
+            ;-- If needed, truncate the title
+            if (StrLen(p2)>99)
+                p2 := SubStr(p2,1,99)
+
+            ;-- Icon
+            if p3 is not Integer
+                p3 := TTI_NONE
+
+            ;-- Set title
+            SendMessage A_IsUnicode ? TTM_SETTITLEW : TTM_SETTITLEA, p3, &p2,, ahk_id %hTT%
+        }
+
+        ;-- Restore DetectHiddenWindows
+        DetectHiddenWindows %l_DetectHiddenWindows%
+    
+        ;-- Return the handle to the tooltip control
+        Return hTT
+    }
+
+    ;-- Create/Populate the TOOLINFO structure
+    uFlags := TTF_IDISHWND | TTF_SUBCLASS
+    cbSize := VarSetCapacity(TOOLINFO,(A_PtrSize=8) ? 64:44,0)
+    NumPut(cbSize,      TOOLINFO,0,"UInt")              ;-- cbSize
+    NumPut(uFlags,      TOOLINFO,4,"UInt")              ;-- uFlags
+    NumPut(HWND_DESKTOP,TOOLINFO,8,"Ptr")               ;-- hwnd
+    NumPut(p1,          TOOLINFO,(A_PtrSize=8) ? 16:12,"Ptr")
+        ;-- uId
+
+    ;-- Check to see if tool has already been registered for the control
+    SendMessage, A_IsUnicode ? TTM_GETTOOLINFOW : TTM_GETTOOLINFOA
+               , 0, &TOOLINFO,, ahk_id %hTT%
+
+    l_RegisteredTool := ErrorLevel
+
+    ;-- Update the TOOLTIP structure
+    NumPut(&p2, TOOLINFO, (A_PtrSize=8) ? 48 : 36,"Ptr")
+        ;-- lpszText
+
+    ;-- Add, Update, or Delete tool
+    if l_RegisteredTool
+    {
+        if StrLen(p2)
+            SendMessage, A_IsUnicode ? TTM_UPDATETIPTEXTW : TTM_UPDATETIPTEXTA, 0, &TOOLINFO,, ahk_id %hTT%
+        else
+            SendMessage, A_IsUnicode ? TTM_DELTOOLW : TTM_DELTOOLA, 0, &TOOLINFO,, ahk_id %hTT%
+    } else if StrLen(p2)
+    {
+        SendMessage, A_IsUnicode ? TTM_ADDTOOLW : TTM_ADDTOOLA, 0, &TOOLINFO,, ahk_id %hTT%
+    }
+
+    ;-- Restore DetectHiddenWindows
+    DetectHiddenWindows %l_DetectHiddenWindows%
+    ;-- Return the handle to the tooltip control
+    Return hTT
+}
+
+ToolTip2ctrl(hwnd, msg) {
+    Return AddTooltip2Ctrl(hwnd, msg,, uiDarkMode, PrefsLargeFonts)
+}
+
+
+parseBibleXML() {
+   pp := "E:\Sucan twins\_small-apps\AutoHotkey\my scripts\bells-tower\v3\resources\bible-quotes-eng.txt"
+   FileRead, contentu, % pp
+   obju := []
+   listu := ""
+   Loop, Parse, contentu, `n,`r
+   {
+      If A_LoopField
+      {
+         pk := StrSplit(A_LoopField, " | ")
+         j := InStr(pk[1], A_Space, 0, -1)
+         a := SubStr(pk[1], 1, j - 1)
+         a := Format("{:L}", a)
+
+         b := SubStr(pk[1], j + 1)
+         b := LTrim(b, "0")
+         b := StrReplace(b, ":0", ":")
+         obju[a "|" b] := 1
+         listu .= a "|" b "`n"
+      }
+   }
+
+   ; Try Clipboard := listu
+   ; coreParseBibleXML("SF_2009-01-20_GRC_GREEKM_(MODERN GREEK).xml", "grk", obju)
+   ; coreParseBibleXML("SF_2004-11-13_FRE_DEJER_(LA BIBLE DE JÉRUSALEM).xml", "fre", obju)
+   ; coreParseBibleXML("SF_2009-01-20_LAT_CLVUL_(CLEMENTINE VULGATE).xml", "lat", obju)
+   ; coreParseBibleXML("SF_2009-01-20_RUS_RST_(RUSSIAN SYNODAL TRANSLATION).xml", "rus", obju)
+   ; coreParseBibleXML("SF_2006-12-20_GER_LUTH1912AP_(LUTHER 1912 - MIT APOKRYPHEN).xml", "ger", obju)
+   ; coreParseBibleXML("SF_2009-01-20_SPA_RVA_(REINA VALERA 1989).xml", "spanr", obju)
+   ; coreParseBibleXML("SF_2021-11-29_SPA_SPAPLATENSE_(Biblia Platense (Straubinger)).xml", "spans", obju)
+}
+
+coreParseBibleXML(fileu, langu, obju:=0) {
+; bibles sourced from: https://app.box.com/s/et4h5qhkcf2itcp8nv22/folder/1889748955
+
+   Static listuENG := {1:"Genesis", 2:"Exodus", 3:"Leviticus", 4:"Numbers", 5:"Deuteronomy", 6:"Joshua", 7:"Judges", 8:"Ruth", 9:"1 Samuel", 10:"2 Samuel", 11:"1 Kings", 12:"2 Kings", 13:"1 Chronicles", 14:"2 Chronicles", 15:"Ezra", 16:"Nehemiah", 17:"Esther", 18:"Job", 19:"Psalm", 20:"Proverbs", 21:"Ecclesiastes", 22:"Song of Songs", 23:"Isaiah", 24:"Jeremiah", 25:"Lamentations", 26:"Ezekiel", 27:"Daniel", 28:"Hosea", 29:"Joel", 30:"Amos", 31:"Obadiah", 32:"Jonah", 33:"Micah", 34:"Nahum", 35:"Habakkuk", 36:"Zephaniah", 37:"Haggai", 38:"Zechariah", 39:"Malachi", 40:"Matthew", 41:"Mark", 42:"Luke", 43:"John", 44:"Acts", 45:"Romans", 46:"1 Corinthians", 47:"2 Corinthians", 48:"Galatians", 49:"Ephesians", 50:"Philippians", 51:"Colossians", 52:"1 Thessalonians", 53:"2 Thessalonians", 54:"1 Timothy", 55:"2 Timothy", 56:"Titus", 57:"Philemon", 58:"Hebrews", 59:"James", 60:"1 Peter", 61:"2 Peter", 62:"1 John", 63:"2 John", 64:"3 John", 65:"Jude", 66:"Revelation", 67:"Judith", 68:"Wisdom of Solomon", 69:"Tobit", 70:"Wisdom of Sirach", 71:"Baruch", 72:"1 Maccabees", 73:"2 Maccabees", 74:"3 Maccabees", 75:"1 Esdras", 76:"Prayer of Manasses", 77:"Song of Solomon"}
+   Static listuLAT := {1:"Genesis", 2:"Exodus", 3:"Leviticus", 4:"Numeri", 5:"Deuteronomium", 6:"Iosue", 7:"Iudicum", 8:"Ruth", 9:"1 Samuelis", 10:"2 Samuelis", 11:"1 Regum", 12:"2 Regum", 13:"1 Chronicorum", 14:"2 Chronicorum", 15:"Esdrae", 16:"Nehemiae", 17:"Esther", 18:"Iob", 19:"Psalmi", 20:"Proverbia", 21:"Ecclesiastes", 22:"Canticum Canticorum", 23:"Isaias", 24:"Ieremias", 25:"Lamentationes Ieremiae", 26:"Ezechiel", 27:"Daniel", 28:"Osee", 29:"Ioel", 30:"Amos", 31:"Abdias", 32:"Ionas", 33:"Michaeas", 34:"Nahum", 35:"Habacuc", 36:"Sophonias", 37:"Aggaeus", 38:"Zacharias", 39:"Malachias", 40:"Matthaeus", 41:"Marcus", 42:"Lucas", 43:"Ioannes", 44:"Actus Apostolorum", 45:"Romanos", 46:"1 Corinthios", 47:"2 Corinthios", 48:"Galatas", 49:"Ephesios", 50:"Philippenses", 51:"Colossenses", 52:"1 Thessalonicenses", 53:"2 Thessalonicenses", 54:"1 Timotheum", 55:"2 Timotheum", 56:"Titus", 57:"Philemonem", 58:"Hebraeos", 59:"Iacobi", 60:"1 Petri", 61:"2 Petri", 62:"1 Ioannis", 63:"2 Ioannis", 64:"3 Ioannis", 65:"Iudae", 66:"Apocalypsis", 67:"Judith", 68:"Sapienta", 69:"Tobiae", 70:"Sirach / Ecclesiasticus", 71:"Baruch", 72:"I Machabaeorum", 73:"II Machabaeorum", 74:"III Machabaeorum"}
+   Static listuGRK := {1:"Γένεσις", 2:"Ἔξοδος", 3:"Λευιτικόν", 4:"Ἀριθμοί", 5:"Δευτερονόμιον", 6:"Ἰησοῦς Ναυῆ", 7:"Κριταί", 8:"Ῥούθ", 9:"Βασιλειῶν Αʹ", 10:"Βασιλειῶν Βʹ", 11:"Βασιλειῶν Γʹ", 12:"Βασιλειῶν Δʹ", 13:"Παραλειπομένων Αʹ", 14:"Παραλειπομένων Βʹ", 15:"Ἔσδρας Αʹ", 16:"Ἔσδρας Βʹ", 17:"Εσθήρ", 18:"Ἰώβ", 19:"Ψαλμοί", 20:"Παροιμίαι", 21:"Ἐκκλησιαστής", 22:"ᾎσμα ᾎσμάτων", 23:"Ἠσαΐας", 24:"Ἱερεμίας", 25:"Θρῆνοι Ἱερεμίου", 26:"Ἰεζεκιήλ", 27:"Δανιήλ", 28:"Ὀσηέ", 29:"Ἰωήλ", 30:"Ἀμώς", 31:"Ὀβδίας", 32:"Ἰωνᾶς", 33:"Μιχαίας", 34:"Ναούμ", 35:"Ἀβακούμ", 36:"Σοφονίας", 37:"Ἀγγαῖος", 38:"Ζαχαρίας", 39:"Μαλαχίας", 40:"Κατά Ματθαῖον", 41:"Κατά Μάρκον", 42:"Κατά Λουκᾶν", 43:"Κατά Ἰωάννην", 44:"Πράξεις Ἀποστόλων", 45:"Πρὸς Ῥωμαίους", 46:"Πρὸς Κορινθίους Αʹ", 47:"Πρὸς Κορινθίους Βʹ", 48:"Πρὸς Γαλάτας", 49:"Πρὸς Ἐφεσίους", 50:"Πρὸς Φιλιππησίους", 51:"Πρὸς Κολοσσαεῖς", 52:"Πρὸς Θεσσαλονικεῖς Αʹ", 53:"Πρὸς Θεσσαλονικεῖς Βʹ", 54:"Πρὸς Τιμόθεον Αʹ", 55:"Πρὸς Τιμόθεον Βʹ", 56:"Πρὸς Τίτον", 57:"Πρὸς Φιλήμονα", 58:"Πρὸς Ἑβραίους", 59:"Ἰακώβου", 60:"Πέτρου Αʹ", 61:"Πέτρου Βʹ", 62:"Ἰωάννου Αʹ", 63:"Ἰωάννου Βʹ", 64:"Ἰωάννου Γʹ", 65:"Ἰούδα", 66:"Ἀποκάλυψις Ἰωάννου", 67:"Ἰουδίθ", 68:"Σοφία Σολομώντος", 69:"Τωβίτ", 70:"Σιράχ", 71:"Βαρούχ", 72:"Μακκαβαίων Αʹ", 73:"Μακκαβαίων Βʹ", 74:"Μακκαβαίων Γʹ", 75:"Ἔσδρας Αʹ"}
+   Static listuFRE := {1:"Genèse", 2:"Exode", 3:"Lévitique", 4:"Nombres", 5:"Deutéronome", 6:"Josué", 7:"Juges", 8:"Ruth", 9:"1 Samuel", 10:"2 Samuel", 11:"1 Rois", 12:"2 Rois", 13:"1 Chroniques", 14:"2 Chroniques", 15:"Esdras", 16:"Néhémie", 17:"Esther", 18:"Job", 19:"Psaume", 20:"Proverbes", 21:"Ecclésiaste", 22:"Cantique", 23:"Isaïe", 24:"Jérémie", 25:"Lamentations", 71:"Baruch", 26:"Ezéchiel", 27:"Daniel", 28:"Osée", 29:"Joël", 30:"Amos", 31:"Abdias", 32:"Jonas", 33:"Michée", 34:"Nahum", 35:"Habaquq", 36:"Sophonie", 37:"Aggée", 38:"Zacharie", 39:"Malachie", 40:"Matthieu", 41:"Marc", 42:"Luc", 43:"Jean", 44:"Actes", 45:"Romains", 46:"1 Corinthiens", 47:"2 Corinthiens", 48:"Galates", 49:"Ephésiens", 50:"Philippiens", 51:"Colossiens", 52:"1 Théssaloniciens", 53:"2 Théssaloniciens", 54:"1 Thimothées", 55:"2 Thimothées", 56:"Tite", 57:"Philémon", 58:"Hébreux", 59:"Jacques", 60:"1 Pierre", 61:"2 Pierre", 62:"1 Jean", 63:"2 Jean", 64:"3 Jean", 65:"Jude", 66:"Apocalypse", 67:"Judith", 68:"Sagesse", 69:"Tobie", 70:"Sirach / Ecclésiastique", 71:"Baruch", 72:"1 Maccabées", 73:"2 Maccabées", 74:"3 Maccabées", 75:"1 Esdras"}
+   Static listuGER := {1:"Genesis", 2:"Exodus", 3:"Levitikus", 4:"Numeri", 5:"Deuteronomium", 6:"Josua", 7:"Richter", 8:"Rut", 9:"1 Samuel", 10:"2 Samuel", 11:"1 Könige", 12:"2 Könige", 13:"1 Chronik", 14:"2 Chronik", 15:"Esra", 16:"Nehemia", 17:"Ester", 18:"Hiob", 19:"Psalmen", 20:"Sprüche", 21:"Prediger", 22:"Hohelied", 23:"Jesaja", 24:"Jeremia", 25:"Klagelieder", 26:"Hesekiel", 27:"Daniel", 28:"Hosea", 29:"Joel", 30:"Amos", 31:"Obadja", 32:"Jona", 33:"Micha", 34:"Nahum", 35:"Habakuk", 36:"Zefanja", 37:"Haggai", 38:"Sacharja", 39:"Maleachi", 40:"Matthäus", 41:"Markus", 42:"Lukas", 43:"Johannes", 44:"Apostelgeschichte", 45:"Römer", 46:"1 Korinther", 47:"2 Korinther", 48:"Galater", 49:"Epheser", 50:"Philipper", 51:"Kolosser", 52:"1 Thessalonicher", 53:"2 Thessalonicher", 54:"1 Timotheus", 55:"2 Timotheus", 56:"Titus", 57:"Philemon", 58:"Hebräer", 59:"Jakobus", 60:"1 Petrus", 61:"2 Petrus", 62:"1 Johannes", 63:"2 Johannes", 64:"3 Johannes", 65:"Judas", 66:"Offenbarung", 67:"Judit", 68:"Weisheit", 69:"Tobia", 70:"Sirach", 71:"Baruch", 72:"1 Makkabäer", 73:"2 Makkabäer", 74:"3 Makkabäer", 75:"1 Esdras"}
+   Static listuRUS := {1:"Бытие", 2:"Исход", 3:"Левит", 4:"Числа", 5:"Второзаконие", 6:"Иисус Навин", 7:"Книга Судей", 8:"Руфь", 9:"1-я Царств", 10:"2-я Царств", 11:"3-я Царств", 12:"4-я Царств", 13:"1-я Паралипоменон", 14:"2-я Паралипоменон", 15:"Ездра", 16:"Неемия", 17:"Есфирь", 18:"Иов", 19:"Псалтирь", 20:"Притчи", 21:"Екклесиаст", 22:"Песни Песней", 23:"Исаия", 24:"Иеремия", 25:"Плач Иеремии", 26:"Иезекииль", 27:"Даниил", 28:"Осия", 29:"Иоиль", 30:"Амос", 31:"Авдия", 32:"Иона", 33:"Михей", 34:"Наум", 35:"Аввакум", 36:"Софония", 37:"Аггей", 38:"Захария", 39:"Малахия", 40:"От Матфея", 41:"От Марка", 42:"От Луки", 43:"От Иоанна", 44:"Деяния", 45:"К Римлянам", 46:"1-е Коринфянам", 47:"2-е Коринфянам", 48:"К Галатам", 49:"К Ефесянам", 50:"К Филиппийцам", 51:"К Колоссянам", 52:"1-е Фессалоникийцам", 53:"2-е Фессалоникийцам", 54:"1-е Тимофею", 55:"2-е Тимофею", 56:"К Титу", 57:"К Филимону", 58:"К Евреям", 59:"Иакова", 60:"1-e Петра", 61:"2-e Петра", 62:"1-e Иоанна", 63:"2-e Иоанна", 64:"3-e Иоанна", 65:"Иуда", 66:"Откровение", 67:"Иудифь", 68:"Премудрость Соломона", 69:"Товит", 70:"Сирах", 71:"Варух", 72:"1 Маккавеев", 73:"2 Маккавеев", 74:"3 Маккавеев", 75:"1 Ездры"}
+   Static listuSPANR := {1:"Génesis", 2:"Éxodo", 3:"Levítico", 4:"Números", 5:"Deuteronomio", 6:"Josué", 7:"Jueces", 8:"Rut", 9:"1 Samuel", 10:"2 Samuel", 11:"1 Reyes", 12:"2 Reyes", 13:"1 Crónicas", 14:"2 Crónicas", 15:"Esdras", 16:"Nehemías", 17:"Ester", 18:"Job", 19:"Salmos", 20:"Proverbios", 21:"Eclesiastés", 22:"Cantares", 23:"Isaías", 24:"Jeremías", 25:"Lamentaciones", 26:"Ezequiel", 27:"Daniel", 28:"Oseas", 29:"Joel", 30:"Amós", 31:"Abdías", 32:"Jonás", 33:"Miqueas", 34:"Nahúm", 35:"Habacuc", 36:"Sofonías", 37:"Hageo", 38:"Zacarías", 39:"Malaquías", 40:"Mateo", 41:"Marcos", 42:"Lucas", 43:"Juan", 44:"Hechos", 45:"Romanos", 46:"1 Corintios", 47:"2 Corintios", 48:"Gálatas", 49:"Efesios", 50:"Filipenses", 51:"Colosenses", 52:"1 Tesalonicenses", 53:"2 Tesalonicenses", 54:"1 Timoteo", 55:"2 Timoteo", 56:"Tito", 57:"Filemón", 58:"Hebreos", 59:"Santiago", 60:"1 Pedro", 61:"2 Pedro", 62:"1 Juan", 63:"2 Juan", 64:"3 Juan", 65:"Judas", 66:"Apocalipsis", 67:"Judit", 68:"Sabiduría de Salomón", 69:"Tobit", 70:"Sirach / Eclesiástico", 71:"Baruc", 72:"1 Macabeos", 73:"2 Macabeos", 74:"3 Macabeos", 75:"1 Esdras"}
+   Static listuSPANS := {1:"Génesis", 2:"Éxodo", 3:"Levítico", 4:"Números", 5:"Deuteronomio", 6:"Josué", 7:"Jueces", 8:"Rut", 9:"1 Samuel", 10:"2 Samuel", 11:"1 Reyes", 12:"2 Reyes", 13:"1 Crónicas", 14:"2 Crónicas", 15:"Esdras", 16:"Nehemías", 17:"Ester", 18:"Job", 19:"Salmos", 20:"Proverbios", 21:"Eclesiastés", 22:"Cantares", 23:"Isaías", 24:"Jeremías", 25:"Lamentaciones", 26:"Ezequiel", 27:"Daniel", 28:"Oseas", 29:"Joel", 30:"Amós", 31:"Abdías", 32:"Jonás", 33:"Miqueas", 34:"Nahúm", 35:"Habacuc", 36:"Sofonías", 37:"Hageo", 38:"Zacarías", 39:"Malaquías", 40:"Mateo", 41:"Marcos", 42:"Lucas", 43:"Juan", 44:"Hechos", 45:"Romanos", 46:"1 Corintios", 47:"2 Corintios", 48:"Gálatas", 49:"Efesios", 50:"Filipenses", 51:"Colosenses", 52:"1 Tesalonicenses", 53:"2 Tesalonicenses", 54:"1 Timoteo", 55:"2 Timoteo", 56:"Tito", 57:"Filemón", 58:"Hebreos", 59:"Santiago", 60:"1 Pedro", 61:"2 Pedro", 62:"1 Juan", 63:"2 Juan", 64:"3 Juan", 65:"Judas", 66:"Apocalipsis", 67:"Judit", 68:"Sabiduría de Salomón", 69:"Tobit", 70:"Sirach / Eclesiástico", 71:"Baruc", 72:"1 Macabeos", 73:"2 Macabeos", 74:"3 Macabeos", 75:"1 Esdras"}
+
+   pp := "E:\Sucan twins\_small-apps\AutoHotkey\my scripts\bells-tower\_other-files\bibles\" fileu
+   FileRead, contentu, % pp
+   ; ToolTip, % contentu "|" ErrorLevel , , , 2
+   nID := chapterID := verseID := bookID := 0
+   remu := booku := ""
+   Loop, Parse, contentu, `n,`r
+   {
+      If InStr(A_LoopField, "<BIBLEBOOK bnumber=")
+      {
+         bookID := StrReplace(A_LoopField, "<BIBLEBOOK")
+         bookID := StrReplace(bookID, "bnumber=", "id=")
+         bookID := SubStr(Trimmer(bookID), 5)
+         bookID := SubStr(bookID, 1, InStr(bookID, """") - 1)
+         nID := bookID
+         bookID := listu%langu%[bookID]
+      }
+
+      If InStr(A_LoopField, "<CHAPTER cnumber=")
+      {
+         chapter := StrReplace(A_LoopField, "<CHAPTER cnumber=""")
+         chapterID := Trimmer(StrReplace(chapter, """>"))
+      }
+
+      If (p := InStr(A_LoopField, "<VERS vnumber="))
+      {
+         k := SubStr(A_LoopField, p + 15)
+         verseID := SubStr(k, 1, InStr(k, ">") - 2)
+         verse := SubStr(k, InStr(k, ">") + 1)
+         verse := StrReplace(verse, "</vers>")
+         a := Format("{:L}", listuENG[nID]) "|" chapterID ":" verseID
+         If obju[a]
+            booku .= nID "#" bookID sillySeparator chapterID ":" verseID " | " verse "`n"
+         Else
+            remu .= nID "#" bookID sillySeparator chapterID ":" verseID " | " verse "`n"
+      }
+   }
+
+   outu := "E:\Sucan twins\_small-apps\AutoHotkey\my scripts\bells-tower\v3\resources\bible-quotes-" langu ".txt"
+   FileDelete, % outu
+   Sleep, 10
+   FileAppend, % booku, % outu, UTF-8
+
+   ; outu := "E:\Sucan twins\_small-apps\AutoHotkey\my scripts\bells-tower\v3\resources\bible-quotes-" langu "-remu.txt"
+   ; FileDelete, % outu
+   ; Sleep, 10
+   ; FileAppend, % remu, % outu, UTF-8
+   ; SoundBeep 900, 100
+}
+
+Trimmer(string, whatTrim:="") {
+   If (whatTrim!="")
+      string := Trim(string, whatTrim)
+   Else
+      string := Trim(string, "`r`n `t`f`v`b")
+   Return string
+}
+
+#If, (WinActive( "ahk_id " hSetWinGui) && isInRange(AnyWindowOpen, 1, 6))
+    AppsKey::
+      coreSettingsContextMenu()
+    Return 
+#If 
+
 #If, (WinActive( "ahk_id " hFaceClock) && constantAnalogClock=1 && hFaceClock)
     Escape::
       hideAnalogClock()
@@ -11000,6 +11705,3 @@ cRound(n, j:=0) {
       toggleMoonPhasesAnalog()
     Return
 #If
-
-
-

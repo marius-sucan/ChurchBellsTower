@@ -5,6 +5,11 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.3.0 - 2023 / 03 / 29
+  - [new] added more Bibles: German, Greek, Russian and Latin. French and Spanish Bibles recreated, more books are included now
+  - the entire interface is now friendly with screen readers such as Windows Narrator, for people with poor eyesight
+  - bug fixes
+
 v3.2.5 - 2022 / 11 / 23
   - [new] astronomy panel; information about the sun and the moon
     - display when the sun and the moon rise and set, solar noon

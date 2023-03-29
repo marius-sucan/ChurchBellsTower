@@ -50,13 +50,15 @@ InitClockFace() {
 
    Width := Height := ClockWinSize + 2      ; make width and height slightly bigger to avoid cut away edges
    rsz := roundsize*2 ; (width + height)//4
+   Global infoWidget
    Gui, ClockGui: Destroy
    Sleep, 25
    Gui, ClockGui: -DPIScale -Caption -Border +E0x80000 +AlwaysOnTop +ToolWindow +hwndHfaceClock
+   Gui, ClockGui: Add, Text, x1 y1 w%Width% h%Height% vinfoWidget, Analog clock widget.
    Gui, ClockGui: Show, NoActivate x%ClockPosX% y%ClockPosY% w%Width% h%height%
-   Gui, ClockGui: Hide
    If (roundedClock=1)
       WinSet, Region, 0-0 R%rsz%-%rsz% w%Width% h%Height%, ahk_id %hFaceClock%
+   Gui, ClockGui: Hide
    CenterX := CenterY := ClockCenter
 
 ; Prepare our pGraphic so we have a 'canvas' to work upon
@@ -384,14 +386,21 @@ exitAnalogClock() {
 }
 
 ClockGuiGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
-    Static menuGenerated, lastInvoked := 1
-    If (CtrlHwnd && IsRightClick=1)
-    || ((A_TickCount-lastInvoked>250) && IsRightClick=0)
-    {
-       lastInvoked := A_TickCount
-       Return
-    }
+    lastInvoked := 1
+    ; If (CtrlHwnd && IsRightClick=1)
+    ; || ((A_TickCount-lastInvoked>250) && IsRightClick=0)
+    ; {
+    ;    lastInvoked := A_TickCount
+    ;    Return
+    ; }
 
+    ; lastInvoked := A_TickCount
+    SetTimer, showContextMenuAnalogClock, -100
+    Return
+}
+
+showContextMenuAnalogClock() {
+    Static menuGenerated
     Menu, ContextMenu, UseErrorLevel
     Menu, ContextMenu, Delete
     Sleep, 25
@@ -442,8 +451,6 @@ ClockGuiGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
     Menu, ContextMenu, Add, Restart app, ReloadScript
     ; Menu, ContextMenu, Add, Close menu, dummy
     Menu, ContextMenu, Show
-    lastInvoked := A_TickCount
-    Return
 }
 
 SynchSecTimer() {
