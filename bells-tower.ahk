@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2022)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.3.0
+;@Ahk2Exe-SetVersion 3.3.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -163,17 +163,18 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.3.0"
-, ReleaseDate            := "2023 / 03 / 29"
+, Version                := "3.3.1"
+, ReleaseDate            := "2023 / 03 / 30"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
-, QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0
+, QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
 , LastNoonAudio := 0, appName := "Church Bells Tower"
 , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-1"
 
 If !A_IsCompiled
    Menu, Tray, Icon, bells-tower.ico
 
+DetermineWindowsStorePath()
 INIaction(0, "FirstRun", "SavedSettings")
 If (FirstRun=0)
 {
@@ -365,7 +366,7 @@ TimerShowOSDidle() {
      If !A_IsSuspended
         mouseHidden := checkMcursorState()
 
-     If (showTimeWhenIdle=1 && (A_TimeIdle > userIdleAfter) && mouseHidden!=1)
+     If (showTimeWhenIdle=1 && (A_TimeIdle > userIdleAfter) && mouseHidden!=1 && bibleQuoteVisible!=1)
      {
         FormatTime, HoursIntervalTest,, H ; 0-23 format
         If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest && (A_TickCount - lastCalcZeit>28501) )
@@ -4203,8 +4204,8 @@ questionMsg .= " | " dateSelected
            MsgBox, 36, %appName%, %questionMsg%
            IfMsgBox, Yes
            {
-             lastAsked := A_TickCount
-             answerPositive := 1
+              lastAsked := A_TickCount
+              answerPositive := 1
            }
         } Else answerPositive := 1
 
@@ -5645,7 +5646,8 @@ PerformGeoDataSearch() {
            Continue
         
         thisIndex++
-        LV_Add(thisIndex, cauntri, siti, extendedGeoData[A_Index, 3], extendedGeoData[A_Index, 4], extendedGeoData[A_Index, 5], extendedGeoData[A_Index, 7], score, A_Index)
+        k := extendedGeoData[A_Index]
+        LV_Add(thisIndex, cauntri, siti, k[3], k[4], k[5], k[7], score, A_Index)
     }
 
     ctr := countriesArrayList.Count()
@@ -5680,7 +5682,7 @@ PerformGeoDataSearch() {
                 Continue
              
              thisIndex++
-             LV_Add(thisIndex, cauntri, siti, elemu[3], elemu[4], elemu[5], elemu[7], score, ctrIndex "|" A_Index)
+             LV_Add(thisIndex, cauntri, siti, elemu[2], elemu[3], elemu[4], elemu[6], score, ctrIndex "|" A_Index)
          }
     }
 
@@ -5716,7 +5718,7 @@ btnUIremoveUserGeoLocation() {
       geoData["1|" A_Index] := thisu[A_Index]
 
    geoData["1|-1"] := cities - 1
-   FileRead, userlist, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   FileRead, userlist, %WinStorePath%\resources\geo-locations-userlist.txt
    newu := "", thisIndex := 0
    Loop, Parse, userlist, `n, `r
    {
@@ -5729,9 +5731,9 @@ btnUIremoveUserGeoLocation() {
    }
 
    Sleep, 50
-   FileDelete, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   FileDelete, %WinStorePath%\resources\geo-locations-userlist.txt
    Sleep, 50
-   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %A_ScriptDir%\resources\geo-locations-userlist.txt
+   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %WinStorePath%\resources\geo-locations-userlist.txt
    p := clampInRange(uiUserCity - 1, 1, cities)
    If (AnyWindowOpen=7)
       UIcountryGraphChooser()
@@ -5743,7 +5745,7 @@ btnUIremoveUserGeoLocation() {
 }
 
 btnUIupdateUserGeoLocation(idu, strA, str) {
-   FileRead, userlist, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   FileRead, userlist, %WinStorePath%\resources\geo-locations-userlist.txt
    newu := "",  thisIndex := 0, thisIDu := 0
    Loop, Parse, userlist, `n, `r
    {
@@ -5764,9 +5766,9 @@ btnUIupdateUserGeoLocation(idu, strA, str) {
 
    geoData["1|" thisIDu] := strA
    Sleep, 50
-   FileDelete, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   FileDelete, %WinStorePath%\resources\geo-locations-userlist.txt
    Sleep, 50
-   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %A_ScriptDir%\resources\geo-locations-userlist.txt
+   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %WinStorePath%\resources\geo-locations-userlist.txt
    SoundBeep , 900, 100
 }
 
@@ -5888,7 +5890,7 @@ btnUIaddNewGeoLocation() {
 
    strA := k[1] "|" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6]
    str := "Custom locations|" strA
-   FileRead, userlist, resources\geo-locations-userlist.txt
+   FileRead, userlist, %WinStorePath%\resources\geo-locations-userlist.txt
    idu := "`nCustom locations|" k[1] "|"
    If InStr(userlist, idu)
    {
@@ -5900,7 +5902,7 @@ btnUIaddNewGeoLocation() {
 
    If !InStr(userlist, str)
    {
-      FileAppend, % "`n" str "`n", resources\geo-locations-userlist.txt, UTF-8
+      FileAppend, % "`n" str "`n", %WinStorePath%\resources\geo-locations-userlist.txt, UTF-8
       cities := geoData["1|-1"] + 1
       geoData["1|" cities] := strA
       geoData["1|-1"] := cities 
@@ -5991,7 +5993,8 @@ PanelEarthMap() {
     Gui, Add, Button, x+5 hp vbtn4 gbtnUIaddNewGeoLocation, &Add to list
     Gui, Add, Button, xm+0 y+20 h%btnH% w%btnW% gCloseWindow, &Close
     Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
-    Gui, Add, Button, x+5 hp guiBTNupdateExtendedGeoData vbtn3, &Update index
+    If !storeSettingsREG
+        Gui, Add, Button, x+5 hp guiBTNupdateExtendedGeoData vbtn3, &Update index
     txtW := (PrefsLargeFonts=1) ? lstWid - 245 : lstWid - 210
     Gui, Add, Text, x+5 hp w%txtW% +0x200 -wrap vUIastroInfoSet, Please wait...
 
@@ -6007,7 +6010,7 @@ ToggleEarthSunMap() {
 }
 
 loadGeoData() {
-   FileRead, userlist, %A_ScriptDir%\resources\geo-locations-userlist.txt
+   FileRead, userlist, %WinStorePath%\resources\geo-locations-userlist.txt
    FileRead, content, %A_ScriptDir%\resources\geo-locations-final.txt
    If (StrLen(userlist)<30)
    {
@@ -8497,11 +8500,12 @@ citiesGenerateEarthMap() {
     If !pToken
        Return
 
-    ctr := countriesArrayList.Count()
-    cached := A_ScriptDir "\resources\earth-surface-map-cached-countries-" ctr "-" listedExtendedLocations "-" A_Year ".jpg"
     wasCached := 1
+    ctr := countriesArrayList.Count()
+    cached := A_ScriptDir "\resources\earth-surface-map-cached-countries-" ctr "-" listedExtendedLocations ".jpg"
     If FileExist(cached)
        mainBitmap := Gdip_CreateBitmapFromFileSimplified(cached)
+
     If !mainBitmap
     {
        mainBitmap := Gdip_CreateBitmapFromFileSimplified(A_ScriptDir "\resources\earth-surface-map.jpg")
@@ -11675,6 +11679,22 @@ coreParseBibleXML(fileu, langu, obju:=0) {
    ; Sleep, 10
    ; FileAppend, % remu, % outu, UTF-8
    ; SoundBeep 900, 100
+}
+
+DetermineWindowsStorePath() {
+   If (storeSettingsREG=1)
+   {
+      SetWorkingDir, %A_AppData%
+      WinStorePath := A_AppData "\ChurchBellsTower"
+      WinStoreDataPath := "Local\Packages\13644TabletPro.ChurchBellsTower_3wyk1bs4amrq4\LocalCache\Roaming\ChurchBellsTower"
+      WinStorePath := StrReplace(WinStorePath, "Roaming\ChurchBellsTower", WinStoreDataPath)
+      If !FileExist(WinStorePath)
+      {
+         doInstall := 1
+         FileCreateDir, ChurchBellsTower
+      }
+      SetWorkingDir, %A_ScriptDir%
+   } Else WinStorePath := A_ScriptDir 
 }
 
 Trimmer(string, whatTrim:="") {
