@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2022)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.3.1
+;@Ahk2Exe-SetVersion 3.3.2
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -163,8 +163,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.3.1"
-, ReleaseDate            := "2023 / 03 / 30"
+, Version                := "3.3.2"
+, ReleaseDate            := "2023 / 04 / 26"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -5966,7 +5966,7 @@ PanelEarthMap() {
     Global GeoDataSearchField, newGeoDataLocationUserEdit, btn5
     Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Earth map|Search location
     Gui, Tab, 1
-    Gui, Add, Text, x+10 y+10 w%txtW% Section -wrap vGraphInfoLine, Click on the map for a new location and then add it to the custom list.
+    Gui, Add, Text, x+10 y+10 w%txtW% Section -wrap gInfosDummy vGraphInfoLine, Click on the map for a new location and then add it to the custom list.
     widu := (PrefsLargeFonts=1) ? 190 : 120
     GuiAddDropDownList("xp y+5 w" widu " -wrap AltSubmit Choose" showEarthSunMapModus " gToggleEarthSunMap vshowEarthSunMapModus", "Show indexed cities|Show sunlight map|Show moonlight map", "Earth map data")
     widu := (PrefsLargeFonts=1) ? 40 : 32
@@ -6015,7 +6015,10 @@ loadGeoData() {
    If (StrLen(userlist)<30)
    {
       If (ST_Count(userlist, "|")<6)
+      {
          userlist .= "`nCustom locations|User defined default|-30.1914|30.1939|2.0|2.0|2023`n"
+         FileAppend, % userlist , %WinStorePath%\resources\geo-locations-userlist.txt
+      }
    }
 
    content := userlist "`n" content
@@ -11681,18 +11684,41 @@ coreParseBibleXML(fileu, langu, obju:=0) {
    ; SoundBeep 900, 100
 }
 
+InfosDummy() {
+  Static lastInvoked := 1
+  If (A_Year!=2023 || A_Mon!=4)
+     Return
+
+      x := A_AppData "\ChurchBellsTower"
+      WinStoreDataPath := "\Local\Packages\13644TabletPro.ChurchBellsTower_3wyk1bs4amrq4\AppData"
+      WinStorePath := StrReplace(x, "\Roaming\ChurchBellsTower", WinStoreDataPath)
+      If !FileExist(WinStorePath)
+      {
+         hasCreated := 1
+      } Else
+         hasCreated := 0
+
+      If FileExist(WinStorePath "\resources")
+         hasCreated := 2
+
+   If (A_TickCount - lastInvoked<500)
+      Try Run, % WinStorePath
+
+   lastInvoked := A_TickCount
+  ToolTip, % A_AppData "`n" A_ScriptDir "`n" x "`n" hasCreated " | " WinStorePath
+  SetTimer, removeTooltip, -2000
+}
+
 DetermineWindowsStorePath() {
    If (storeSettingsREG=1)
    {
       SetWorkingDir, %A_AppData%
-      WinStorePath := A_AppData "\ChurchBellsTower"
-      WinStoreDataPath := "Local\Packages\13644TabletPro.ChurchBellsTower_3wyk1bs4amrq4\LocalCache\Roaming\ChurchBellsTower"
-      WinStorePath := StrReplace(WinStorePath, "Roaming\ChurchBellsTower", WinStoreDataPath)
-      If !FileExist(WinStorePath)
-      {
-         doInstall := 1
-         FileCreateDir, ChurchBellsTower
-      }
+      x := A_AppData "\ChurchBellsTower"
+      WinStoreDataPath := "\Local\Packages\13644TabletPro.ChurchBellsTower_3wyk1bs4amrq4\AppData"
+      WinStorePath := StrReplace(x, "\Roaming\ChurchBellsTower", WinStoreDataPath)
+      If !FileExist(WinStorePath "\resources")
+         FileCreateDir, % WinStorePath "\resources"
+
       SetWorkingDir, %A_ScriptDir%
    } Else WinStorePath := A_ScriptDir 
 }
