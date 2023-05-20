@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2022)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.3.2
+;@Ahk2Exe-SetVersion 3.4.0
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -104,6 +104,7 @@ Global IniFile         := "bells-tower.ini"
 Global displayTimeFormat := 1
 , DisplayTimeUser        := 3     ; in seconds
 , displayClock           := 1
+, showMoonPhaseOSD       := 0
 , analogDisplay          := 0
 , analogDisplayScale     := 0.3
 , analogMoonPhases       := 1
@@ -163,8 +164,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.3.2"
-, ReleaseDate            := "2023 / 04 / 26"
+, Version                := "3.4.0"
+, ReleaseDate            := "2023 / 05 / 20"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -388,6 +389,7 @@ TimerShowOSDidle() {
         If (BibleGuiVisible!=1)
            CreateBibleGUI(generateDateTimeTxt(0, 1) "-", 0, 0, 1)
 
+        GuiControl, BibleGui: +center, BibleGuiTXT
         GuiControl, BibleGui:, BibleGuiTXT, % generateDateTimeTxt(0, 1)
         SetTimer, DestroyBibleGui, Delete
         DoGuiFader := 1
@@ -1472,6 +1474,49 @@ decideOSDcolorBGR() {
   Return SubStr(j, 5)
 }
 
+MixRGB(clrA, clrB, t) {
+   t := 1 - t
+   Ra := Format("{1:d}", "0x" SubStr(clrA, 1, 2))
+   Ga := Format("{1:d}", "0x" SubStr(clrA, 3, 2))
+   Ba := Format("{1:d}", "0x" SubStr(clrA, 5, 2))
+
+   Rb := Format("{1:d}", "0x" SubStr(clrB, 1, 2))
+   Gb := Format("{1:d}", "0x" SubStr(clrB, 3, 2))
+   Bb := Format("{1:d}", "0x" SubStr(clrB, 5, 2))
+  
+   r := clampInRange(Round(Ra * (1-t) + Rb * t), 0, 255)
+   g := clampInRange(Round(Ga * (1-t) + Gb * t), 0, 255)
+   b := clampInRange(Round(Ba * (1-t) + Bb * t), 0, 255)
+   Return Format("{1:02x}", R) Format("{1:02x}", G) Format("{1:02x}", B)
+}
+
+OSDmoonColorBitmap(thisBgrColor) {
+   boxSize := imgW := imgH := 600
+   cX := imgW*0.48
+   cY := -imgH*0.42
+
+   newBitmap := Gdip_CreateBitmap(imgW, imgH, "0xE200B")
+   If StrLen(newBitmap)<3
+      Return
+
+   G3 := Gdip_GraphicsFromImage(newBitmap)
+   r2 := Gdip_GraphicsClear(G3, "0xFF" thisBgrColor)
+   brightColor := MixRGB(thisBgrColor, "EEeeEE", 0.75)
+   darkColor := MixRGB(thisBgrColor, "222222", 0.25)
+   elevation := coreMoonPhaseDraw(brightColor, darkColor, cX, cY, boxSize*4.95, lastUsedGeoLocation, G3)
+   If (elevation<0)
+   {
+      br := Gdip_BrushCreateSolid("0x77" thisBgrColor)
+      Gdip_FillRectangle(G3, br, 0, 0, imgW, imgH)
+      Gdip_DeleteBrush(br)
+   }
+
+   Gdip_DeleteGraphics(G3)
+   hBitmap := Gdip_CreateHBITMAPFromBitmap(newBitmap)
+   Gdip_DisposeImage(newBitmap, 1)
+   Return hBitmap
+}
+
 CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
     Critical, On
     lastOSDredraw := A_TickCount
@@ -1491,10 +1536,11 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
        msg2Display := OSDprefix msg2Display OSDsuffix
 
     thisBgrColor := (isBibleQuote=1 || OverrideOSDcolorsAstro!=1) ? OSDbgrColor : decideOSDcolorBGR()
-    HorizontalMargins := (isBibleQuote=1) ? OSDmarginSides : 1
+    HorizontalMargins := (isBibleQuote=1) ? 1 : 1
     Gui, BibleGui: -DPIScale -Caption +Owner +ToolWindow +HwndhBibleOSD
     Gui, BibleGui: Margin, %OSDmarginSides%, %HorizontalMargins%
     Gui, BibleGui: Color, %thisBgrColor%
+    ; Gui, Add, Text, x0 y0 w%gW% h%gH% Section -Border +0xE gPanelsLivePreviewResponder +hwndhCropCornersPic +TabStop, Preview area
 
     If (FontChangedTimes>190)
        Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Q4 Bold,
@@ -1502,16 +1548,22 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
        Gui, BibleGui: Font, c%OSDtextColor% s%FontSizeMin% Q4 Bold, %FontName%
 
     Gui, BibleGui: Font, s1
-    If (isBibleQuote=0)
-    {
-       Gui, BibleGui: Add, Text, w2 h%OSDmarginTop% BackgroundTrans, .
-       dontWrap := " -wrap"
-    }
     Gui, BibleGui: Font, s%FontSizeMin% Q4
-    Gui, BibleGui: Add, Text, y+%HorizontalMargins% hwndhBibleTxt vBibleGuiTXT %dontWrap%, %msg2Display%
+    pzy := (isBibleQuote=1) ? (OSDmarginTop + OSDmarginBottom + OSDmarginSides)//3 : OSDmarginTop
+    If (isBibleQuote=0 && !InStr(msg2Display, "`n") && showMoonPhaseOSD=1)
+    {
+       Global TempusLol
+       moonPic := OSDmoonColorBitmap(thisBgrColor)
+       Gui, BibleGui: Add, Text, x0 y0 vTempusLol, .
+       GuiControl, BibleGui: Hide, TempusLol
+       pzay := OSDmarginTop + OSDmarginBottom
+       Gui, BibleGui: Add, Picture, x0 y0 w-1 hp+%pzay%, hBitmap:%moonPic%
+    }
+
+    Gui, BibleGui: Add, Text, x%OSDmarginSides% y%pzy% hwndhBibleTxt vBibleGuiTXT %dontWrap% +BackgroundTrans, %msg2Display%
     Gui, BibleGui: Font, s1
-    If (isBibleQuote=0)
-       Gui, BibleGui: Add, Text, w2 y+0 h%OSDmarginBottom% BackgroundTrans, .
+    pzh := (isBibleQuote=1) ? (OSDmarginTop + OSDmarginBottom + OSDmarginSides)//3 : OSDmarginBottom
+    Gui, BibleGui: Add, Text, w1 y+0 h%pzh% BackgroundTrans, .
 
     Gui, BibleGui: Show, NoActivate AutoSize Hide x%GuiX% y%GuiY%, ChurchTowerBibleWin
     WinSet, Transparent, 1, ChurchTowerBibleWin
@@ -2741,20 +2793,24 @@ coreSettingsContextMenu() {
           If (tickTockNoise=1)
              Menu, ContextMenu, Check, Tick/Toc&k sound
        }
-       if (AnyWindowOpen=6)
+
+       If (AnyWindowOpen=6)
        {
           Menu, ContextMenu, Add
-          Menu, ContextMenu, Add, &Observe DST changes, toggleDSTchanges
-          Menu, ContextMenu, Add, Over&ride OSD colors, toggleOSDastralColors
           Menu, ContextMenu, Add, Altitude based &solar times, toggleLocationSolarInfluence
+          Menu, ContextMenu, Add, &Observe DST changes, toggleDSTchanges
+          Menu, ContextMenu, Add, &Moon phase on the OSD, toggleOSDmoonPhase
+          Menu, ContextMenu, Add, Over&ride OSD colors, toggleOSDastralColors
+          If (showMoonPhaseOSD=1)
+             Menu, ContextMenu, Check, &Moon phase on the OSD
           If (OverrideOSDcolorsAstro=1)
              Menu, ContextMenu, Check, Over&ride OSD colors
-          if (allowDSTchanges=1)
+          If (allowDSTchanges=1)
              Menu, ContextMenu, Check, &Observe DST changes
-
-          if (allowAltitudeSolarChanges=1)
+          If (allowAltitudeSolarChanges=1)
              Menu, ContextMenu, Check, Altitude based &solar times
        }
+
        Menu, ContextMenu, Add
        Menu, ContextMenu, Add, Astronom&y / Today, PanelTodayInfos
        Menu, ContextMenu, Add, Analo&g clock display, toggleAnalogClock
@@ -2782,6 +2838,11 @@ coreSettingsContextMenu() {
 toggleOSDastralColors() {
     OverrideOSDcolorsAstro := !OverrideOSDcolorsAstro
     INIaction(1, "OverrideOSDcolorsAstro", "OSDprefs")
+}
+
+toggleOSDmoonPhase() {
+    showMoonPhaseOSD := !showMoonPhaseOSD
+    INIaction(1, "showMoonPhaseOSD", "OSDprefs")
 }
 
 toggleDSTchanges() {
@@ -3137,6 +3198,7 @@ PanelShowSettings() {
     Gui, Add, Text, x+15 y+15 Section , OSD progress bar line:
     GuiAddDropDownList("x+5 wp+20 gVerifyTheOptions AltSubmit Choose" showOSDprogressBar " vshowOSDprogressBar", "None|Current day|Moon's synodic period|Current month|Astronomical seasons|Current year")
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners for the OSD
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%showMoonPhaseOSD% vshowMoonPhaseOSD, Display the moon illumination fraction (phase)
     Gui, Add, Checkbox, xs y+15 gVerifyTheOptions Checked%overrideOSDcolorsAstro% vOverrideOSDcolorsAstro, Override OSD colors based on:
     GuiAddDropDownList("xp+15 y+5 wp gVerifyTheOptions AltSubmit Choose" OSDastralMode " vOSDastralMode", "Daylight|Moonlight|Moon phase|Automatic", "OSD colors based on")
     Gui, Add, Button, x+5 hp ghelpOSDastroColors, &Help
@@ -9668,23 +9730,22 @@ setMenusTheme(modus) {
    FlushMenuThemes := DllCall("GetProcAddress", "ptr", uxtheme, "ptr", 136, "ptr")
    DllCall(SetPreferredAppMode, "int", modus) ; Dark
    DllCall(FlushMenuThemes)
-   interfaceThread.ahkPostFunction("setMenusTheme", modus)
 }
 
-setDarkWinAttribs(hwndGUI, modus:=1) {
+setDarkWinAttribs(hwndGUI, modus:=2) {
    If (A_OSVersion="WIN_7" || A_OSVersion="WIN_XP")
       Return
 
-   If (A_OSVersion >= "10.0.17763" && SubStr(A_OSVersion, 1, 3) = "10.")
+   if (A_OSVersion >= "10.0.17763" && SubStr(A_OSVersion, 1, 4)>=10)
    {
-       attr := 19
-       if (A_OSVersion >= "10.0.18985") {
-           attr := 20
-       }
-       DllCall("dwmapi\DwmSetWindowAttribute", "ptr", hwndGUI, "int", attr, "int*", modus, "int", 4)
+       DWMWA_USE_IMMERSIVE_DARK_MODE := 19
+       if (A_OSVersion >= "10.0.18985")
+          DWMWA_USE_IMMERSIVE_DARK_MODE := 20
+       DllCall("dwmapi\DwmSetWindowAttribute", "UPtr", hwndGUI, "int", DWMWA_USE_IMMERSIVE_DARK_MODE, "int*", modus, "int", 4)
    }
    DllCall(AllowDarkModeForWindow, "UPtr", hwndGUI, "int", modus) ; Dark
 }
+
 
 OpenChangeLog() {
   Try Run, "%A_ScriptDir%\bells-tower-change-log.txt"
@@ -9821,6 +9882,7 @@ INIsettings(a) {
   INIaction(a, "constantAnalogClock", "OSDprefs")
   INIaction(a, "analogDisplay", "OSDprefs")
   INIaction(a, "analogDisplayScale", "OSDprefs")
+  INIaction(a, "showMoonPhaseOSD", "OSDprefs")
   INIaction(a, "roundedClock", "OSDprefs")
   INIaction(a, "FontName", "OSDprefs")
   INIaction(a, "FontSize", "OSDprefs")
@@ -9880,6 +9942,7 @@ CheckSettings() {
 
 ; verify check boxes
     BinaryVar(analogDisplay, 0)
+    BinaryVar(showMoonPhaseOSD, 0)
     BinaryVar(NoWelcomePopupInfo, 0)
     BinaryVar(userAstroInfodMode, 1)
     BinaryVar(OverrideOSDcolorsAstro, 0)
@@ -10872,8 +10935,8 @@ MixARGB(color1, color2, t := 0.5, gamma := 1) {
 }
 
 decideFadeColor(coloru) {
-  newColor := MixARGB("0xFF" coloru, "0xFF" OSDtextColor)
-  Return SubStr(newColor, 5)
+  newColor := MixRGB(coloru, OSDtextColor, 0.5)
+  Return newColor
 }
 
 mouseTurnOFFtooltip() {

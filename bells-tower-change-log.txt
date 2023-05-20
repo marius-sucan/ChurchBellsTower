@@ -5,6 +5,10 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.4.0 - 2023 / 05 / 20
+  - [new] option to display the moon phase [illumination fraction] on the OSD
+  - bug fixes
+
 v3.3.2 - 2023 / 04 / 26
   - bug fixes for the Microsoft Windows Store 
 

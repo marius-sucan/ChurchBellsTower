@@ -88,10 +88,10 @@ InitClockFace() {
    Gdip_DeleteBrush(pBrush)
 
 ; Draw Second Marks
-   Diameter := Round(ClockDiameter - ClockDiameter*0.08, 2)  ; inner circle is 8 % smaller than clock's diameter
+   Diameter := Round(ClockDiameter - ClockDiameter*0.08, 2)  ; inner circle is 8 % smaller than clock's Diameter
    R1 := Diameter/2-1                        ; outer position
    R2 := Round(Diameter/2 - 1 - Diameter/2*0.08, 2) ; inner position
-   pPen := Gdip_CreatePen("0xaa" faceElements, (ClockDiameter/100)*1.2) ; 1.2 % of total diameter is our pen width
+   pPen := Gdip_CreatePen("0xaa" faceElements, (ClockDiameter/100)*1.2) ; 1.2 % of total Diameter is our pen width
    If (ClockDiameter>=100)
       DrawClockMarks(60, R1, R2, globalG, pPen)                 ; we have 60 seconds
    Else If (ClockDiameter>=50)
@@ -99,21 +99,21 @@ InitClockFace() {
    Gdip_DeletePen(pPen)
 
    R2 := Round(Diameter/2 - 1 - Diameter/2*0.04, 2) ; inner position
-   pPen := Gdip_CreatePen("0x88" faceElements, (ClockDiameter/100)*0.7) ; 1.2 % of total diameter is our pen width
+   pPen := Gdip_CreatePen("0x88" faceElements, (ClockDiameter/100)*0.7) ; 1.2 % of total Diameter is our pen width
    If (ClockDiameter>250)
       DrawClockMarks(120, R1, R2, globalG, pPen)                 ; we have 60 seconds
    Gdip_DeletePen(pPen)
 
 ; Draw Hour Marks
    R2 := Round(Diameter/2 - 1 - Diameter/2*0.2, 2) ; inner position
-   pPen := Gdip_CreatePen("0xff" faceElements, (ClockDiameter/100)*2.3) ; 2.3 % of total diameter is our pen width
+   pPen := Gdip_CreatePen("0xff" faceElements, (ClockDiameter/100)*2.3) ; 2.3 % of total Diameter is our pen width
    DrawClockMarks(12, R1, R2, globalG, pPen)                  ; we have 12 hours
    Gdip_DeletePen(pPen)
    
-   Diameter := Round(ClockDiameter - ClockDiameter*0.17, 2)  ; inner circle is 17 % smaller than clock's diameter
+   Diameter := Round(ClockDiameter - ClockDiameter*0.17, 2)  ; inner circle is 17 % smaller than clock's Diameter
    R1 := Diameter/2-1                        ; outer position
    R2 := Round(Diameter/2 - 1 - Diameter/2*0.2, 2) ; inner position
-   pPen := Gdip_CreatePen("0xff" faceElements, (ClockDiameter/100)*4) ; 4 % of total diameter is our pen width
+   pPen := Gdip_CreatePen("0xff" faceElements, (ClockDiameter/100)*4) ; 4 % of total Diameter is our pen width
    If (ClockDiameter>250)
       DrawClockMarks(4, R1, R2, globalG, pPen)                  ; we have 4 quarters
    Gdip_DeletePen(pPen)
@@ -155,7 +155,7 @@ UpdateEverySecond() {
    Gdip_SetCompositingMode(globalG, 1) ; set to overdraw
    
 ; delete previous graphic and redraw background
-   Diameter := Round(ClockDiameter - ClockDiameter*0.22, 2)  ; 18 % less than clock's outer diameter
+   Diameter := Round(ClockDiameter - ClockDiameter*0.22, 2)  ; 18 % less than clock's outer Diameter
    
    ; delete whatever has been drawn here
    pBrush := Gdip_BrushCreateSolid(0x00000000) ; fully transparent brush 'eraser'
@@ -175,90 +175,7 @@ UpdateEverySecond() {
    Gdip_SetSmoothingMode(globalG, 4)   ; turn on antialiasing
 ; draw moon phase
    If (analogMoonPhases=1)
-   {
-     Static moonPhase := [], elevu := 1, lastCalcZeit := 1, lastCoords := 0, lastAngleMoon := 0
-
-     If (A_TickCount - lastCalcZeit>98501) || (lastCoords!=lastUsedGeoLocation)
-     {
-        If InStr(lastUsedGeoLocation, "|")
-           w := StrSplit(lastUsedGeoLocation, "|")
-
-        If (w.Count()>5)
-           getMoonElevation(A_NowUTC, w[2], w[3], 0, azii, elevu)
-        Else
-           elevu := 20
-
-        moonPhase := MoonPhaseCalculator()
-        lastCalcZeit := A_TickCount
-        ; lastAngleMoon := getMoonLichtAngle(A_NowUTC, w[2], w[3], w[6])
-        ; ToolTip, % lastAngleMoon , , , 2
-        lastCoords := lastUsedGeoLocation
-     }
-
-     o_moonCycle := Round(moonPhase[3], 3)
-     fu := (elevu<0) ? 0.05 : 0.3
-     darkFace := mixARGB("0xFF" faceElements, "0xFF" faceBgrColor, fu)
-     brightFace := "0xFF" faceBgrColor
-
-     ; Static o_moonCycle := 0
-     ; o_moonCycle += 0.05
-     ; If (o_moonCycle>1)
-     ;    o_moonCycle := 0
-
-     moonCycle := (o_moonCycle<0.5) ? o_moonCycle * 2 : 1 - (o_moonCycle - 0.5)*2
-     If (o_moonCycle>=0.75)
-        flap := 2
-     Else If (o_moonCycle>=0.5)
-        flap := 1
-
-     If (moonCycle>=0.5 && flap!=2)
-     {
-        flip := 1
-        moonCycle -= 0.50001
-     }
-
-     bDark := (flip!=1) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
-     bBright := (flip!=1) ? Gdip_BrushCreateSolid(brightFace) : Gdip_BrushCreateSolid(darkFace)
-     Diameter := Round(ClockDiameter*0.20, 2)
-     Gdip_FillEllipse(globalG, bBright, CenterX-(Diameter/2), CenterY + diameter/2.18, Diameter, Diameter)
-     pPath := Gdip_CreatePath()
-     Gdip_AddPathEllipse(pPath, CenterX-(Diameter/2), CenterY + diameter/2.18, Diameter, Diameter)
-     Gdip_SetClipPath(globalG, pPath)
-     DiameterZ := (flip=1) ? Diameter*(moonCycle*2) : Diameter*(1 - moonCycle*2)
-     ; DiameterZ := (moonCycle<0.5) ? Diameter*(1 - moonCycle*2) : Diameter*(moonCycle/1.25)
-
-     If (flap=2)
-        Gdip_FillRectangle(globalG, bDark, CenterX, CenterY + diameter/2.18, Diameter//2, Diameter)
-     Else If (flap=1)
-        Gdip_FillRectangle(globalG, bDark, CenterX - diameter/2, CenterY + diameter/2.18, Diameter//2, Diameter)
-     Else If (moonCycle<0.5 && flip!=1)
-        Gdip_FillRectangle(globalG, bDark, CenterX - Diameter/2, CenterY + diameter/2.18, Diameter//2, Diameter)
-     Else
-        Gdip_FillRectangle(globalG, bDark, CenterX, CenterY + diameter/2.18, Diameter//2, Diameter)
-    
-     Gdip_FillEllipse(globalG, bDark, CenterX - (DiameterZ/2), CenterY + diameter/2.18, DiameterZ, Diameter)
-     Gdip_ResetClip(globalG)
-     Gdip_DeletePath(pPath)
-    
-     Diameter := Round(ClockDiameter*0.20, 2)
-     pPen := Gdip_CreatePen("0x66" faceElements, Round((ClockDiameter/100)*1.3, 2))
-     Gdip_DrawEllipse(globalG, pPen, CenterX - (Diameter/2), CenterY + diameter/2.18,Diameter, Diameter)
-     If (elevu<0)
-     {
-        thisBrush := Gdip_BrushCreateSolid("0x77" faceElements)
-        Gdip_FillEllipse(globalG, thisBrush, CenterX - (Diameter/2), CenterY + diameter/2.18,Diameter, Diameter)
-        Gdip_DeleteBrush(thisBrush)
-     }
-     ; mainBitmap := Gdip_CreateBitmapFromFileSimplified("resources\earth-surface-map.jpg")
-     ; pBitmap := Gdip_RotateBitmapAtCenter(mainBitmap, -lastAngleMoon)
-     ; Gdip_DrawImage(globalG, pBitmap, ClockCenter, ClockCenter, 100, 100)
-     ; Gdip_DisposeImage(pBitmap)
-     ; Gdip_DisposeImage(mainBitmap)
-
-     Gdip_DeletePen(pPen)
-     Gdip_DeleteBrush(bDark)
-     Gdip_DeleteBrush(bBright)
-   }
+      coreMoonPhaseDraw(faceBgrColor, faceElements, CenterX, CenterY, ClockDiameter, lastUsedGeoLocation, globalG)
 
 ; Draw HoursPointer
    t := (A_Hour*360//12) + ((A_Min//15*15)*360//60)//12 + 90
@@ -324,6 +241,93 @@ UpdateEverySecond() {
 
    UpdateLayeredWindow(hFaceClock, globalhdc, , , , , mainOSDopacity)
    Return
+}
+
+coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup) {
+     Static moonPhase := [], elevu := 1, lastCalcZeit := 1, lastCoords := 0, lastAngleMoon := 0
+
+     If (A_TickCount - lastCalcZeit>98501) || (lastCoords!=givenGeoLocation)
+     {
+        If InStr(givenGeoLocation, "|")
+           w := StrSplit(givenGeoLocation, "|")
+
+        If (w.Count()>5)
+           getMoonElevation(A_NowUTC, w[2], w[3], 0, azii, elevu)
+        Else
+           elevu := 20
+
+        moonPhase := MoonPhaseCalculator()
+        lastCalcZeit := A_TickCount
+        ; lastAngleMoon := getMoonLichtAngle(A_NowUTC, w[2], w[3], w[6])
+        ; ToolTip, % lastAngleMoon , , , 2
+        lastCoords := givenGeoLocation
+     }
+
+     o_moonCycle := Round(moonPhase[3], 3)
+     ; o_moonCycle := 0.63
+     fu := (elevu<0) ? 0.05 : 0.3
+     darkFace := mixARGB("0xFF" itemColor, "0xFF" bgrColor, fu)
+     brightFace := "0xFF" bgrColor
+
+     ; Static o_moonCycle := 0
+     ; o_moonCycle += 0.05
+     ; If (o_moonCycle>1)
+     ;    o_moonCycle := 0
+     moonCycle := (o_moonCycle<0.5) ? o_moonCycle * 2 : 1 - (o_moonCycle - 0.5)*2
+     If (o_moonCycle>=0.75)
+        flap := 2
+     Else If (o_moonCycle>=0.5)
+        flap := 1
+
+     If (moonCycle>=0.5 && flap!=2)
+     {
+        flip := 1
+        moonCycle -= 0.50001
+     }
+
+     bDark := (flip!=1) ? Gdip_BrushCreateSolid(darkFace) : Gdip_BrushCreateSolid(brightFace)
+     bBright := (flip!=1) ? Gdip_BrushCreateSolid(brightFace) : Gdip_BrushCreateSolid(darkFace)
+     Diameter := Round(boxSize*0.20, 2)
+     Gdip_FillEllipse(gup, bBright, cX-(Diameter/2), cY + Diameter/2.18, Diameter, Diameter)
+
+     pPath := Gdip_CreatePath()
+     Gdip_AddPathEllipse(pPath, cX-(Diameter/2), cY + Diameter/2.18, Diameter, Diameter)
+     Gdip_SetClipPath(gup, pPath)
+     DiameterZ := (flip=1) ? Diameter*(moonCycle*2) : Diameter*(1 - moonCycle*2)
+     ; DiameterZ := (moonCycle<0.5) ? Diameter*(1 - moonCycle*2) : Diameter*(moonCycle/1.25)
+     ; ToolTip, % flap "|" DiameterZ "|" Diameter "|" darkFace "|" brightFace "|" cX-(Diameter/2) , , , 2
+     If (flap=2)
+        Gdip_FillRectangle(gup, bDark, cX, cY + Diameter/2.18, Diameter//2, Diameter)
+     Else If (flap=1)
+        Gdip_FillRectangle(gup, bDark, cX - Diameter/2, cY + Diameter/2.18, Diameter//2, Diameter)
+     Else If (moonCycle<0.5 && flip!=1)
+        Gdip_FillRectangle(gup, bDark, cX - Diameter/2, cY + Diameter/2.18, Diameter//2, Diameter)
+     Else
+        Gdip_FillRectangle(gup, bDark, cX, cY + Diameter/2.18, Diameter//2, Diameter)
+    
+     Gdip_FillEllipse(gup, bDark, cX - (DiameterZ/2), cY + Diameter/2.18, DiameterZ, Diameter)
+     Gdip_ResetClip(gup)
+     Gdip_DeletePath(pPath)
+    
+     Diameter := Round(boxSize*0.20, 2)
+     pPen := Gdip_CreatePen("0x66" itemColor, Round((boxSize/100)*1.3, 2))
+     Gdip_DrawEllipse(gup, pPen, cX - (Diameter/2), cY + Diameter/2.18,Diameter, Diameter)
+     If (elevu<0)
+     {
+        thisBrush := Gdip_BrushCreateSolid("0x77" itemColor)
+        Gdip_FillEllipse(gup, thisBrush, cX - (Diameter/2), cY + Diameter/2.18,Diameter, Diameter)
+        Gdip_DeleteBrush(thisBrush)
+     }
+     ; mainBitmap := Gdip_CreateBitmapFromFileSimplified("resources\earth-surface-map.jpg")
+     ; pBitmap := Gdip_RotateBitmapAtCenter(mainBitmap, -lastAngleMoon)
+     ; Gdip_DrawImage(gup, pBitmap, ClockCenter, ClockCenter, 100, 100)
+     ; Gdip_DisposeImage(pBitmap)
+     ; Gdip_DisposeImage(mainBitmap)
+
+     Gdip_DeletePen(pPen)
+     Gdip_DeleteBrush(bDark)
+     Gdip_DeleteBrush(bBright)
+     Return elevu
 }
 
 DrawClockMarks(items, R1, R2, G, pPen) {
