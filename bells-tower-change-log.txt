@@ -5,6 +5,10 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.4.1 - 2023 / 10 / 15
+  - improved the layout for the panel «Today / Astronomy»; should be easier to read the key datas and follow its layout
+  - added more Christian feasts
+
 v3.4.0 - 2023 / 05 / 20
   - [new] option to display the moon phase [illumination fraction] on the OSD
   - bug fixes

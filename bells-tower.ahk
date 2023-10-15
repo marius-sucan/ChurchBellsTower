@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2022)
 ;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.4.0
+;@Ahk2Exe-SetVersion 3.4.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -164,8 +164,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.4.0"
-, ReleaseDate            := "2023 / 05 / 20"
+, Version                := "3.4.1"
+, ReleaseDate            := "2023 / 10 / 15"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -367,7 +367,7 @@ TimerShowOSDidle() {
      If !A_IsSuspended
         mouseHidden := checkMcursorState()
 
-     If (showTimeWhenIdle=1 && (A_TimeIdle > userIdleAfter) && mouseHidden!=1 && bibleQuoteVisible!=1)
+     If (showTimeWhenIdle=1 && (A_TimeIdle > userIdleAfter) && mouseHidden!=1 && bibleQuoteVisible!=1 && DestroyIdleOSDgui("test")!=1)
      {
         FormatTime, HoursIntervalTest,, H ; 0-23 format
         If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest && (A_TickCount - lastCalcZeit>28501) )
@@ -392,12 +392,26 @@ TimerShowOSDidle() {
         GuiControl, BibleGui: +center, BibleGuiTXT
         GuiControl, BibleGui:, BibleGuiTXT, % generateDateTimeTxt(0, 1)
         SetTimer, DestroyBibleGui, Delete
+        SetTimer, DestroyIdleOSDgui, -500
         DoGuiFader := 1
      } Else If (showTimeWhenIdle=1 && BibleGuiVisible=1 && isThisIdle=1)
      {
         isThisIdle := 0
         SetTimer, DestroyBibleGui, -500
      } Else isThisIdle := 0
+}
+
+DestroyIdleOSDgui(test:=0) {
+  Static prevu
+  MouseGetPos, xu, yu, OutputVarWin, OutputVarControl
+  thisu := "a" xu "|" yu
+  If (test="test")
+     Return (thisu=prevu) ? 1 : 0
+  If (OutputVarWin=hBibleOSD)
+  {
+     DestroyBibleGui()
+     prevu := "a" xu "|" yu
+  }
 }
 
 ShowWelcomeWindow() {
@@ -3671,8 +3685,9 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      corpuschristi(aisHolidayToday, thisYDay)
      lifeGivingSpring(aisHolidayToday, thisYDay)
      holyTrinityOrthdox(aisHolidayToday, thisYDay)
-
-     If (testFeast="01.06")
+     If (testFeast="01.01" && UserReligion=1)
+        q := "The commemoration of the Blessed Virgin Mary as Mother of God (Θεοτόκος) as proclaimed in the Council of Ephesus (431 A.D.). Also the octave of Christmas traditionally commemorating the circumcision of the Lord Jesus Christ"
+     Else If (testFeast="01.06")
         q := (UserReligion=1) ? "Epiphany - the revelation of God incarnate as Jesus Christ" : "Theophany - the baptism of Jesus in the Jordan River"
      Else If (testFeast="01.07" && UserReligion=2)
         q := "Synaxis of Saint John the Baptist - a Jewish itinerant preacher, and a prophet"
@@ -3680,22 +3695,30 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         q := "The Three Holy Hierarchs - Basil the Great, John Chrysostom and Gregory the Theologian"
      Else If (testFeast="02.02")
         q := "Presentation of the Lord Jesus Christ - at the Temple in Jerusalem to induct Him into Judaism, episode described in the 2nd chapter of the Gospel of Luke"
+     Else If (testFeast="03.17" && !aisHolidayToday && UserReligion=1)
+       q := "Saint Patrick's Day - He was a 5th-century Romano-British Christian missionary and Bishop in Ireland."
+     Else If (testFeast="03.19" && !aisHolidayToday && UserReligion=1)
+       q := "Saint Joseph's Day - Spouse of the Blessed Virgin Mary and legal father of the Lord Jesus Christ"
      Else If (testFeast="03.25" && !aisHolidayToday)
         q := "Annunciation of the Lord Jesus Christ - when the Blessed Virgin Mary was told she would conceive and become the mother of Jesus of Nazareth"
      Else If (testFeast="04.23" && !aisHolidayToday)
         q := "Saint George - a Roman soldier of Greek origin under the Roman emperor Diocletian, sentenced to death for refusing to recant his Christian faith, venerated as a military saint since the Crusades."
      Else If (testFeast="06.24")
         q := "Birth of Saint John the Baptist - a Jewish itinerant preacher, and a prophet known for having anticipated a messianic figure greater than himself"
+     Else If (testFeast="06.29")
+        q := "Solemnity of the Apostles Peter and Paul - a feast in honour of the martyrdom in Rome of the apostles Saint Peter and Saint Paul"
      Else If (testFeast="08.06")
         aisHolidayToday := "Feast of the Transfiguration of the Lord Jesus Christ - when He becomes radiant in glory upon Mount Tabor"
      Else If (testFeast="08.15")
-        q := (UserReligion=1) ? "Assumption of the Blessed Virgin Mary - her body and soul assumed into heavenly glory after her death" : "Dormition of the Blessed Virgin Mary"
+        q := (UserReligion=1) ? "Assumption of the Blessed Virgin Mary - her body and soul are assumed into heavenly glory after her death" : "Dormition of the Blessed Virgin Mary - her body and soul are assumed into heavenly glory after her death"
      Else If (testFeast="08.29")
         q := "Beheading of Saint John the Baptist - killed on the orders of Herod Antipas through the vengeful request of his step-daughter Salomé and her mother Herodias"
      Else If (testFeast="09.08")
         q := "Birth of the Blessed Virgin Mary - according to an apocryphal writing, her parents are known as Saint Anne and Saint Joachim"
      Else If (testFeast="09.14")
         q := "Exaltation of the Holy Cross - the recovery of the cross on which Jesus Christ was crucified by the Roman government on the order of Pontius Pilate"
+     Else If (testFeast="10.01" && UserReligion=2)
+        q := "The Protection of Our Most Holy Lady (Virgin Mary) - a celebration of the protection offered by Saint Mary to mankind"
      Else If (testFeast="10.04" && UserReligion=1)
         q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of the Friar Minors (OFM) within the Catholic church who lived between 1182 and 1226"
      Else If (testFeast="10.14" && UserReligion=2)
@@ -3717,7 +3740,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      Else If (testFeast="12.25")
         q := "Christmas day - the birth of Jesus Christ in Nazareth"
      Else If (testFeast="12.26")
-        q := "Saint Stephen's Day - a deacon honoured as the first Christian martyr who was stoned to death in 36 AD (Acts 7:55-60). Second day of Christmastide"
+        q := (UserReligion=2) ? "Christmas - 2nd day" : "Saint Stephen's Day - a deacon honoured as the first Christian martyr who was stoned to death in 36 A.D. (Acts 7:55-60). Second day of Christmastide"
      Else If (testFeast="12.28" && UserReligion=1)
         q := "Feast of the Holy Innocents - in remembrance of the young children killed in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus of Nazareth"
 
@@ -3889,18 +3912,23 @@ updateOptionsLVsGui() {
 }
 
 updateHolidaysLVs() {
-  Static Epiphany := "01.06"
+  Static MaterDei := "01.01"
+  , Epiphany := "01.06"
   , SynaxisSaintJohnBaptist := "01.07"
   , ThreeHolyHierarchs := "01.30"
   , PresentationLord := "02.02"
+  , SaintPatrick := "03.17"
+  , SaintJoseph := "03.19"
   , AnnunciationLord := "03.25"
   , SaintGeorge := "04.23"
   , BirthJohnBaptist := "06.24"
+  , SsPeterAndPaul :="06.29"
   , FeastTransfiguration := "08.06"
   , AssumptionVirginMary := "08.15"
   , BeheadingJohnBaptist := "08.29"
   , BirthVirginMary := "09.08"
   , ExaltationHolyCross := "09.14"
+  , ProtectSaintMary := "10.01"
   , SaintFrancisAssisi := "10.04"
   , SaintParaskeva := "10.14"
   , HalloweenDay := "10.31"
@@ -3946,7 +3974,7 @@ updateHolidaysLVs() {
         . "Good Friday|" goodFridaydate "`n"
         . "Holy Saturday|" HolySaturdaydate "`n"
         . "Catholic Easter|" easterdate "`n"
-        . "Catholic Easter - 2nd day|" 2ndeasterdate "`n"
+        . "Catholic Easter - Monday|" 2ndeasterdate "`n"
         . "Divine Mercy|" divineMercyDate "`n"
         . "Ascension of Jesus|" ascensiondaydate "`n"
         . "Pentecost|" pentecostdate "`n"
@@ -3955,12 +3983,15 @@ updateHolidaysLVs() {
 
      Gui, ListView, LViewEaster
      processHolidaysList(theList)
-
-     Static theList2 := "Epiphany|" Epiphany "`n"
+     Static theList2 := "Divine Maternity of the Blessed Virgin Mary|" MaterDei "`n"
+        . "Epiphany|" Epiphany "`n"
         . "Presentation of the Lord Jesus Christ|" PresentationLord "`n"
+        . "Saint Patrick's Day|" SaintPatrick "`n"
+        . "Saint Joseph's Day|" SaintJoseph "`n"
         . "Annunciation of the Blessed Virgin Mary|" AnnunciationLord "`n"
         . "Saint George|" SaintGeorge "`n"
         . "Birth of Saint John the Baptist|" BirthJohnBaptist "`n"
+        . "Solemnity of Saints Peter and Paul|" SsPeterAndPaul "`n"
         . "Transfiguration of the Lord Jesus Christ|" FeastTransfiguration "`n"
         . "Assumption of the Blessed Virgin Mary|" AssumptionVirginMary "`n"
         . "Beheading of Saint John the Baptist|" BeheadingJohnBaptist "`n"
@@ -3987,7 +4018,7 @@ updateHolidaysLVs() {
         . "Holy Friday|" goodFridaydate "`n"
         . "Holy Saturday|" HolySaturdaydate "`n"
         . "Orthodox Easter|" easterdate "`n"
-        . "Orthodox Easter - 2nd day|" 2ndeasterdate "`n"
+        . "Orthodox Easter - Monday|" 2ndeasterdate "`n"
         . "Life-Giving Spring|" lifeSpringDate "`n"
         . "Ascension of Jesus|" ascensiondaydate "`n"
         . "Pentecost|" pentecostdate "`n"
@@ -4004,11 +4035,13 @@ updateHolidaysLVs() {
         . "Annunciation of the Blessed Virgin Mary|" AnnunciationLord "`n"
         . "Saint George|" SaintGeorge "`n"
         . "Birth of Saint John the Baptist|" BirthJohnBaptist "`n"
+        . "Solemnity of Saints Peter and Paul|" SsPeterAndPaul "`n"
         . "Transfiguration of the Lord Jesus Christ|" FeastTransfiguration "`n"
         . "Dormition of the Blessed Virgin Mary|" AssumptionVirginMary "`n"
         . "Beheading of Saint John the Baptist|" BeheadingJohnBaptist "`n"
         . "Birth of the Blessed Virgin Mary|" BirthVirginMary "`n"
         . "Exaltation of the Holy Cross|" ExaltationHolyCross "`n"
+        . "The Protection of Our Most Holy Lady Virgin Mary|" ProtectSaintMary "`n"
         . "Saint Paraskeva of the Balkans|" SaintParaskeva "`n"
         . "Presentation of the Blessed Virgin Mary|" PresentationVirginMary "`n"
         . "Saint Nicholas Day|" SaintNicola "`n"
@@ -8760,7 +8793,7 @@ UIcityChooser() {
          diffuZeit := transformSecondsReadable(abs(diffuZeit), 1)
          diffuTotalZeit := transformSecondsReadable(abs(diffuTotalZeit), 1)
          If (diffuTotalZeit!="00:00" && diffuTotalZeit!="0s" && diffuTotalZeit)
-            diffuTotalZeit := (prevTduru>thisTduru) ? " (-" diffuTotalZeit ")" : " (+" diffuTotalZeit ")"
+            diffuTotalZeit := (prevTduru>thisTduru) ? "-" diffuTotalZeit : "+" diffuTotalZeit
          Else
             diffuTotalZeit := ""
 
@@ -8816,11 +8849,13 @@ UIcityChooser() {
          GuiControl, SettingsGUIA:, UIastroInfoAnnum, ---
          GuiControl, SettingsGUIA:, UIastroInfoDayu, ---
          GuiControl, SettingsGUIA:, UIastroInfoTotalLight, ---
+         GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, ---
          Return
       }
 
       totalu := transformSecondsReadable(obj.durRaw + obj.cdurRaw)
-      GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % totalu diffuTotalZeit
+      GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % totalu
+      GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, % diffuTotalZeit
       GuiControl, SettingsGUIA:, UIastroInfoLabelTotalLight, Total light:
   } Else
   {
@@ -8921,8 +8956,10 @@ UIcityChooser() {
           }
       }
       ; ToolTip, % loopsOccured , , , 2
-      pu := OutputVar ? OutputVar ". " xu "." : "----"
+      pu := OutputVar ? OutputVar : "-"
       GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % pu
+      pu := OutputVar ? xu : "-"
+      GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, % pu
        ; GuiControl, SettingsGUIA:, UIastroInfoMoonZodia, % moonZ
   }
 
@@ -9456,7 +9493,7 @@ PanelTodayInfos() {
     Global UIastroInfoDaylight, UIastroInfoDawn, UIastroInfoRise, UIastroInfoNoon, UIastroInfoSet, UIastroInfoDusk, UIastroInfoMphase, UIastroInfoMoon
          , UIastroInfoProgressAnnum, UIastroInfoAnnum, UIastroInfoProgressDayu, UIastroInfoDayu, UIastroInfoProgressMoon, UIastroInfoMoonlight
          , uiastroinfoLightMode, UIastroInfoLtimeGMT, UIastroInfoObjElev, UIastroInfoLtimeus, UIastroInfoObjInfo, UIastroInfoObjVisibility
-         , UIastroInfoTotalLight, UIastroInfoElevNoon, UIastroInfoLabelDawn, UIastroInfoLabelDusk, UIastroInfoLightDiff, UIbtnRemGeoLoc
+         , UIastroInfoTotalLight, UIastroInfoElevNoon, UIastroInfoLabelDawn, UIastroInfoLabelDusk, UIastroInfoLightDiff, UIbtnRemGeoLoc, UIastroInfoTotalDiffLight
          , BtnAstroModa, UIastroInfoLabelTotalLight, UIastroInfoLtimeDate, UIbtnTodayPrev, UIbtnTodayNext, UIastroInfoLabelRise, UIastroInfoLabelSetu
 
     GenericPanelGUI(0)
@@ -9609,36 +9646,36 @@ PanelTodayInfos() {
     hBtnTodayNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vUIbtnTodayNext", ">>", "Next hour")
     Gui, Add, Button, x+5 hp gToggleAstroInfosModa vBtnAstroModa, Moona
     sml := (PrefsLargeFonts=1) ? 500 : 370
-    Gui, Add, Text, xs y+10 w%sml% hp +0x200 vuiInfoGeoData -wrap, Geo data.
+    Gui, Add, Text, xs y+5 w%sml% Section hp +0x200 vuiInfoGeoData -wrap, Geo data.
     sml := (PrefsLargeFonts=1) ? 100 : 60
-    zml := (PrefsLargeFonts=1) ? 300 : 150
-    Gui, Add, Text, xs y+10 w%sml% hp -wrap, Local time:
+    zml := (PrefsLargeFonts=1) ? 240 : 150
+    Gui, Add, Text, xs y+10 w%sml% Section hp -wrap, Local time:
     Gui, Add, Text, x+5 wp -wrap vUIastroInfoLtimeus, --:--
     Gui, Add, Text, x+5 hp wp -wrap, 
-    Gui, Add, Text, x+5 hp w%zml% -wrap vUIastroInfoObjElev ghelpTodayElevationNow +hwndhCL1, Moon elevation: 92.4° 
     Gui, Add, Text, xs y+7 hp w%sml% -wrap, 
     Gui, Add, Text, x+5 wp hp -wrap vUIastroInfoLtimeGMT, GMT
     Gui, Add, Text, x+5 hp wp -wrap, 
-    Gui, Add, Text, x+5 hp w%zml% -wrap vUIastroInfoObjInfo, ---
 
     Gui, Add, Text, xs y+15 w%sml% -wrap gUIpanelTodayLightDiffSolstices vuiastroinfoLightMode +hwndhCL2, Sunlight:
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoLabelDawn ghelpPanelTodayMoonFrac +hwndhCL3, Dawn:
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoLabelRise, Rise: 0°
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoElevNoon ghelpPanelTodayNoon +hwndhCL4, Noon: --.-°
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoLabelSetu, Set: 0°
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoLabelDusk, Dusk:
-
-    Gui, Add, Text, xs y+7 wp -wrap gUIpanelTodayLightDiffSolstices vUIastroInfoDaylight +hwndhCL5, --:--
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoDawn gUItodayPanelJumpDawn +hwndhCL6, --:--
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoRise gUItodayPanelJumpT1 +hwndhCL7, --:--
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoNoon gUItodayPanelJumpT2 +hwndhCL8, --:--
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoSet gUItodayPanelJumpT3 +hwndhCL9, --:--
-    Gui, Add, Text, x+5 yp wp -wrap vUIastroInfoDusk gUItodayPanelJumpDusk +hwndhCL10, --:--
-
-    Gui, Add, Text, xs y+7 wp -Wrap vUIastroInfoLightDiff gUIpanelTodayLightDiffSolstices +hwndhCL11, --:--
-    Gui, Add, Text, x+5 wp ghelpPanelTodayTotalLight vUIastroInfoLabelTotalLight +hwndhCL12, Total light:
-    sml := (PrefsLargeFonts=1) ? 320 : 230
-    Gui, Add, Text, x+5 w%sml% -wrap vUIastroInfoTotalLight ghelpPanelTodayTotalLight +hwndhCL13, [\]\\\\\\\\\\\\\--:-- (+ --:--)
+    Gui, Add, Text, x+5 wp hp ghelpPanelTodayTotalLight vUIastroInfoLabelTotalLight +hwndhCL12, Total light:
+    Gui, Add, Text, x+5 hp w%zml% Center vUIastroInfoObjElev ghelpTodayElevationNow +hwndhCL1, Moon elevation: 92.4° 
+    Gui, Add, Text, xs y+7 w%sml% -wrap vUIastroInfoDaylight gUIpanelTodayLightDiffSolstices +hwndhCL5, --:--
+    ; sml := (PrefsLargeFonts=1) ? 320 : 230
+    Gui, Add, Text, x+5 hp wp -wrap vUIastroInfoTotalLight ghelpPanelTodayTotalLight +hwndhCL13, --:--
+    Gui, Add, Text, x+5 hp w%zml% Center vUIastroInfoObjInfo, ---
+    Gui, Add, Text, xs y+7 w%sml% -wrap vUIastroInfoLightDiff gUIpanelTodayLightDiffSolstices +hwndhCL11, --:--
+    Gui, Add, Text, x+5 hp wp -wrap vUIastroInfoTotalDiffLight ghelpPanelTodayTotalLight +hwndhCL13, --:--
+    plm := (PrefsLargeFonts=1) ? 450 : 280
+    Gui, Add, Text, xs+%plm% ys Section hp wp -wrap vUIastroInfoLabelDawn ghelpPanelTodayMoonFrac +hwndhCL3, Dawn:
+    Gui, Add, Text, x+5 yp hp wp -wrap vUIastroInfoDawn gUItodayPanelJumpDawn +hwndhCL6, --:--
+    Gui, Add, Text, xs y+7 hp wp -wrap vUIastroInfoLabelRise, Rise: 0°
+    Gui, Add, Text, x+5 yp hp wp -wrap vUIastroInfoRise gUItodayPanelJumpT1 +hwndhCL7, --:--
+    Gui, Add, Text, xs y+7 hp wp -wrap vUIastroInfoElevNoon ghelpPanelTodayNoon +hwndhCL4, Noon: --.-°
+    Gui, Add, Text, x+5 yp hp wp -wrap vUIastroInfoNoon gUItodayPanelJumpT2 +hwndhCL8, --:--
+    Gui, Add, Text, xs y+7 hp wp -wrap vUIastroInfoLabelSetu, Set: 0°
+    Gui, Add, Text, x+5 yp hp wp -wrap vUIastroInfoSet gUItodayPanelJumpT3 +hwndhCL9, --:--
+    Gui, Add, Text, xs y+7 hp wp -wrap vUIastroInfoLabelDusk, Dusk:
+    Gui, Add, Text, x+5 yp hp wp -wrap vUIastroInfoDusk gUItodayPanelJumpDusk +hwndhCL10, --:--
 
     If (A_OSVersion="WIN_XP")
     {
@@ -9651,7 +9688,7 @@ PanelTodayInfos() {
 
     graphW := (PrefsLargeFonts=1) ? 220 : 135
     graphH := (PrefsLargeFonts=1) ? 110 : 80
-    Gui, Add, Text, xs y+10 w1 h2 -wrap, .
+    Gui, Add, Text, xm+15 y+20 Section w1 h2 -wrap, .
     Gui, Add, Text, xs y+15 w1 h1, Sun and moon position on the sky illustration.
     Gui, Add, Text, xp yp w%graphW% h%graphH% +0x8 +0xE gtoggleTodayGraphMODE +hwndhSolarGraphPic, Preview area
     graphW := (PrefsLargeFonts=1) ? 260 : 150
