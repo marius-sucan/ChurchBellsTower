@@ -3731,10 +3731,10 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         q := "All souls' day - a commemoration day of all the faithful departed"
      Else If (testFeast="11.21")
         q := "Presentation of the Blessed Virgin Mary - when she was brought, as a child, to the Temple in Jerusalem to be consecrated to God"
-     Else If (testFeast="12.06")
-        q := "Saint Nicholas' Day - an early Christian bishop of Greek origins from 270 - 342 AD, known as the bringer of gifts for the poor"
      Else If (testFeast="12.08" && UserReligion=1)
         q := "Immaculate Conception of the Blessed Virgin Mary"
+     Else If (testFeast="12.06")
+        q := "Saint Nicholas' Day - an early Christian bishop of Greek origins from 270 - 342 AD, known as the bringer of gifts for the poor"
      Else If (testFeast="12.24")
         q := "Christmas Eve"
      Else If (testFeast="12.25")
@@ -3935,8 +3935,8 @@ updateHolidaysLVs() {
   , Allsaintsday := "11.01"
   , Allsoulsday := "11.02"
   , PresentationVirginMary := "11.21"
-  , ImmaculateConception := "12.08"
   , SaintNicola := "12.06"
+  , ImmaculateConception := "12.08"
   , ChristmasEve := "12.24"
   , Christmasday := "12.25"
   , Christmas2nday := "12.26"
@@ -4002,8 +4002,8 @@ updateHolidaysLVs() {
         . "All Saints' day|" Allsaintsday "`n"
         . "All souls' day|" Allsoulsday "`n"
         . "Presentation of the Blessed Virgin Mary|" PresentationVirginMary "`n"
-        . "Immaculate Conception of the Blessed Virgin Mary|" ImmaculateConception "`n"
         . "Saint Nicholas Day|" SaintNicola "`n"
+        . "Immaculate Conception of the Blessed Virgin Mary|" ImmaculateConception "`n"
         . "Christmas Eve|" ChristmasEve "`n"
         . "Christmas|" Christmasday "`n"
         . "Saint Stephen's Day|" Christmas2nday "`n"
@@ -9656,7 +9656,7 @@ PanelTodayInfos() {
     Gui, Add, Text, x+5 wp hp -wrap vUIastroInfoLtimeGMT, GMT
     Gui, Add, Text, x+5 hp wp -wrap, 
 
-    Gui, Add, Text, xs y+15 w%sml% -wrap gUIpanelTodayLightDiffSolstices vuiastroinfoLightMode +hwndhCL2, Sunlight:
+    Gui, Add, Text, xs y+7 w%sml% -wrap gUIpanelTodayLightDiffSolstices vuiastroinfoLightMode +hwndhCL2, Sunlight:
     Gui, Add, Text, x+5 wp hp ghelpPanelTodayTotalLight vUIastroInfoLabelTotalLight +hwndhCL12, Total light:
     Gui, Add, Text, x+5 hp w%zml% Center vUIastroInfoObjElev ghelpTodayElevationNow +hwndhCL1, Moon elevation: 92.4° 
     Gui, Add, Text, xs y+7 w%sml% -wrap vUIastroInfoDaylight gUIpanelTodayLightDiffSolstices +hwndhCL5, --:--
