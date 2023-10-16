@@ -7372,6 +7372,7 @@ getMoonElevation(timeus, latu, longu, gmtOffset, ByRef azimuth, ByRef eleva) {
       Return
    If gmtOffset
       timeus += -1*gmtOffset, Hours
+
    timeus -= 19700101000000, S   ; convert to Unix TimeStamp
    azimuth := eleva := ""
    r := DllCall(callCBTdllFunc("getMoonElevation"), "double", timeus, "double", latu, "double", longu, "double*", azimuth,  "double*", eleva, "Int")
@@ -10774,7 +10775,17 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
 
   IDphase++
   phaseName := phaseNames[IDphase]
-  ; If (fraction>0.994 && IDphase=5)
+  ; ToolTip, % fraction "|" IDphase "|" age , , , 2
+  If (fraction<98.1 && IDphase=5 && age>15.2)
+  {
+     IDphase := 6
+     phaseName := phaseNames[IDphase]
+  } Else If (fraction<68.1 && IDphase=6 && age>19.7)
+  {
+     IDphase := 7
+     phaseName := phaseNames[IDphase]
+  }
+
   ;    phaseName .= " (peak)"
   ; Else if (fraction<0.016 && IDphase=1)
   ;    phaseName .= " (peak)"
