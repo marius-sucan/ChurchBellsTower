@@ -357,7 +357,7 @@ DrawClockMarks(items, R1, R2, G, pPen) {
 }
 
 DrawHoursLabels(R1, R2, G) {
-   static zr := {1:"I", 2:"II", 3:"III", 4:"IV", 5:"V", 6:"VI", 7:"VII", 8:"VIII", 9:"IX", 10:"X", 11:"XII", 12:"XIII"}
+   static zr := {1:"I", 2:"II", 3:"III", 4:"IV", 5:"V", 6:"VI", 7:"VII", 8:"VIII", 9:"IX", 10:"X", 11:"XI", 12:"XII"}
         , zo := {1:9,2:10,3:11,4:12,5:1,6:2,7:3,8:4,9:5,10:6,11:7,12:8}
 
    CenterX := CenterY := ClockCenter

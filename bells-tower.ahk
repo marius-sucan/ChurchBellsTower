@@ -5460,7 +5460,7 @@ PanelAboutWindow() {
     Gui, Add, Picture, x15 y15 w55 h-1 +0x3 Section gTollExtraNoon hwndhBellIcon, %A_ScriptDir%\resources\bell-image.png
     Gui, Add, Text, x+7 y10, %appName%
     Gui, Font, s12 Bold, Arial, -wrap
-    Gui, Add, Link, y+4 hwndhLink0, Developed by <a href="http://marius.sucan.ro">Marius Şucan</a>.
+    Gui, Add, Link, y+4 hwndhLink0, Developed by <a href="https://marius.sucan.ro">Marius Şucan</a>.
     doResetGuiFont()
     If (PrefsLargeFonts=1)
     {
@@ -5498,7 +5498,7 @@ PanelAboutWindow() {
        Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, The development page is <a href="https://github.com/marius-sucan/ChurchBellsTower">on GitHub</a>.
 
     Gui, Font, Bold
-    Gui, Add, Link, xp+30 y+10 hwndhLink1, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com?subject=%appName% v%Version%">send me feedback</a>.
+    Gui, Add, Link, xp+30 y+10 hwndhLink1, To keep the development going, `n<a href="https://www.paypal.me/MariusSucan/15">please donate</a> or <a href="mailto:marius.sucan@gmail.com">send me feedback</a>.
     Gui, Add, Picture, x+10 yp+0 gDonateNow hp w-1 +0xE hwndhDonateBTN, %A_ScriptDir%\resources\paypal.png
     doResetGuiFont()
 
