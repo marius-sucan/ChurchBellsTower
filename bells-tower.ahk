@@ -17,13 +17,13 @@
 ; this script or its derivatives,  et cetera.
 ;
 ; Compilation directives; include files in binary and set file properties
-; ===========================================================
+; =========================================================================
 ;
 ;@Ahk2Exe-SetName Church Bells Tower
-;@Ahk2Exe-SetCopyright Marius Şucan (2017-2022)
-;@Ahk2Exe-SetCompanyName http://marius.sucan.ro
+;@Ahk2Exe-SetCopyright Marius Şucan (2017-2023)
+;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.4.1
+;@Ahk2Exe-SetVersion 3.4.2
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -161,11 +161,12 @@ Global displayTimeFormat := 1
 , ClockWinSize  := ClockDiameter + 2
 , ClockCenter   := Round(ClockWinSize/2)
 , roundedCsize  := Round(ClockDiameter/4)
+, showAnalogHourLabels := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.4.1"
-, ReleaseDate            := "2023 / 10 / 15"
+, Version                := "3.4.2"
+, ReleaseDate            := "2023 / 12 / 25"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -509,7 +510,7 @@ decideSysTrayTooltip(modus:=0) {
 
     If (stopWatchRealStartZeit || stopWatchBeginZeit)
        stopwInfos := "`nStopwatch is running"
-    If (userMuteAllSounds=1 || BeepsVolume<2)
+    If (userMuteAllSounds=1 || BeepsVolume<1)
        soundsInfos := "`nAll sounds are muted"
 
     thisHoli := (TypeHolidayOccured=3) ? "personal" : "religious"
@@ -790,7 +791,7 @@ SetMyVolume(noRestore:=0) {
      Return
   }
 
-  If (BeepsVolume<2)
+  If (BeepsVolume<1)
   {
      SetVolume(0)
      Return
@@ -799,7 +800,7 @@ SetMyVolume(noRestore:=0) {
   If (A_TickCount - LastNoonZeitSound<150000) && (PrefOpen=0 && noTollingBgrSounds=2)
      Return
 
-  If (ScriptInitialized=1 && AutoUnmute=1 && BeepsVolume>3 && userMuteAllSounds=0
+  If (ScriptInitialized=1 && AutoUnmute=1 && BeepsVolume>1 && userMuteAllSounds=0
   && (A_TickCount - LastInvoked > 290100) && noRestore=0)
   {
      mustRestoreVol := 0
@@ -812,10 +813,10 @@ SetMyVolume(noRestore:=0) {
      }
 
      SoundGet, master_vol
-     If (Round(master_vol)<2)
+     If (Round(master_vol)<1)
      {
         SoundSet, 3
-        mustRestoreVol := (mustRestoreVol=1) ? 3 : 2
+        mustRestoreVol := 1
      }
   }
 
@@ -1063,7 +1064,7 @@ PlayTimerBell() {
 }
 
 MCXI_Play(hSND) {
-    If (stopAdditionalStrikes=1 || stopStrikesNow=1 || userMuteAllSounds=1 || BeepsVolume<2)
+    If (stopAdditionalStrikes=1 || stopStrikesNow=1 || userMuteAllSounds=1 || BeepsVolume<1)
        Return
 
     MCI_SendString("seek " hSND " to 1 wait")
@@ -1151,7 +1152,7 @@ theChimer() {
      NoonTollQuartersDelay := 18500
      volumeAction := SetMyVolume()
      showTimeNow()
-     If (BeepsVolume>1)
+     If (BeepsVolume>0)
         MCXI_Play(SNDmedia_evening)
 
      If (StrLen(isHolidayToday)>2 && SemantronHoliday=0 && TypeHolidayOccured>1)
@@ -1161,7 +1162,7 @@ theChimer() {
      NoonTollQuartersDelay := 6500
      volumeAction := SetMyVolume()
      showTimeNow()
-     If (BeepsVolume>1)
+     If (BeepsVolume>0)
         MCXI_Play(SNDmedia_midnight)
   }
 
@@ -1215,7 +1216,7 @@ theChimer() {
         If (tollHours=0)
            showTimeNow()
 
-        If (stopStrikesNow=0 && BeepsVolume>1)
+        If (stopStrikesNow=0 && BeepsVolume>0)
         {
            tollGivenNoon(0, delayRand2 + hoursTotalTime)
            If InStr(isHolidayToday, "easter")  ; on Easter
@@ -2396,6 +2397,12 @@ toggleMoonPhasesAnalog() {
     INIaction(1, "analogMoonPhases", "SavedSettings")
 }
 
+toggleHourLabelsAnalog() {
+    showAnalogHourLabels := !showAnalogHourLabels
+    INIaction(1, "showAnalogHourLabels", "SavedSettings")
+    ; reInitializeAnalogClock()
+}
+
 toggleRoundedWidget() {
    roundedClock := !roundedClock
    ClockDiameter := Round(FontSize * 4 * analogDisplayScale)
@@ -2684,9 +2691,13 @@ applyDarkMode2winPost(whichGui, hwndGUI) {
          {
             doAttachCtlColor := -2
             CtlColors.Attach(strControlHwnd, clrBG, clrTX)
-            WinSet, Style, +%WS_CLIPSIBLINGS%, ahk_id %strControlhwnd%
-            GetWinClientSize(w, h, strControlHwnd, 1)
-            WinSet, Region, % "1-1 w" w - 3 " h" h - 2, ahk_id %strControlhwnd%
+            If (A_OSVersion="WIN_7" || A_OSVersion="WIN_XP")
+            {
+               WinSet, Style, +%WS_CLIPSIBLINGS%, ahk_id %strControlhwnd%
+               GetWinClientSize(w, h, strControlHwnd, 1)
+               WinSet, Region, % "1-1 w" w - 3 " h" h - 2, ahk_id %strControlhwnd%
+            } Else
+               DllCall("uxtheme\SetWindowTheme", "uptr", strControlHwnd, "str", "DarkMode_CFD", "ptr", 0)
          } Else If InStr(CtrlClass, "Edit")
             doAttachCtlColor := -1
          Else If (InStr(CtrlClass, "Static") || InStr(CtrlClass, "syslink"))
@@ -2699,7 +2710,7 @@ applyDarkMode2winPost(whichGui, hwndGUI) {
             CtlColors.Attach(strControlHwnd, SubStr(darkWindowColor, 3), SubStr(darkControlColor, 3))
 
          If (doAttachCtlColor!=2 && doAttachCtlColor!=-2)
-            DllCall("uxtheme\SetWindowTheme", "ptr", strControlHwnd, "str", "DarkMode_Explorer", "ptr", 0)
+            DllCall("uxtheme\SetWindowTheme", "uptr", strControlHwnd, "str", "DarkMode_Explorer", "ptr", 0)
        }
     }
 }
@@ -3732,7 +3743,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      Else If (testFeast="11.21")
         q := "Presentation of the Blessed Virgin Mary - when she was brought, as a child, to the Temple in Jerusalem to be consecrated to God"
      Else If (testFeast="12.08" && UserReligion=1)
-        q := "Immaculate Conception of the Blessed Virgin Mary"
+        q := "Immaculate Conception of the Blessed Virgin Mary - a celebration of her sinless lifespan. It is believed she was conceived without the original sin. This is celebrated nine months before the feast of the Nativity of Mary, on the 8th of September"
      Else If (testFeast="12.06")
         q := "Saint Nicholas' Day - an early Christian bishop of Greek origins from 270 - 342 AD, known as the bringer of gifts for the poor"
      Else If (testFeast="12.24")
@@ -5476,7 +5487,7 @@ PanelAboutWindow() {
        doResetGuiFont()
 
     Gui, Add, Text, xs y+15 w%txtWid% Section, Dedicated to Christians, church-goers and bell lovers.
-    Gui, Add, Text, xs y+15 Section w%txtWid%, This application contains code and sounds from various entities.%newLine%You can find more details in the source code.
+    Gui, Add, Text, xs y+15 Section w%txtWid%, This application contains code and sounds from various entities. You can find more details in the source code.
     compiled := (A_IsCompiled=1) ? "Compiled. " : "Uncompiled. "
     compiled .= (A_PtrSize=8) ? "x64. " : "x32. "
     Gui, Add, Text, xs y+15 w%txtWid%, Current version: v%version% from %ReleaseDate%. Internal AHK version: %A_AhkVersion%. %compiled%OS: %A_OSVersion%.
@@ -5495,7 +5506,7 @@ PanelAboutWindow() {
     btnW2 := (PrefsLargeFonts=1) ? 80 : 55
     btnW3 := (PrefsLargeFonts=1) ? 110 : 80
     btnH := (PrefsLargeFonts=1) ? 35 : 28
-    Gui, Add, Button, xm+0 y+20 Section h%btnH% w%btnW1% Default gCloseWindowAbout, &Deus lux est
+    Gui, Add, Button, xm+0 y+25 Section h%btnH% w%btnW1% Default gCloseWindowAbout, &Deus lux est
     Gui, Add, Button, x+5 hp wp-10 gPanelTodayInfos, &Today
     Gui, Add, Button, x+5 hp w%btnW2% gPanelShowSettings, &Settings
     Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations, &Celebrations
@@ -8381,6 +8392,26 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
         startZeit += 30, Minutes
       }
       Gdip_FillRectangle(G, dBrush, 0, h/2, w, 3)
+     
+      ; azimuth indicator
+      timeus := uiUserFullDateUTC
+      If (todaySunMoonGraphMode=1)
+         getMoonElevation(timeus, lat, lon, 0, azii, elevu)
+      Else
+         getSunAzimuthElevation(timeus, lat, lon, 0, azii, elevu)
+
+      Gdip_DeletePath(pPath)
+      pPath := Gdip_CreatePath()
+      GdipCreateSimpleShapes(25, 10, 10, 30, 4, 0, pPath)
+      Gdip_RotatePathAtCenter(pPath, azii)
+      Gdip_FillEllipse(G, twilightBrush, 15, 10, 30, 30)
+      Gdip_FillEllipse(G, darkBrush, 17, 12, 26, 26)
+      Gdip_FillEllipse(G, lightBrush, 27, 7, 6, 6)
+      Gdip_FillEllipse(G, lightBrush, 27, 36, 6, 6)
+      Gdip_FillEllipse(G, lightBrush, 12, 22, 6, 6)
+      Gdip_FillEllipse(G, lightBrush, 42, 22, 6, 6)
+      Gdip_FillPath(G, twilightBrush, pPath)
+
       Gdip_DeleteBrush(sunBrush)
       Gdip_DeleteBrush(lightBrush)
       Gdip_DeleteBrush(lineBrush)
@@ -8389,10 +8420,54 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
       Gdip_DeleteBrush(dBrush)
       Gdip_DeletePath(pPath)
 
-     Gdip_DeleteGraphics(G)
-     Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
-     Gdip_DisposeImage(mainBitmap, 1)
+      Gdip_DeleteGraphics(G)
+      Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
+      Gdip_DisposeImage(mainBitmap, 1)
 }
+
+GdipCreateSimpleShapes(imgSelPx, imgSelPy, imgSelW, imgSelH, shape, roundness, pPath) {
+    If (shape=1 && !roundness) ; rect
+    {
+       Gdip_AddPathRectangle(pPath, imgSelPx, imgSelPy, imgSelW, imgSelH)
+    } Else If (shape=2 && roundness) ; rounded rect
+    {
+       radius := clampInRange(min(imgSelW, imgSelH)*(roundness/200) + 1, 2, min(imgSelW, imgSelH)*0.9)
+       Gdip_AddPathRoundedRectangle(pPath, imgSelPx, imgSelPy, imgSelW, imgSelH, radius)
+    } Else If (shape=3) ; ellipse
+    {
+       Gdip_AddPathEllipse(pPath, imgSelPx, imgSelPy, imgSelW, imgSelH)
+    } Else If (shape=4) ; triangle
+    {
+       cX1 := imgSelPx + imgSelW//2
+       cY1 := imgSelPy
+       cX2 := imgSelPx
+       cY2 := imgSelPy + imgSelH
+       cX3 := imgSelPx + imgSelW
+       cY3 := imgSelPy + imgSelH
+       Gdip_AddPathPolygon(pPath, [cX1, cY1, cX2, cY2, cX3, cY3])
+    } Else If (shape=5) ; right triangle
+    {
+       cX1 := imgSelPx
+       cY1 := imgSelPy
+       cX2 := imgSelPx
+       cY2 := imgSelPy + imgSelH
+       cX3 := imgSelPx + imgSelW
+       cY3 := imgSelPy + imgSelH
+       Gdip_AddPathPolygon(pPath, [cX1, cY1, cX2, cY2, cX3, cY3])
+    } Else If (shape=6) ; rhombus
+    {
+       cX1 := imgSelPx + imgSelW//2
+       cY1 := imgSelPy
+       cX2 := imgSelPx
+       cY2 := imgSelPy + imgSelH//2
+       cX3 := imgSelPx + imgSelW//2
+       cY3 := imgSelPy + imgSelH
+       cX4 := imgSelPx + imgSelW
+       cY4 := imgSelPy + imgSelH//2
+       Gdip_AddPathPolygon(pPath, [cX1, cY1, cX2, cY2, cX3, cY3, cX4, cY4])
+    }
+}
+
 
 locateClickOnEarthMap() {
     Static prevk, clicks := 0
@@ -8743,9 +8818,9 @@ UIcityChooser() {
   If !testValid
      brr := "--:--"
 
-  astralObj := (userAstroInfodMode!=1) ? "Sun" : "Moon"
-  GuiControl, SettingsGUIA:, BtnAstroModa, % astralObj
   astralObj := (userAstroInfodMode=1) ? "Sun" : "Moon"
+  GuiControl, SettingsGUIA:, BtnAstroModa, % astralObj
+  ; astralObj := (userAstroInfodMode=1) ? "Sun" : "Moon"
   If testValid
   {
      If (userAstroInfodMode=1)
@@ -8768,7 +8843,7 @@ UIcityChooser() {
   j := (gmtOffset>=0) ? "+" : ""
   GuiControl, SettingsGUIA:, UIastroInfoLtimeGMT, % "GMT " j Round(gmtOffset, 1) " h"
   GuiControl, SettingsGUIA:, UIastroInfoLtimeus, % SubStr(brr, 6)
-  GuiControl, SettingsGUIA:, UIastroInfoObjElev, % astralObj " altitude: " eleva
+  GuiControl, SettingsGUIA:, UIastroInfoObjElev, % "Alt " eleva " / Az " Round(azii, 1) "°"
 
   CurrentYear := testValid ? SubStr(timi, 1, 4) : yearu
   NextYear := CurrentYear + 1
@@ -9159,7 +9234,27 @@ toggleTodayGraphMODE(modus:=0) {
   getCtrlCoords(hSolarGraphPic, x1, y1, x2, y2)
   f := (todaySunMoonGraphMode=1) ? "MOON" : "SUN"
   ; ToolTip, % x "\" y , , , 2
-  msgu := "Current " f " position on the sky:`nAltitude: " Round(elevu, 1) "°. Azimuth: " Round(azii, 1) "°."
+  If (isInRange(azii, 350, 360) || isInRange(azii, 0, 10))
+     cardinal := "North"
+  Else If isInRange(azii, 30, 60)
+     cardinal := "NE"
+  Else If isInRange(azii, 75, 105)
+     cardinal := "East"
+  Else If isInRange(azii, 120, 150)
+     cardinal := "SE"
+  Else If isInRange(azii, 165, 195)
+     cardinal := "South"
+  Else If isInRange(azii, 210, 240)
+     cardinal := "SW"
+  Else If isInRange(azii, 255, 285)
+     cardinal := "West"
+  Else If isInRange(azii, 300, 330)
+     cardinal := "NW"
+
+  If cardinal
+     cardinal := " (" cardinal ")"
+
+  msgu := "Current " f " position on the sky:`nAltitude: " Round(elevu, 1) "°. Azimuth: " Round(azii, 1) "°" cardinal "."
   If (A_PtrSize=8)
      msgu .= "`nAltitude graph max / min:`n" fmax "° / " fmin "°."
 
@@ -9557,36 +9652,14 @@ PanelTodayInfos() {
 
     Gui, Tab, 1
     Gui, Add, Text, xs+12 y+5 w1 h1 Section, .
-    If (thisSeason ~= "i)(two|week|since|today|until|here|tomorrow|yesterday)")
-    {
-       Gui, Font, Bold
-       Gui, Add, Text, y+7 w%txtWid%, % thisSeason
-       Gui, Font, Normal
-    }
-
     extras := decideSysTrayTooltip("about")
-    If extras
-       Gui, Add, Text, y+7 w%txtWid%, % Trim(extras, "`n")
+    If (thisSeason ~= "i)(two|week|since|today|until|here|tomorrow|yesterday)")
+       extras .= "`n`n" thisSeason
 
-    weeksPassed := Floor(A_YDay/7)
-    weeksPlural := (weeksPassed>1) ? "weeks" : "week"
-    weeksPlural2 := (weeksPassed>1) ? "have" : "has"
-    If (weeksPassed<1)
-    {
-       weeksPassed := A_YDay - 1
-       weeksPlural := (weeksPassed>1) ? "days" : "day"
-       weeksPlural2 := (weeksPassed>1) ? "have" : "has"
-       If (weeksPassed=0)
-       {
-          weeksPassed := "No"
-          weeksPlural := "day"
-          weeksPlural2 := "has"
-       }
-    }
-
-    Gui, Font, Bold
-    If (A_YDay>354)
-       Gui, Add, Text, y+7 w%txtWid%, Season's greetings! Enjoy the holidays! 😊
+    If isInRange(A_YDay, jSolsDay + 1, dSolsDay - 1)
+       extras .= "`n`nThe days are getting shorter until the December solstice."
+    Else If (A_YDay>dSolsDay || A_YDay<jSolsDay)
+       extras .= "`n`nThe days are getting longer until the June solstice."
 
     If (StrLen(isHolidayToday)>2 && ObserveHolidays=1)
     {
@@ -9594,27 +9667,25 @@ PanelTodayInfos() {
        holidayMsg := relName " Christians celebrate today: " isHolidayToday "."
        If (TypeHolidayOccured>1)
           holidayMsg := "Today's event: " isHolidayToday "."
-       Gui, Add, Text, y+7 w%txtWid%, %holidayMsg%
+
+       extras .= "`n`n" holidayMsg
     }
+
+    If (A_YDay>354)
+       extras .= "`n`nSeason's greetings! Enjoy the holidays! 😊"
 
     testFeast := A_Mon "." A_MDay
     If isLeapYear()
-       Gui, Add, Text, y+7 w%txtWid%, %A_Year% is a leap year.
+       extras .= "`n`n" A_Year " is a leap year."
 
     If (testFeast="02.29")
-       Gui, Add, Text, y+7 w%txtWid%, Today is the 29th of February - a leap year day.
-
-    Gui, Font, Normal
-    If isInRange(A_YDay, jSolsDay + 1, dSolsDay - 1)
-       Gui, Add, Text, y+7, The days are getting shorter until the December solstice.
-    Else If (A_YDay>dSolsDay || A_YDay<jSolsDay)
-       Gui, Add, Text, y+7, The days are getting longer until the June solstice.
+       extras .= "`n`nToday is the 29th of February - a leap year day."
 
     If (ObserveHolidays=1)
        listu := coreUpcomingEvents(0, 14, 3)
     If listu
-       Gui, Add, Text, y+15 w%txtWid%, % "Upcoming events: `n" Trim(listu, "`n")
- 
+       extras .= "`n`nUpcoming events: `n" Trim(listu, "`n")
+
     listu := "Solar seasons:`n"
     FormatTime, OutputVar, % mEquiDate, yyyy/MM/dd
     listu .= OutputVar ". ▀ March Equinox.`n"
@@ -9627,7 +9698,10 @@ PanelTodayInfos() {
   
     FormatTime, OutputVar, % dSolsDate, yyyy/MM/dd
     listu .= OutputVar ". ◯ December Solstice."
-    Gui, Add, Text, y+15, % listu
+
+    rzz := (PrefsLargeFonts=1) ? 17 : 20
+    txtWid2 := (PrefsLargeFonts=1) ? txtWid + 40 : txtWid + 25
+    Gui, Add, Edit, y+15 w%txtWid2% +ReadOnly -Border r%rzz%, % Trim(extras, "`n") "`n`n" listu
 
     Gui, Tab, 2
     UItodayPanelResetDate("yo")
@@ -9645,15 +9719,17 @@ PanelTodayInfos() {
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate +hwndhTemp, &Now
     ToolTip2ctrl(hTemp, "Reset to current time and date")
     hBtnTodayNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vUIbtnTodayNext", ">>", "Next hour")
-    Gui, Add, Button, x+5 hp gToggleAstroInfosModa vBtnAstroModa, Moona
     sml := (PrefsLargeFonts=1) ? 500 : 370
     Gui, Add, Text, xs y+5 w%sml% Section hp +0x200 vuiInfoGeoData -wrap, Geo data.
     sml := (PrefsLargeFonts=1) ? 100 : 60
     zml := (PrefsLargeFonts=1) ? 240 : 150
     Gui, Add, Text, xs y+10 w%sml% Section hp -wrap, Local time:
     Gui, Add, Text, x+5 wp -wrap vUIastroInfoLtimeus, --:--
-    Gui, Add, Text, x+5 hp wp -wrap, 
-    Gui, Add, Text, xs y+7 hp w%sml% -wrap, 
+    lza := (PrefsLargeFonts=1) ? 10 :5
+    Gui, Add, Text, x+1 hp wp-%lza% -wrap, 
+    Gui, Add, Button, x+1 hp+10 gToggleAstroInfosModa vBtnAstroModa, Moona
+
+    Gui, Add, Text, xs y+7 hp-10 w%sml% -wrap, 
     Gui, Add, Text, x+5 wp hp -wrap vUIastroInfoLtimeGMT, GMT
     Gui, Add, Text, x+5 hp wp -wrap, 
 
@@ -9687,11 +9763,27 @@ PanelTodayInfos() {
        Gui, Font,, DejaVu LGC Sans
     }
 
+    weeksPassed := Floor(A_YDay/7)
+    weeksPlural := (weeksPassed>1) ? "weeks" : "week"
+    weeksPlural2 := (weeksPassed>1) ? "have" : "has"
+    If (weeksPassed<1)
+    {
+       weeksPassed := A_YDay - 1
+       weeksPlural := (weeksPassed>1) ? "days" : "day"
+       weeksPlural2 := (weeksPassed>1) ? "have" : "has"
+       If (weeksPassed=0)
+       {
+          weeksPassed := "No"
+          weeksPlural := "day"
+          weeksPlural2 := "has"
+       }
+    }
+
     graphW := (PrefsLargeFonts=1) ? 220 : 135
-    graphH := (PrefsLargeFonts=1) ? 110 : 80
+    graphH := (PrefsLargeFonts=1) ? 110 : 70
     Gui, Add, Text, xm+15 y+20 Section w1 h2 -wrap, .
     Gui, Add, Text, xs y+15 w1 h1, Sun and moon position on the sky illustration.
-    Gui, Add, Text, xp yp w%graphW% h%graphH% +0x8 +0xE gtoggleTodayGraphMODE +hwndhSolarGraphPic, Preview area
+    Gui, Add, Text, xp yp w%graphW% h%graphH% +0x8 +0xE gtoggleTodayGraphMODE +hwndhSolarGraphPic, Solar illustration area
     graphW := (PrefsLargeFonts=1) ? 260 : 150
     Gui, Add, Text, x+8 yp Section vUIastroInfoProgressAnnum, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
     Gui, Add, Text, xp+15 y+5 wp vUIastroInfoAnnum gUItodayInfosYear +hwndhCL14, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
@@ -9860,6 +9952,7 @@ INIsettings(a) {
   INIaction(a, "tollHoursAmount", "SavedSettings")
   INIaction(a, "displayClock", "SavedSettings")
   INIaction(a, "analogMoonPhases", "SavedSettings")
+  INIaction(a, "showAnalogHourLabels", "SavedSettings")
   INIaction(a, "silentHours", "SavedSettings")
   INIaction(a, "silentHoursA", "SavedSettings")
   INIaction(a, "userAstroInfodMode", "SavedSettings")
@@ -10021,6 +10114,7 @@ CheckSettings() {
     BinaryVar(orderedBibleQuotes, 0)
     BinaryVar(AlarmersDarkScreen, 1)
     BinaryVar(analogMoonPhases, 1)
+    BinaryVar(showAnalogHourLabels, 1)
 
 ; verify numeric values: min, max and default values
     If (!analogDisplayScale || !isNumber(analogDisplayScale))
@@ -10783,6 +10877,10 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
   } Else If (fraction<68.1 && IDphase=6 && age>19.7)
   {
      IDphase := 7
+     phaseName := phaseNames[IDphase]
+  } Else If (fraction<30.5 && IDphase=7 && age>23.7)
+  {
+     IDphase := 8
      phaseName := phaseNames[IDphase]
   }
 
@@ -11860,5 +11958,9 @@ Trimmer(string, whatTrim:="") {
 
     Space::
       toggleMoonPhasesAnalog()
+    Return
+
+    Tab::
+      toggleHourLabelsAnalog()
     Return
 #If

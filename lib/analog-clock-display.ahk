@@ -69,52 +69,58 @@ InitClockFace() {
    ; Gdip_TranslateWorldTransform(globalG, ClockWinSize/4, ClockWinSize/4s)
 
 ; Draw outer circle
-   Diameter := Round(ClockDiameter * 1.35)
+   Diameter := Round(ClockDiameter * 1.35, 4)
    pBrush := Gdip_BrushCreateSolid(faceOpacityBgr faceElements)      ; clock face background 
-   Gdip_FillRectangle(globalG, pBrush, 0, 0, Ceil(ClockWinSize)*1.5, Ceil(ClockWinSize)*1.5)
-   Gdip_FillRectangle(globalG, pBrush, 0, 0, Ceil(ClockWinSize)*1.5, Ceil(ClockWinSize)*1.5)
+   Gdip_FillRectangle(globalG, pBrush, 0, 0, ClockWinSize*1.5, ClockWinSize*1.5)
+   Gdip_FillRectangle(globalG, pBrush, 0, 0, ClockWinSize*1.5, ClockWinSize*1.5)
    ; Gdip_FillRoundedRectangle(globalG, pBrush, 0, 0, Ceil(ClockWinSize), Ceil(ClockWinSize), Ceil(roundsize//2))
    Gdip_DeleteBrush(pBrush)
 
-   Diameter := ClockDiameter - 2*Floor((ClockDiameter//100)*1.2)
-   pPen := Gdip_CreatePen("0xaa" faceElements, floor((ClockDiameter/100)*1.2))
-   Gdip_DrawEllipse(globalG, pPen, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
+   Diameter := ClockDiameter - 2*Round((ClockDiameter/100)*1.2)
+   pPen := Gdip_CreatePen("0xaa" faceElements, Round((ClockDiameter/100)*1.2))
+   Gdip_DrawEllipse(globalG, pPen, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter)
    Gdip_DeletePen(pPen)
 
 ; Draw inner circle
-   Diameter := Round(ClockDiameter - ClockDiameter*0.04, 2) + Round((ClockDiameter/100)*1.2, 2)  ; white border
+   Diameter := Round(ClockDiameter - ClockDiameter*0.04, 4) + Round((ClockDiameter/100)*1.2, 4)  ; white border
    pBrush := Gdip_BrushCreateSolid(faceOpacity faceBgrColor)
-   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
+   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter)
    Gdip_DeleteBrush(pBrush)
 
 ; Draw Second Marks
-   Diameter := Round(ClockDiameter - ClockDiameter*0.08, 2)  ; inner circle is 8 % smaller than clock's Diameter
+   Diameter := Round(ClockDiameter - ClockDiameter*0.08, 4)  ; inner circle is 8 % smaller than clock's Diameter
    R1 := Diameter/2-1                        ; outer position
-   R2 := Round(Diameter/2 - 1 - Diameter/2*0.08, 2) ; inner position
+   R2 := Round(Diameter/2 - 1 - Diameter/2*0.08, 4) ; inner position
    pPen := Gdip_CreatePen("0xaa" faceElements, (ClockDiameter/100)*1.2) ; 1.2 % of total Diameter is our pen width
+   sPen := Gdip_CreatePen("0x66" faceElements, (ClockDiameter/100)*1.2) ; 1.2 % of total Diameter is our pen width
+   Gdip_DrawEllipse(globalG, sPen, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter)
    If (ClockDiameter>=100)
       DrawClockMarks(60, R1, R2, globalG, pPen)                 ; we have 60 seconds
    Else If (ClockDiameter>=50)
       DrawClockMarks(24, R1, R2+0.1, globalG, pPen)
    Gdip_DeletePen(pPen)
+   Gdip_DeletePen(sPen)
 
-   R2 := Round(Diameter/2 - 1 - Diameter/2*0.04, 2) ; inner position
+   R2 := Round(Diameter/2 - 1 - Diameter/2*0.04, 4) ; inner position
    pPen := Gdip_CreatePen("0x88" faceElements, (ClockDiameter/100)*0.7) ; 1.2 % of total Diameter is our pen width
    If (ClockDiameter>250)
       DrawClockMarks(120, R1, R2, globalG, pPen)                 ; we have 60 seconds
    Gdip_DeletePen(pPen)
 
 ; Draw Hour Marks
-   R2 := Round(Diameter/2 - 1 - Diameter/2*0.2, 2) ; inner position
+   R2 := (showAnalogHourLabels=1) ? Round(Diameter/2 - 1 - Diameter/2*0.15, 2) : Round(Diameter/2 - 1 - Diameter/2*0.2, 2) ; inner position
    pPen := Gdip_CreatePen("0xff" faceElements, (ClockDiameter/100)*2.3) ; 2.3 % of total Diameter is our pen width
    DrawClockMarks(12, R1, R2, globalG, pPen)                  ; we have 12 hours
+   R2b := Round(Diameter/2 - 1 - Diameter/2*0.20, 4)
+   If (showAnalogHourLabels=1)
+      DrawHoursLabels(R1, R2b, globalG)
    Gdip_DeletePen(pPen)
    
-   Diameter := Round(ClockDiameter - ClockDiameter*0.17, 2)  ; inner circle is 17 % smaller than clock's Diameter
+   Diameter := Round(ClockDiameter - ClockDiameter*0.17, 4)  ; inner circle is 17 % smaller than clock's Diameter
    R1 := Diameter/2-1                        ; outer position
-   R2 := Round(Diameter/2 - 1 - Diameter/2*0.2, 2) ; inner position
+   R2 := Round(Diameter/2 - 1 - Diameter/2*0.2, 4) ; inner position
    pPen := Gdip_CreatePen("0xff" faceElements, (ClockDiameter/100)*4) ; 4 % of total Diameter is our pen width
-   If (ClockDiameter>250)
+   If (ClockDiameter>250 && showAnalogHourLabels!=1)
       DrawClockMarks(4, R1, R2, globalG, pPen)                  ; we have 4 quarters
    Gdip_DeletePen(pPen)
 
@@ -155,22 +161,29 @@ UpdateEverySecond() {
    Gdip_SetCompositingMode(globalG, 1) ; set to overdraw
    
 ; delete previous graphic and redraw background
-   Diameter := Round(ClockDiameter - ClockDiameter*0.22, 2)  ; 18 % less than clock's outer Diameter
+   Diameter := Round(ClockDiameter - ClockDiameter*0.22, 4)  ; 18 % less than clock's outer Diameter
    
    ; delete whatever has been drawn here
    pBrush := Gdip_BrushCreateSolid(0x00000000) ; fully transparent brush 'eraser'
-   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
+   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter)
    Gdip_DeleteBrush(pBrush)
    
    Gdip_SetCompositingMode(globalG, 0) ; switch off overdraw
 
    pBrush := Gdip_BrushCreateSolid(faceOpacityBgr faceElements)
-   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
+   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter)
    Gdip_DeleteBrush(pBrush)
 
    pBrush := Gdip_BrushCreateSolid(faceOpacity faceBgrColor)
-   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
+   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter)
    Gdip_DeleteBrush(pBrush)
+
+; draw hour labels
+   sDiameter := Round(ClockDiameter - ClockDiameter*0.08, 4)  ; inner circle is 8 % smaller than clock's Diameter
+   R1 := sDiameter/2-1                        ; outer position
+   R2b := Round(sDiameter/2 - 1 - sDiameter/2*0.20, 4)
+   If (showAnalogHourLabels=1)
+      DrawHoursLabels(R1, R2b, globalG)
 
    Gdip_SetSmoothingMode(globalG, 4)   ; turn on antialiasing
 ; draw moon phase
@@ -182,61 +195,61 @@ UpdateEverySecond() {
    R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.50, 2) ; outer position
    If (analogMoonPhases=1 && isInRange(A_Hour, 16, 20))
    {
-      pPen := Gdip_CreatePen("0x88" faceBgrColor, Round((ClockDiameter/100)*4.6, 2))
+      pPen := Gdip_CreatePen("0x88" faceBgrColor, Round((ClockDiameter/100)*4.6, 4))
       Gdip_DrawLine(globalG, pPen, CenterX, CenterY
-         , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 2)
-         , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 2))
+         , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
+         , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
       Gdip_DeletePen(pPen)
    }
 
-   pPen := Gdip_CreatePen("0xaa" faceElements, Round((ClockDiameter/100)*3.3, 2))
+   pPen := Gdip_CreatePen("0xaa" faceElements, Round((ClockDiameter/100)*3.3, 4))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
-      , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 2)
-      , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 2))
+      , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
+      , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
    Gdip_DeletePen(pPen)
 
-   R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.45, 2) ; outer position
-   pPen := Gdip_CreatePen("0xcc" faceElements, Round((ClockDiameter/100)*1.6, 2))
+   R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.45, 4) ; outer position
+   pPen := Gdip_CreatePen("0xcc" faceElements, Round((ClockDiameter/100)*1.6, 4))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
-      , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 2)
-      , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 2))
+      , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
+      , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
    Gdip_DeletePen(pPen)
    
 ; Draw MinutesPointer
-   t := Round(A_Min*360/60+90, 2)
-   R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.35, 2) ; outer position
-   pPen := Gdip_CreatePen("0x55" faceElements, Round((ClockDiameter/100)*2.8, 2))
+   t := Round(A_Min*360/60+90, 4)
+   R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.35, 4) ; outer position
+   pPen := Gdip_CreatePen("0x55" faceElements, Round((ClockDiameter/100)*2.8, 4))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
-      , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 2)
-      , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 2))
+      , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
+      , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
    Gdip_DeletePen(pPen)
 
 ; Draw SecondsPointer
-   t := Round(A_Sec*360/60+90, 2)
-   R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.25, 2) ; outer position
-   pPen := Gdip_CreatePen("0x99" faceElements, Round((ClockDiameter/100)*1.3, 2))
+   t := Round(A_Sec*360/60+90, 4)
+   R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.25, 4) ; outer position
+   pPen := Gdip_CreatePen("0x99" faceElements, Round((ClockDiameter/100)*1.3, 4))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
-      , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 2)
-      , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 2))
+      , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
+      , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
    Gdip_DeletePen(pPen)
 
 ; Draw SecondsPointer end stick
-   R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.75, 2) ; outer position
-   pPen := Gdip_CreatePen("0x99" faceElements, Round((ClockDiameter/100)*1.3, 2))
+   R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.75, 4) ; outer position
+   pPen := Gdip_CreatePen("0x99" faceElements, Round((ClockDiameter/100)*1.3, 4))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
-      , Round(CenterX + (R1 * Cos(t * Atan(1) * 4 / 180)), 2)
-      , Round(CenterY + (R1 * Sin(t * Atan(1) * 4 / 180)), 2))
+      , Round(CenterX + (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
+      , Round(CenterY + (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
    Gdip_DeletePen(pPen)
 
 ; draw center
-   Diameter := Round(ClockDiameter*0.08, 2)
+   Diameter := Round(ClockDiameter*0.08, 4)
    pBrush := Gdip_BrushCreateSolid("0x66" faceElements)
-   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
+   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter)
    Gdip_DeleteBrush(pBrush)
 
-   Diameter := Round(ClockDiameter*0.04, 2)
+   Diameter := Round(ClockDiameter*0.04, 4)
    pBrush := Gdip_BrushCreateSolid("0x95" faceElements)
-   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter//2), CenterY-(Diameter//2),Diameter, Diameter)
+   Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter)
    Gdip_DeleteBrush(pBrush)
 
    UpdateLayeredWindow(hFaceClock, globalhdc, , , , , mainOSDopacity)
@@ -334,11 +347,40 @@ DrawClockMarks(items, R1, R2, G, pPen) {
    CenterX := CenterY := ClockCenter
    Loop, %items%
    {
-      Gdip_DrawLine(G, pPen
-         , CenterX - Round(R1 * Cos(((a_index-1)*360/Items) * Atan(1) * 4 / 180), 2)
-         , CenterY - Round(R1 * Sin(((a_index-1)*360/Items) * Atan(1) * 4 / 180), 2)
-         , CenterX - Round(R2 * Cos(((a_index-1)*360/Items) * Atan(1) * 4 / 180), 2)
-         , CenterY - Round(R2 * Sin(((a_index-1)*360/Items) * Atan(1) * 4 / 180), 2))
+      x1 := CenterX - Round(R1 * Cos(((a_index-1)*360/Items) * Atan(1) * 4 / 180), 2)
+      y1 := CenterY - Round(R1 * Sin(((a_index-1)*360/Items) * Atan(1) * 4 / 180), 2)
+      x2 := CenterX - Round(R2 * Cos(((a_index-1)*360/Items) * Atan(1) * 4 / 180), 2)
+      y2 := CenterY - Round(R2 * Sin(((a_index-1)*360/Items) * Atan(1) * 4 / 180), 2)
+
+      Gdip_DrawLine(G, pPen, x1, y1, x2, y2)
+   }
+}
+
+DrawHoursLabels(R1, R2, G) {
+   static zr := {1:"I", 2:"II", 3:"III", 4:"IV", 5:"V", 6:"VI", 7:"VII", 8:"VIII", 9:"IX", 10:"X", 11:"XII", 12:"XIII"}
+        , zo := {1:9,2:10,3:11,4:12,5:1,6:2,7:3,8:4,9:5,10:6,11:7,12:8}
+
+   CenterX := CenterY := ClockCenter
+   Loop, 12
+   {
+      x1 := CenterX - Round(R1 * Cos(((a_index-1)*360/12) * Atan(1) * 4 / 180), 2)
+      y1 := CenterY - Round(R1 * Sin(((a_index-1)*360/12) * Atan(1) * 4 / 180), 2)
+      x2 := CenterX - Round(R2 * Cos(((a_index-1)*360/12) * Atan(1) * 4 / 180), 2)
+      y2 := CenterY - Round(R2 * Sin(((a_index-1)*360/12) * Atan(1) * 4 / 180), 2)
+
+      ; ToolTip, % textus "|" A_Index , , , 2
+      zf := zr[ zo[A_Index] ]
+      If (zo[A_Index]=5 || zo[A_Index]=9 || zo[A_Index]=3 || zo[A_Index]=11 || zo[A_Index]=12)
+         y1 -= R2/20
+      If (zo[A_Index]=5)
+         y1 -= R2/20
+      If (zo[A_Index]=8)
+         x1 -= R2/12
+      If (zo[A_Index]=1)
+         x1 -= R2/18
+
+      txtOptions := "x" x1 " y" y1 " Center vCenter cEE" OSDbgrColor " Bold nowrap s" Round(R2*0.22)
+      Gdip_TextToGraphics(G, zf, txtOptions, "Arial", 3*(x2 - x1), 3*(y2 - y1))
    }
 }
 
@@ -429,10 +471,13 @@ showContextMenuAnalogClock() {
     If (roundedClock=1)
        Menu, ContextMenu, Check, Rounded &widget
     Menu, ContextMenu, Add, Show &moon phases, toggleMoonPhasesAnalog
+    Menu, ContextMenu, Add, Show &hour labels, toggleHourLabelsAnalog
     Try Menu, ContextMenu, Add, % pk[1], dummy
     Try Menu, ContextMenu, Disable, % pk[1]
     If (analogMoonPhases=1)
        Menu, ContextMenu, Check, Show &moon phases
+    If (showAnalogHourLabels=1)
+       Menu, ContextMenu, Check, Show &hour labels
 
     Menu, ContextMenu, Add
     If (PrefOpen=0)
