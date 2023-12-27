@@ -5,8 +5,12 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.4.3 - 2023 / 12 / 27
+  - cosmetic improvements and added keyboard shortcuts to the «About Today» panel
+
 v3.4.2 - 2023 / 12 / 25
   - added option to show hour numbers for the analog clock widget
+  - added azimuth indicator in the "about today" panel, for the sun or moon graph
   - user interface improvements and fixes
 
 v3.4.1 - 2023 / 10 / 15

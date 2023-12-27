@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2023)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.4.2
+;@Ahk2Exe-SetVersion 3.4.3
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -165,8 +165,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.4.2"
-, ReleaseDate            := "2023 / 12 / 25"
+, Version                := "3.4.3"
+, ReleaseDate            := "2023 / 12 / 27"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -5491,7 +5491,7 @@ PanelAboutWindow() {
     compiled := (A_IsCompiled=1) ? "Compiled. " : "Uncompiled. "
     compiled .= (A_PtrSize=8) ? "x64. " : "x32. "
     Gui, Add, Text, xs y+15 w%txtWid%, Current version: v%version% from %ReleaseDate%. Internal AHK version: %A_AhkVersion%. %compiled%OS: %A_OSVersion%.
-    Gui, Add, Text, y+15 +Border gOpenChangeLog, Click here to view the change log / version history.
+    Gui, Add, Text, xs y+15 +Border gOpenChangeLog, >> View change log / version history.
     If (storeSettingsREG=1)
        Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
     Else      
@@ -7513,6 +7513,10 @@ SolarCalculator(t, latu, longu, gmtOffset:=0, altitudeBonus:=0) {
 }
 
 UItodayPanelResetDate(modus:="") {
+  Static lastInvoked := 1
+  If (A_TickCount - lastInvoked<250)
+     Return
+  lastInvoked := A_TickCount
   uiUserFullDateUTC := A_NowUTC
   allowAutoUpdateTodayPanel := 1
   If (AnyWindowOpen=8)
@@ -8303,6 +8307,11 @@ generateGraphYearMoonData(graphArrayMoon, graphArrayElev, dayz, graphArrayTimes,
 }
 
 ToggleAstroInfosModa() {
+   Static lastInvoked := 1
+   If (A_TickCount - lastInvoked<250)
+      Return
+
+   lastInvoked := A_TickCount
    userAstroInfodMode := !userAstroInfodMode
    todaySunMoonGraphMode := !userAstroInfodMode
    INIaction(1, "userAstroInfodMode", "SavedSettings")
@@ -8399,18 +8408,27 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
          getMoonElevation(timeus, lat, lon, 0, azii, elevu)
       Else
          getSunAzimuthElevation(timeus, lat, lon, 0, azii, elevu)
-
+      cardinal := defineAzimuthCardinal(azii)
       Gdip_DeletePath(pPath)
       pPath := Gdip_CreatePath()
-      GdipCreateSimpleShapes(25, 10, 10, 30, 4, 0, pPath)
+      GdipCreateSimpleShapes(24, 9, 7.5, 32, 4, 0, pPath)
+      Gdip_RotatePathAtCenter(pPath, 180)
       Gdip_RotatePathAtCenter(pPath, azii)
       Gdip_FillEllipse(G, twilightBrush, 15, 10, 30, 30)
       Gdip_FillEllipse(G, darkBrush, 17, 12, 26, 26)
-      Gdip_FillEllipse(G, lightBrush, 27, 7, 6, 6)
-      Gdip_FillEllipse(G, lightBrush, 27, 36, 6, 6)
-      Gdip_FillEllipse(G, lightBrush, 12, 22, 6, 6)
-      Gdip_FillEllipse(G, lightBrush, 42, 22, 6, 6)
-      Gdip_FillPath(G, twilightBrush, pPath)
+      thisBrush := instr(cardinal, "north") ? lightBrush : darkBrush 
+      Gdip_FillEllipse(G, thisBrush, 27, 7, 6, 6)
+      thisBrush := instr(cardinal, "south") ? lightBrush : darkBrush 
+      Gdip_FillEllipse(G, thisBrush, 27, 36, 6, 6)
+      thisBrush := instr(cardinal, "west") ? lightBrush : darkBrush 
+      Gdip_FillEllipse(G, thisBrush, 12, 22, 6, 6)
+      thisBrush := instr(cardinal, "east") ? lightBrush : darkBrush 
+      Gdip_FillEllipse(G, thisBrush, 42, 22, 6, 6)
+      Loop, 4
+          Gdip_FillPath(G, twilightBrush, pPath)
+
+      Gdip_FillEllipse(G, darkBrush, 19, 14, 22, 22)
+      Gdip_FillEllipse(G, twilightBrush, 27, 22, 6, 6)
 
       Gdip_DeleteBrush(sunBrush)
       Gdip_DeleteBrush(lightBrush)
@@ -9230,27 +9248,10 @@ toggleTodayGraphMODE(modus:=0) {
      ; fmin := cobj.elev
      ; ToolTip, % cobj.n , , , 2
   }
- 
   getCtrlCoords(hSolarGraphPic, x1, y1, x2, y2)
   f := (todaySunMoonGraphMode=1) ? "MOON" : "SUN"
   ; ToolTip, % x "\" y , , , 2
-  If (isInRange(azii, 350, 360) || isInRange(azii, 0, 10))
-     cardinal := "North"
-  Else If isInRange(azii, 30, 60)
-     cardinal := "NE"
-  Else If isInRange(azii, 75, 105)
-     cardinal := "East"
-  Else If isInRange(azii, 120, 150)
-     cardinal := "SE"
-  Else If isInRange(azii, 165, 195)
-     cardinal := "South"
-  Else If isInRange(azii, 210, 240)
-     cardinal := "SW"
-  Else If isInRange(azii, 255, 285)
-     cardinal := "West"
-  Else If isInRange(azii, 300, 330)
-     cardinal := "NW"
-
+  cardinal := defineAzimuthCardinal(azii)
   If cardinal
      cardinal := " (" cardinal ")"
 
@@ -9264,6 +9265,28 @@ toggleTodayGraphMODE(modus:=0) {
   mouseCreateOSDinfoLine(msgu, 0, x1, y2)
   ; SetTimer, removeTooltip, -2000
   UIcityChooser()
+}
+
+defineAzimuthCardinal(azii) {
+  Static rm := 22.5
+
+  If (isInRange(azii, 360 - rm, 360.1) || isInRange(azii, 0, rm)) ; 0
+     cardinal := "North"
+  Else If isInRange(azii, 45 - rm, 45 + rm)  ; 45
+     cardinal := "NE"
+  Else If isInRange(azii, 90 - rm, 90 + rm) ; 90
+     cardinal := "East"
+  Else If isInRange(azii, 135 - rm, 135 + rm) ; 135
+     cardinal := "SE"
+  Else If isInRange(azii, 180 - rm, 180 + rm) ; 180
+     cardinal := "South"
+  Else If isInRange(azii, 225 - rm, 225 + rm) ; 225
+     cardinal := "SW"
+  Else If isInRange(azii, 270 - rm, 270 + rm) ; 270
+     cardinal := "West"
+  Else If isInRange(azii, 315 - rm, 315 + rm) ; 315
+     cardinal := "NW"
+  Return cardinal
 }
 
 JEE_ClientToScreen(hWnd, vPosX, vPosY, ByRef vPosX2, ByRef vPosY2) {
@@ -9306,7 +9329,7 @@ WM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
   ; ToolTip, % hwnd , , , 2
 }
 
-NextTodayBTN(diru:=0, luping:=0) {
+NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0) {
    Static tz := 0, lastInvoked := 1, lastLooped := 1
    If ((A_TickCount - lastLooped<250) && luping!=1)
       Return
@@ -9337,8 +9360,24 @@ NextTodayBTN(diru:=0, luping:=0) {
    If (luping=1 && f>2)
       f := 2
 
+   If (kbdMode=1)
+   {
+      If (A_TickCount - lastInvoked < 70)
+         Return
+
+      f := stepu
+      If (modus="hours")
+         uiUserFullDateUTC += f, Hours
+      Else If (modus="minutes")
+         uiUserFullDateUTC += f, Minutes
+      Else If (modus="Days")
+         uiUserFullDateUTC += f, Days
+   } Else
+   {
+      uiUserFullDateUTC += f, Hours
+
+   }
    lastInvoked := A_TickCount
-   uiUserFullDateUTC += f, Hours
    allowAutoUpdateTodayPanel := 0
    If (AnyWindowOpen=8)
    {
@@ -9715,10 +9754,10 @@ PanelTodayInfos() {
     Gui, Add, Text, xs y+10 , Time and date to observe
     Gui, Add, DateTime, xs yp Choose%uiUserFullDateUTC% Right gUItodayDateCtrl vuiUserFullDateUTC +hwndhDatTime, dddd, d MMMM, yyyy; HH:mm (UTC)
     widu := (PrefsLargeFonts=1) ? 40 : 32
-    hBtnTodayPrev := GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vUIbtnTodayPrev", "<<", "Previous hour")
+    hBtnTodayPrev := GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vUIbtnTodayPrev", "<<", "Previous hour (,)")
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate +hwndhTemp, &Now
-    ToolTip2ctrl(hTemp, "Reset to current time and date")
-    hBtnTodayNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vUIbtnTodayNext", ">>", "Next hour")
+    ToolTip2ctrl(hTemp, "Reset to current time and date (\)")
+    hBtnTodayNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vUIbtnTodayNext", ">>", "Next hour (.)")
     sml := (PrefsLargeFonts=1) ? 500 : 370
     Gui, Add, Text, xs y+5 w%sml% Section hp +0x200 vuiInfoGeoData -wrap, Geo data.
     sml := (PrefsLargeFonts=1) ? 100 : 60
@@ -9727,7 +9766,8 @@ PanelTodayInfos() {
     Gui, Add, Text, x+5 wp -wrap vUIastroInfoLtimeus, --:--
     lza := (PrefsLargeFonts=1) ? 10 :5
     Gui, Add, Text, x+1 hp wp-%lza% -wrap, 
-    Gui, Add, Button, x+1 hp+10 gToggleAstroInfosModa vBtnAstroModa, Moona
+    Gui, Add, Button, x+1 hp+10 gToggleAstroInfosModa vBtnAstroModa +hwndhTemp, Moona
+    ToolTip2ctrl(hTemp, "Toggle between Sun and Moon details (/)")
 
     Gui, Add, Text, xs y+7 hp-10 w%sml% -wrap, 
     Gui, Add, Text, x+5 wp hp -wrap vUIastroInfoLtimeGMT, GMT
@@ -9786,11 +9826,11 @@ PanelTodayInfos() {
     Gui, Add, Text, xp yp w%graphW% h%graphH% +0x8 +0xE gtoggleTodayGraphMODE +hwndhSolarGraphPic, Solar illustration area
     graphW := (PrefsLargeFonts=1) ? 260 : 150
     Gui, Add, Text, x+8 yp Section vUIastroInfoProgressAnnum, % CurrentYear " {" CalcTextHorizPrev(A_YDay, 366) "} " NextYear
-    Gui, Add, Text, xp+15 y+5 wp vUIastroInfoAnnum gUItodayInfosYear +hwndhCL14, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
+    Gui, Add, Text, y+5 wp Center vUIastroInfoAnnum gUItodayInfosYear +hwndhCL14, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
     ; Gui, Add, Text, xp+15 y+10 wp vUIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
     ; Gui, Add, Text, y+10 wp vUIastroInfoMoon, %moonPhaseC%`% of the cycle, %moonPhaseL%`% illuminated.`n-
-    Gui, Add, Text, xs y+10 wp vUIastroInfoProgressDayu, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 22) "} 24h "
-    Gui, Add, Text, xp+15 y+5 wp vUIastroInfoDayu, %minsPassed% minutes (%percentileDay%) of today have elapsed.
+    Gui, Add, Text, y+10 wp Center vUIastroInfoProgressDayu, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 22) "} 24h "
+    Gui, Add, Text, y+5 wp Center vUIastroInfoDayu, %minsPassed% minutes (%percentileDay%) of today have elapsed.
     If (A_OSVersion="WIN_XP")
        doResetGuiFont()
 
@@ -11943,6 +11983,64 @@ Trimmer(string, whatTrim:="") {
 #If, (WinActive( "ahk_id " hSetWinGui) && isInRange(AnyWindowOpen, 1, 6))
     AppsKey::
       coreSettingsContextMenu()
+    Return 
+#If 
+
+#If, (WinActive( "ahk_id " hSetWinGui) && AnyWindowOpen=6)
+    vkDC::
+      UItodayPanelResetDate()
+    Return 
+
+    vkBF::
+      ToggleAstroInfosModa()
+    Return 
+
+    vkBC::
+      NextTodayBTN(-1, 0, 1, 1, "hours")
+    Return 
+
+    vkBE::
+      NextTodayBTN(1, 0, 1, 1, "hours")
+    Return 
+
+    +vkBC::
+      NextTodayBTN(-1, 0, 1, 2, "hours")
+    Return 
+
+    +vkBE::
+      NextTodayBTN(1, 0, 1, 2, "hours")
+    Return 
+
+    vkDB::
+      NextTodayBTN(-1, 0, 1, 1, "days")
+    Return 
+
+    vkDD::
+      NextTodayBTN(1, 0, 1, 1, "days")
+    Return 
+
+    +vkDB::
+      NextTodayBTN(-1, 0, 1, 2, "days")
+    Return 
+
+    +vkDD::
+      NextTodayBTN(1, 0, 1, 2, "days")
+    Return 
+
+    vkBB::
+      NextTodayBTN(-1, 0, 1, 5, "minutes")
+    Return 
+
+    vkBD::
+      NextTodayBTN(1, 0, 1, 5, "minutes")
+    Return 
+
+    +vkBB::
+      NextTodayBTN(-1, 0, 1, 10, "minutes")
+    Return 
+
+    +vkBD::
+      NextTodayBTN(1, 0, 1, 10, "minutes")
     Return 
 #If 
 
