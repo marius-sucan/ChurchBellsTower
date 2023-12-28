@@ -9365,7 +9365,7 @@ NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0) {
       If (A_TickCount - lastInvoked < 70)
          Return
 
-      f := stepu
+      f := (diru=-1) ? -1* stepu : stepu
       If (modus="hours")
          uiUserFullDateUTC += f, Hours
       Else If (modus="minutes")
@@ -9762,16 +9762,16 @@ PanelTodayInfos() {
     Gui, Add, Text, xs y+5 w%sml% Section hp +0x200 vuiInfoGeoData -wrap, Geo data.
     sml := (PrefsLargeFonts=1) ? 100 : 60
     zml := (PrefsLargeFonts=1) ? 240 : 150
-    Gui, Add, Text, xs y+10 w%sml% Section hp -wrap, Local time:
+    Gui, Add, Text, xs y+10 w%sml% Section  -wrap, Local time:
     Gui, Add, Text, x+5 wp -wrap vUIastroInfoLtimeus, --:--
     lza := (PrefsLargeFonts=1) ? 10 :5
-    Gui, Add, Text, x+1 hp wp-%lza% -wrap, 
-    Gui, Add, Button, x+1 hp+10 gToggleAstroInfosModa vBtnAstroModa +hwndhTemp, Moona
+    Gui, Add, Text, x+1 hp wp-%lza% -wrap,
+    Gui, Add, Button, x+1 hp+7 gToggleAstroInfosModa vBtnAstroModa +hwndhTemp, Moona
     ToolTip2ctrl(hTemp, "Toggle between Sun and Moon details (/)")
 
-    Gui, Add, Text, xs y+7 hp-10 w%sml% -wrap, 
+    Gui, Add, Text, xs y+0 w%sml% -wrap,
     Gui, Add, Text, x+5 wp hp -wrap vUIastroInfoLtimeGMT, GMT
-    Gui, Add, Text, x+5 hp wp -wrap, 
+    Gui, Add, Text, x+5 hp wp -wrap,
 
     Gui, Add, Text, xs y+7 w%sml% -wrap gUIpanelTodayLightDiffSolstices vuiastroinfoLightMode +hwndhCL2, Sunlight:
     Gui, Add, Text, x+5 wp hp ghelpPanelTodayTotalLight vUIastroInfoLabelTotalLight +hwndhCL12, Total light:
@@ -9820,7 +9820,7 @@ PanelTodayInfos() {
     }
 
     graphW := (PrefsLargeFonts=1) ? 220 : 135
-    graphH := (PrefsLargeFonts=1) ? 110 : 70
+    graphH := (PrefsLargeFonts=1) ? 110 : 75
     Gui, Add, Text, xm+15 y+20 Section w1 h2 -wrap, .
     Gui, Add, Text, xs y+15 w1 h1, Sun and moon position on the sky illustration.
     Gui, Add, Text, xp yp w%graphW% h%graphH% +0x8 +0xE gtoggleTodayGraphMODE +hwndhSolarGraphPic, Solar illustration area
