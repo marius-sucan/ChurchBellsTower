@@ -20,10 +20,10 @@
 ; =========================================================================
 ;
 ;@Ahk2Exe-SetName Church Bells Tower
-;@Ahk2Exe-SetCopyright Marius Şucan (2017-2023)
+;@Ahk2Exe-SetCopyright Marius Şucan (2017-2024)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.4.4
+;@Ahk2Exe-SetVersion 3.4.5
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -165,8 +165,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.4.4"
-, ReleaseDate            := "2023 / 12 / 28"
+, Version                := "3.4.5"
+, ReleaseDate            := "2024 / 01 / 01"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -239,8 +239,8 @@ Global CSthin      := "░"   ; light gray
 , SNDmedia_ticktok, quartersTotalTime := 0, hoursTotalTime := 0
 , SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas, todaySunMoonGraphMode := 0
 , SNDmedia_evening, SNDmedia_midnight, SNDmedia_morning, SNDmedia_beep
-, SNDmedia_noon1, SNDmedia_noon2, SNDmedia_noon3, SNDmedia_noon4
-, SNDmedia_orthodox_chimes1, SNDmedia_orthodox_chimes2, SNDmedia_Howl
+, SNDmedia_noon1, SNDmedia_noon2, SNDmedia_noon3, SNDmedia_noon4, SNDmedia_surah
+, SNDmedia_orthodox_chimes1, SNDmedia_orthodox_chimes2, SNDmedia_howl, SNDmedia_armistice
 , SNDmedia_semantron1, SNDmedia_semantron2, SNDmedia_hours12, SNDmedia_hours11
 , SNDmedia_quarters1, SNDmedia_quarters2, SNDmedia_quarters3, SNDmedia_quarters4
 , SNDmedia_hours1, SNDmedia_hours2, SNDmedia_hours3, SNDmedia_hours4, SNDmedia_hours5
@@ -332,6 +332,8 @@ InitSoundChannels() {
   SNDfile_semantron1 := A_ScriptDir "\sounds\semantron1.mp3"
   SNDfile_semantron2 := A_ScriptDir "\sounds\semantron2.mp3"
   SNDfile_ticktok := A_ScriptDir "\sounds\ticktock.wav"
+  SNDfile_surah := A_ScriptDir "\sounds\al-fatiha-surah.mp3"
+  SNDfile_armistice := A_ScriptDir "\sounds\armistice.mp3"
   SNDfile_beep := A_ScriptDir "\sounds\beep.wav"
 
   Loop, 12
@@ -341,6 +343,8 @@ InitSoundChannels() {
 
   SNDmedia_auxil_bell := MCI_Open(SNDfile_auxil_bell)
   SNDmedia_christmas := MCI_Open(SNDfile_christmas)
+  SNDmedia_surah := MCI_Open(SNDfile_surah)
+  SNDmedia_armistice := MCI_Open(SNDfile_armistice)
   SNDmedia_beep := MCI_Open(SNDfile_beep)
   SNDmedia_evening := MCI_Open(SNDfile_evening)
   SNDmedia_japan_bell := MCI_Open(SNDfile_japan_bell)
@@ -352,7 +356,7 @@ InitSoundChannels() {
   SNDmedia_noon4 := MCI_Open(SNDfile_noon4)
   SNDmedia_orthodox_chimes1 := MCI_Open(SNDfile_chimes1)
   SNDmedia_orthodox_chimes2 := MCI_Open(SNDfile_chimes2)
-  SNDmedia_Howl := MCI_Open(SNDfile_howl)
+  SNDmedia_howl := MCI_Open(SNDfile_howl)
   SNDmedia_semantron1 := MCI_Open(SNDfile_semantron1)
   SNDmedia_semantron2 := MCI_Open(SNDfile_semantron2)
   SNDmedia_ticktok := MCI_Open(SNDfile_ticktok)
@@ -381,7 +385,7 @@ TimerShowOSDidle() {
               hasHowledDay := A_YDay
               INIaction(1, "hasHowledDay", "SavedSettings")
               volumeAction := SetMyVolume()
-              MCXI_Play(SNDmedia_Howl)
+              MCXI_Play(SNDmedia_howl)
            }
         }
 
@@ -1114,7 +1118,7 @@ theChimer() {
         hasHowledDay := A_YDay
         INIaction(1, "hasHowledDay", "SavedSettings")
         volumeAction := SetMyVolume()
-        MCXI_Play(SNDmedia_Howl)
+        MCXI_Play(SNDmedia_howl)
      }
   }
 
@@ -2011,7 +2015,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         getSunAzimuthElevation(uiUserFullDateUTC, zy, zx, 0, azii, elevu)
 
      astralObj := (showEarthSunMapModus=1) ? "Sun" : "Moon"
-     t := "Lat/long: " zy " / " zx ". GMT estimated offset: " gmtu " h. " astralObj " elev.: " Round(elevu) "°."
+     t := "Lat / long: " zy " / " zx ". GMT estimated offset: " gmtu " h. " astralObj " elev.: " Round(elevu) "°."
      GuiControl, SettingsGUIA:, GraphInfoLine, % t
      lastInvoked := A_TickCount
      ; tooltip, % nx "=" ny "=" w "=" h "=" zp
@@ -3697,7 +3701,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      lifeGivingSpring(aisHolidayToday, thisYDay)
      holyTrinityOrthdox(aisHolidayToday, thisYDay)
      If (testFeast="01.01" && UserReligion=1)
-        q := "The commemoration of the Blessed Virgin Mary as Mother of God (Θεοτόκος) as proclaimed in the Council of Ephesus (431 A.D.). Also the octave of Christmas traditionally commemorating the circumcision of the Lord Jesus Christ"
+        q := "The commemoration of the Blessed Virgin Mary as Mother of God (Θεοτόκος) as proclaimed in the Council of Ephesus (431 A.D.). It is also the octave of Christmas traditionally commemorating the circumcision of the Lord Jesus Christ"
      Else If (testFeast="01.06")
         q := (UserReligion=1) ? "Epiphany - the revelation of God incarnate as Jesus Christ" : "Theophany - the baptism of Jesus in the Jordan River"
      Else If (testFeast="01.07" && UserReligion=2)
@@ -3826,8 +3830,12 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         CreateBibleGUI(generateDateTimeTxt() " || " aisHolidayToday, 1, 1)
         Gui, ShareBtnGui: Destroy
         quoteDisplayTime := StrLen(aisHolidayToday) * 140
-        If InStr(aisHolidayToday, "Christmas")
+        If (InStr(aisHolidayToday, "Christmas") && !InStr(aisHolidayToday, "octave"))
            MCXI_Play(SNDmedia_christmas)
+        Else If (InStr(aisHolidayToday, "arabic") && ObserveReligiousDays=1 && ObserveSecularDays=1)
+           MCXI_Play(SNDmedia_surah)
+        Else If (InStr(aisHolidayToday, "armistice") && ObserveSecularDays=1)
+           MCXI_Play(SNDmedia_armistice)
         Else
            strikeJapanBell()
         Sleep, 100
@@ -6837,12 +6845,13 @@ wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0) {
    ; the time for rise can be yesterday, if not available for today;
    ; the time for set can be tomorrow, if not available for today;
    ; after these «adjustments», calculate day length;
-   ; if no rise or set, assume it is a polar day if the given date is between the march equinox and september equinox
+   ; if no rise or set, assume it is a polar day if the given date is
+   ; between the march equinox and september equinox
    ; otherwise, assume it is a polar night;
 
    ; coreWrapSunInfos() and coreCalculateLightDuration() are called twice
-   ; the first time is for yesterday and the 2nd time is for today, but with additional details
-   ; derived from the previous call.
+   ; the first time is for yesterday and the 2nd time is for today, but with
+   ; additional details derived from the previous call.
 
 ; Tested on:
 
@@ -6944,12 +6953,16 @@ wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0) {
 
       ; recalculate sunlight duration
       duration := coreCalculateLightDuration(fkob.sunbonux, fkob.r, fkob.s, fkob.RawR, fkob.RawS, yref, ref, tref, trz, "Sun", latu)
-      fnOutputDebug("deep fuck up")
+      ; fnOutputDebug("deep fuck up")
       ; SoundBeep 300, 100
    }
 
    ; fkob.v := (trz>fkob.RawR && trz<fkob.RawS) ? "Yes" : "No"
+   If (bfkob.civilestra>85000 && bfkob.civilestra>duration[2])
+      bfkob.civilestra := 0
+
    civilSecondsExtra := Round(fkob.civilextra) + Round(bfkob.civilestra)
+   ; fnOutputDebug("sunDur=" duration[2])
    ; fnOutputDebug("civilSecondsExtra=" fkob.civilextra "; " bfkob.civilestra)
    civilrest := (fkob.dawn=2 && fkob.dusk=2) ? 1 : 0
    civilduration := coreCalculateLightDuration(fkob.civilbonux, fkob.twR, fkob.twS, fkob.RawDa, fkob.RawDu, yref, ref, tref, trz, "Civil", latu, duration[2], civilSecondsExtra, civilrest)
@@ -6991,7 +7004,7 @@ coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, 
          {
             ; if the sunset occured before the sunrise, we must substract
             ; the time span from that of an entire day: 86400 seconds
-            fnOutputDebug("substract: 86400 - " p)
+            ; fnOutputDebug("substract: 86400 - " p)
             p := 86400 - p
          }
       } Else If (!dcR && InStr(dSraw, ref)=1)
@@ -7066,6 +7079,20 @@ coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, 
 }
 
 transformSecondsReadable(p, friendly:=0) {
+  If (abs(p)<60)
+     Return p "s"
+
+  If (friendly=2)
+  {
+     coreSecToHHMMSS(p, Hrs, Min, Sec)
+     If (hrs>0)
+        Return format("{1:02}", Trim(hrs)) ":" format("{1:02}", Trim(min))
+     Else If (Trim(min)>0)
+        Return Trim(min) "m " round(sec) "s"
+     Else
+        Return (round(sec)=0) ? "" : round(sec) "s"
+  }
+
   p := p/60  ; from seconds to minutes
   d := (Floor(p/1441)>=1) ? Floor(p/1440) "d " : ""
   ; t := (Floor(p/60)>24) ? p - (60*24) : p
@@ -7714,18 +7741,18 @@ uiPopulateTableYearSolarData() {
          deepNights++
 
       allYearLight += licht
-      diffuT := licht - prevlicht
+      diffuT := clampInRange(licht - prevlicht, -86400, 86400)
       totalu := transformSecondsReadable(licht)
       diffuT := transformSecondsReadable(abs(diffuT), 1)
       If (diffuT!="00:00" && diffuT!="0s")
          diffuT := (prevlicht>licht) ? "-" diffuT : "+" diffuT
 
-      diffuSL := obj.durRaw - prevsundur
+      diffuSL := clampInRange(obj.durRaw - prevsundur, -86400, 86400)
       diffuSL := transformSecondsReadable(abs(diffuSL), 1)
       If (diffuSL!="00:00" && diffuSL!="0s")
          diffuSL := (prevsundur>obj.durRaw) ? "-" diffuSL : "+" diffuSL
 
-      diffuCL := obj.cdurRaw - prevcivildur
+      diffuCL := clampInRange(obj.cdurRaw - prevcivildur, -86400, 86400)
       diffuCL := transformSecondsReadable(abs(diffuCL), 1)
       If (diffuCL!="00:00" && diffuCL!="0s")
          diffuCL := (prevcivildur>obj.cdurRaw) ? "-" diffuCL : "+" diffuCL
@@ -8855,7 +8882,7 @@ UIcityChooser() {
 
   eleva := elevu ? Round(elevu, 1) "°" : "--"
   thisu := (w[7]=1) ? "Capital. " : ""
-  thisu .= "Lat/long: " Round(w[2], 3) " / " Round(w[3], 3) ". Elevation: " w[6] " meters."
+  thisu .= "Lat / long: " Round(w[2], 3) " / " Round(w[3], 3) ". Elevation: " w[6] " meters."
   GuiControl, SettingsGUIA:, uiInfoGeoData, % thisu
 
   j := (gmtOffset>=0) ? "+" : ""
@@ -8882,10 +8909,11 @@ UIcityChooser() {
          Else
             diffuZeit := prevobj.durRaw - obj.durRaw
 
-         diffuTotalZeit := prevTduru - thisTduru
+         diffuZeit := clampInRange(diffuZeit, -86400, 86400)
+         diffuTotalZeit := clampInRange(prevTduru - thisTduru, -86400, 86400)
          ; ToolTip, % diffuZeit "==" diffuTotalZeit , , , 2
-         diffuZeit := transformSecondsReadable(abs(diffuZeit), 1)
-         diffuTotalZeit := transformSecondsReadable(abs(diffuTotalZeit), 1)
+         diffuZeit := transformSecondsReadable(abs(diffuZeit), 2)
+         diffuTotalZeit := transformSecondsReadable(abs(diffuTotalZeit), 2)
          If (diffuTotalZeit!="00:00" && diffuTotalZeit!="0s" && diffuTotalZeit)
             diffuTotalZeit := (prevTduru>thisTduru) ? "-" diffuTotalZeit : "+" diffuTotalZeit
          Else
@@ -8902,6 +8930,7 @@ UIcityChooser() {
                diffuZeit := (prevobj.durRaw>obj.durRaw) ? "-" diffuZeit : "+" diffuZeit
          }
       }
+
       pnu := (obj.elev!="") ? Round(obj.elev, 2) : "n"
       GuiControl, SettingsGUIA:, UIastroInfoObjInfo, % decideJijiReadable(timeus, elevu, w[2], w[3], pnu) "."
       GuiControl, SettingsGUIA:, UIastroInfoRise, % SubStr(obj.r, 6) ? SubStr(obj.r, 6) : "--:--"
@@ -8911,7 +8940,7 @@ UIcityChooser() {
       GuiControl, SettingsGUIA:, UIastroInfoDawn, % SubStr(obj.twR, 6) ? SubStr(obj.twR, 6) : "--:--"
       GuiControl, SettingsGUIA:, UIastroInfoDusk, % SubStr(obj.twS, 6) ? SubStr(obj.twS, 6) : "--:--"
       GuiControl, SettingsGUIA:, UIastroInfoDaylight, % obj.dur ? obj.dur : "--:--"
-      GuiControl, SettingsGUIA:, UIastroInfoLightDiff, % diffuZeit ? diffuZeit : "--:--"
+      GuiControl, SettingsGUIA:, UIastroInfoLightDiff, % (diffuZeit && diffuZeit!="0s") ? diffuZeit : "--"
       GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Rise: 0°
       GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Set: 0°
       baseClr := (uiDarkMode=1) ? "+c" darkControlColor : "-c"
@@ -8947,9 +8976,10 @@ UIcityChooser() {
          Return
       }
 
-      totalu := transformSecondsReadable(obj.durRaw + obj.cdurRaw)
+      totalu := clampInRange(obj.durRaw + obj.cdurRaw, -86400, 86400)
+      totalu := transformSecondsReadable(totalu)
       GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % totalu
-      GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, % diffuTotalZeit
+      GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, % diffuTotalZeit ? diffuTotalZeit : "--"
       GuiControl, SettingsGUIA:, UIastroInfoLabelTotalLight, Total light:
   } Else
   {
@@ -8962,7 +8992,6 @@ UIcityChooser() {
       prevtimi += -1, Days
       prevminant := getMoonNoonZeit(SubStr(prevtimi, 1, 8) "000105", w[2], w[3], prevgmtOffset, 1)
       prevdur := coreCalculateLightDuration(prevminant, prevobj.r, prevobj.s, prevobj.RawR, prevobj.RawS, prevobj.yref, prevobj.ref, prevobj.tref, prevobj.trz, "Moon")
-
       coolminant := getMoonNoonZeit(SubStr(timi, 1, 8) "000105", w[2], w[3], gmtOffset, 1)
 
       mobj := wrapCalcMoonRiseSet(timeus, w[2], w[3], gmtOffset, w[6])
@@ -9018,10 +9047,10 @@ UIcityChooser() {
       GuiControl, SettingsGUIA:, UIastroInfoDaylight, % mduru
       GuiControl, SettingsGUIA:, uiastroinfoLightMode, Moonlight:
 
-      diffuZeit := prevdur[2] - duration[2]
-      diffuZeit := transformSecondsReadable(abs(diffuZeit), 1)
+      diffuZeit := clampInRange(prevdur[2] - duration[2], -86400, 86400)
+      diffuZeit := transformSecondsReadable(abs(diffuZeit), 2)
       diffuZeit := (prevdur[2]<duration[2]) ? "+" diffuZeit : "-" diffuZeit
-      GuiControl, SettingsGUIA:, UIastroInfoLightDiff, % diffuZeit ? diffuZeit : "--:--"
+      GuiControl, SettingsGUIA:, UIastroInfoLightDiff, % diffuZeit ? diffuZeit : "--"
 
       prevu := startDate := SubStr(uiUserFullDateUTC, 1, 8) "000325"
       ju := SubStr(moonPhaseN, 1, InStr(moonPhaseN, A_Space))
@@ -9050,7 +9079,7 @@ UIcityChooser() {
           }
       }
       ; ToolTip, % loopsOccured , , , 2
-      pu := OutputVar ? OutputVar : "-"
+      pu := OutputVar ? OutputVar : "--"
       GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % pu
       pu := OutputVar ? xu : "-"
       GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, % pu
@@ -9255,9 +9284,9 @@ toggleTodayGraphMODE(modus:=0) {
   If cardinal
      cardinal := " (" cardinal ")"
 
-  msgu := "Current " f " position on the sky:`nAltitude: " Round(elevu, 1) "°. Azimuth: " Round(azii, 1) "°" cardinal "."
+  msgu := "Current " f " position on the sky:`nAzimuth: " Round(azii, 1) "°" cardinal "`nAltitude: " Round(elevu, 1) "°"
   If (A_PtrSize=8)
-     msgu .= "`nAltitude graph max / min:`n" fmax "° / " fmin "°."
+     msgu .= "`n`nAltitude graph max / min:`n" fmax "° / " fmin "°"
 
   If (modus="quickie")
      Return msgu
@@ -9576,11 +9605,55 @@ coreJumpSolarEventsToday() {
 }
 
 UItodayInfosYear() {
+  Static islamicMonths := {1:"Muharram", 2:"Safar", 3:"Rabi`al-Awwal", 4:"Rabi`ath-Thani", 5:"Jumada l-Ula", 6:"Jumada t-Tania", 7:"Rajab", 8:"Sha`ban", 9:"Ramadan", 10:"Shawwal", 11:"Dhu l-Qa`da", 12:"Dhu l-Hijja"}
+  Static persianMonths := {1:"Farvardin", 2:"Ordibehesht", 3:"Khordad", 4:"Tir", 5:"Mordad", 6:"Shahrivar", 7:"Mehr", 8:"Aban", 9:"Azar", 10:"Dey", 11:"Bahman", 12:"Esfand"}
+  Static HebrewMonths := {1:"Nissan", 10:"Tevet", 11:"Shevat", 12:"Adar", 13:"Veadar", 2:"Iyar", 3:"Sivan", 4:"Tammuz", 5:"Av", 6:"Elul", 7:"Tishrei", 8:"Cheshvan", 9:"Kislev"}
+
+  p := geoData[uiUserCountry "|" uiUserCity]
+  w := extractGeoLocationInfos(p)
+  timeus := uiUserFullDateUTC
   yearu := SubStr(uiUserFullDateUTC, 1, 4)
-  FormatTime, gyd, % uiUserFullDateUTC, Yday
+  FormatTime, gyd, % timeus, Yday
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+
+  timi := uiUserFullDateUTC
+  timi += gmtOffset, Hours
+  FormatTime, testValid, % timeus, yyyy/MM/dd
+
+  yearu := testValid ? SubStr(timi, 1, 4) : SubStr(uiUserFullDateUTC, 1, 4)
+  yearu := SubStr(yearu, 1, 4)
+
+  thisTime := testValid ? timi : uiUserFullDateUTC
+  FormatTime, longu, % thisTime, LongDate
+
+  FormatTime, gyd, % thisTime, Yday
   d := isLeapYear(yearu) ? 366 : 365
-  f := isLeapYear(yearu) ? yearu " is a leap year." : yearu " is not a leap year." 
-  msgu := "Days elapsed: " gyd " / " d ".`n" f
+  f := isLeapYear(yearu) ? yearu " is a leap year (Gregorian calendar)" : yearu " is not a leap year (Gregorian calendar)"
+  rd := d - gyd
+  dayum := LTrim(SubStr(thisTime, 7, 2), 0)
+  montum := LTrim(SubStr(thisTime, 5, 2), 0)
+  jd := gregorian_to_jd(yearu, montum, dayum)
+
+  ; code for hebrew, persian and islamic dates converted from JS to AHK, source: https://calcuworld.com/calendar-calculators/hebrew-calendar-converter/
+
+  ; obju := jd_to_hebrew(jd) ; it does not work; recursion limit exceeded
+  ; HebrewYear := "`nHebrew date: " obju[1] " / " Format("{:02}", obju[2]) ":" HebrewMonths[obju[2]] " / " Format("{:02}", obju[3])
+  obju := jd_to_persian(jd)
+  ; persianYear := (gyd<mEquiDay) ? yearu - 622 : yearu - 621 ; simple mode
+  persianYear := "`nPersian date: " obju[1] " / " Format("{:02}", obju[2]) ":" persianMonths[obju[2]] " / " Format("{:02}", obju[3])
+  obju := jd_to_islamic(jd)
+  islamicYear := "`n`nIslamic date: " obju[1] " / " Format("{:02}", obju[2]) ":" islamicMonths[obju[2]] " / " Format("{:02}", obju[3])
+
+  ; kz := abs(yearu - 3761)//4 ; leap years since the year 3761
+  ; hebrewYear := mod(yearu, 19)
+  ; If isVarEqualTo(hebrewYear, 0, 3, 6, 8, 11, 14, 17)
+  ;    hebrewYear += 1
+  ; Else
+  ;    hebrewYear += 2
+
+  ; hebrewYear := yearu + hebrewYear + 3760
+  msgu := longu "`nDays elapsed: " gyd " / " d "`nRemaining days: " rd "`n" f hebrewYear islamicYear persianYear 
   mouseCreateOSDinfoLine(msgu)
 }
 
@@ -9603,11 +9676,11 @@ UIpanelTodayLightDiffSolstices() {
   durJune := jobj.durRaw - cobj.durRaw
   durDec := dobj.durRaw - cobj.durRaw
 
-  diffuJ := transformSecondsReadable(abs(durJune), 1)
+  diffuJ := transformSecondsReadable(abs(durJune), 2)
   If (diffuJ!="00:00" && diffuJ!="0s")
      diffuJ := (jobj.durRaw > cobj.durRaw) ? "-" diffuJ : "+" diffuJ
 
-  diffuD := transformSecondsReadable(abs(durDec), 1)
+  diffuD := transformSecondsReadable(abs(durDec), 2)
   If (diffud!="00:00" && diffuD!="0s")
      diffuD := (dobj.durRaw > cobj.durRaw) ? "-" diffuD : "+" diffuD
 
@@ -9710,7 +9783,7 @@ PanelTodayInfos() {
        extras .= "`n`n" holidayMsg
     }
 
-    If (A_YDay>354)
+    If (A_YDay>354 && ObserveHolidays=1)
        extras .= "`n`nSeason's greetings! Enjoy the holidays! 😊"
 
     testFeast := A_Mon "." A_MDay
@@ -9719,6 +9792,9 @@ PanelTodayInfos() {
 
     If (testFeast="02.29")
        extras .= "`n`nToday is the 29th of February - a leap year day."
+
+    If (testFeast="01.01" && ObserveHolidays=1)
+       extras .= "`n`nHappy new year! All the best to you and your family."
 
     If (ObserveHolidays=1)
        listu := coreUpcomingEvents(0, 14, 3)
@@ -9762,8 +9838,8 @@ PanelTodayInfos() {
     Gui, Add, Text, xs y+5 w%sml% Section hp +0x200 vuiInfoGeoData -wrap, Geo data.
     sml := (PrefsLargeFonts=1) ? 100 : 60
     zml := (PrefsLargeFonts=1) ? 240 : 150
-    Gui, Add, Text, xs y+10 w%sml% Section  -wrap, Local time:
-    Gui, Add, Text, x+5 wp -wrap vUIastroInfoLtimeus, --:--
+    Gui, Add, Text, xs y+10 w%sml% Section -wrap +hwndhCL16 gUItodayInfosYear, Local time:
+    Gui, Add, Text, x+5 wp -wrap vUIastroInfoLtimeus gUItodayInfosYear +hwndhCL15, --:--
     lza := (PrefsLargeFonts=1) ? 10 :5
     Gui, Add, Text, x+1 hp wp-%lza% -wrap,
     Gui, Add, Button, x+1 hp+7 gToggleAstroInfosModa vBtnAstroModa +hwndhTemp, Moona
@@ -9849,7 +9925,7 @@ PanelTodayInfos() {
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     ColorPickerHandles := ""
-    Loop, 14
+    Loop, 16
         ColorPickerHandles .= hCL%A_Index% ","
 
     Gui, Show, AutoSize, About today: %appName%
@@ -11979,6 +12055,200 @@ Trimmer(string, whatTrim:="") {
       string := Trim(string, "`r`n `t`f`v`b")
    Return string
 }
+
+gregorian_to_jd(year, month, day) {
+    static GREGORIAN_EPOCH := 1721425.5
+    y := year - 1
+    a := (GREGORIAN_EPOCH - 1)
+    b := (365 * y)
+    c := floor(y / 4)
+    d := (-floor(y / 100))
+    e := floor(y / 400)
+    f := floor((((367 * month) - 362) / 12))
+    g := isLeapYear(year) ? -1 : -2
+    If (month<3)
+       g := 0
+    ; fnOutputDebug(a "|" b "|" c "|" d "|" e "|" f "|" g "|" day)
+    return a + b + c + d + e + f + g + day
+}
+
+isLeap_persianYear(year) {
+    return (mod((((mod((year - ((year > 0) ? 474 : 473)), 2820) + 474) + 38) * 682), 2816) < 682)
+}
+
+persian_to_jd(year, month, day) {
+    static PERSIAN_EPOCH := 1948320.5
+    zz := (year >= 0) ? 474 : 473
+    epbase := year - zz
+    epyear := 474 + mod(epbase, 2820)
+    mm := (month <= 7) ? (month - 1) * 31 : (month - 1) * 30 + 6
+    r := day + mm + floor(((epyear * 682) - 110) / 2816) + (epyear - 1) * 365 + floor(epbase / 2820) * 1029983 + (PERSIAN_EPOCH - 1)
+    return r
+}
+
+jd_to_persian(jd) {
+    jd := floor(jd) + 0.5
+    depoch := jd - persian_to_jd(475, 1, 1)
+    cycle := depoch // 1029983
+    cyear := mod(depoch, 1029983)
+    ; ToolTip, % jd "`n" depoch "`n" cycle "`n" cyear , , , 2
+    if (cyear = 1029982)
+    {
+        ycycle := 2820
+    } else
+    {
+        aux1 := cyear // 366
+        aux2 := mod(cyear, 366)
+        ycycle := floor(((2134 * aux1) + (2816 * aux2) + 2815) / 1028522) + aux1 + 1
+    }
+
+    year := ycycle + 2820 * cycle + 474
+    if (year <= 0)
+       year--
+
+    yday := (jd - persian_to_jd(year, 1, 1)) + 1
+    month := (yday <= 186) ? ceil(yday / 31) : ceil((yday - 6) / 30)
+    day := (jd - persian_to_jd(year, month, 1)) + 1
+    return [Round(year), Round(month), Round(day)]
+}
+
+isLeap_islamicYear(year) {
+    return (mod(((year * 11) + 14), 30) < 11)
+}
+
+islamic_to_jd(year, month, day) {
+    Static ISLAMIC_EPOCH := 1948439.5
+    return (day + ceil(29.5 * (month - 1)) + (year - 1) * 354 + floor((3 + (11 * year)) / 30) + ISLAMIC_EPOCH) - 1
+}
+
+jd_to_islamic(jd) {
+    Static ISLAMIC_EPOCH := 1948439.5
+    jd := floor(jd) + 0.5
+    year := floor(((30 * (jd - ISLAMIC_EPOCH)) + 10646) / 10631)
+    month := min(12, ceil((jd - (29 + islamic_to_jd(year, 1, 1))) / 29.5) + 1)
+    day := (jd - islamic_to_jd(year, month, 1)) + 1
+    return [Round(year), Round(month), Round(day)]
+}
+
+
+hebrew_leap(year) {
+    return (mod(((year * 7) + 1), 19) < 7)
+}
+
+hebrew_year_months(year, isLeap) {
+    return isLeap ? 13 : 12
+}
+
+hebrew_delay_1(year) {
+; Test for delay of start of new year and to avoid
+; Sunday, Wednesday, and Friday as start of the new year.
+    months := floor(((235 * year) - 234) / 19)
+    parts := 12084 + (13753 * months)
+    day := (months * 29) + floor(parts / 25920)
+    if (mod((3 * (day + 1)), 7) < 3)
+       day++
+
+    return day
+}
+
+hebrew_delay_2(year) {
+; Check for delay in start of new year due to length of adjacent years
+    last := hebrew_delay_1(year - 1)
+    present := hebrew_delay_1(year)
+    next := hebrew_delay_1(year + 1)
+    zz := ((present - last) = 382) ? 1 : 0
+    if ((next - present) = 356)
+       zz := 2
+
+    return zz
+}
+
+hebrew_year_days(year) {
+; How many days are in a Hebrew year ?
+    return hebrew_to_jd(year + 1, 7, 1) - hebrew_to_jd(year, 7, 1)
+}
+
+hebrew_month_days(year, month) {
+; How many days are in a given month of a given year
+; First of all, dispose of fixed-length 29 day months
+
+    if (month=2 || month=4 || month=6 || month=10 || month=13)
+       return 29
+
+    ; If it is not a leap year, Adar has 29 days
+    isLeap := hebrew_leap(year)
+    if (month=12 && !isLeap)
+       return 29
+
+    zz := mod(hebrew_year_days(year), 10)
+    ; If it's Heshvan, days depend on length of year
+    if (month=8 && zz!=5)
+       return 29
+
+    ; Similarly, Kislev varies with the length of year
+    if (month=9 && zz=3)
+       return 29
+
+    ; Nope, it's a 30 day month
+    return 30
+}
+
+hebrew_to_jd(year, month, day) {
+    Static HEBREW_EPOCH := 347995.5
+    isLeap := hebrew_leap(year)
+    months := hebrew_year_months(year, isLeap)
+    jd := HEBREW_EPOCH + hebrew_delay_1(year) + hebrew_delay_2(year) + day + 1
+
+    mon := 7
+    While, (mon<=months) {
+        jd += hebrew_month_days(year, mon)
+        mon++
+    }
+
+    if (month < 7) {
+        mon := 1
+        While, (mon<=months) {
+            jd += hebrew_month_days(year, mon)
+            mon++
+        }
+    }
+
+    return jd
+}
+
+jd_to_hebrew(jd) {
+    Static HEBREW_EPOCH := 347995.5
+
+    jd := floor(jd) + 0.5
+    count := floor(((jd - HEBREW_EPOCH) * 98496.0) / 35975351.0)
+    year := i := count - 1
+    Loop
+    {
+        zjd := hebrew_to_jd(i, 7, 1)
+        If (jd >= zjd)
+           Break
+
+        i++
+        year++
+    }
+
+    first := (jd < hebrew_to_jd(year, 1, 1)) ? 7 : 1
+    month := i := first
+    Loop
+    {
+        dayum := hebrew_month_days(year, i)
+        zjd := hebrew_to_jd(year, i, dayum)
+        If (jd > zjd)
+           Break
+
+        i++
+        month++
+    }
+
+    day := (jd - hebrew_to_jd(year, month, 1)) + 1
+    return [year, month, day]
+}
+
 
 #If, (WinActive( "ahk_id " hSetWinGui) && isInRange(AnyWindowOpen, 1, 6))
     AppsKey::

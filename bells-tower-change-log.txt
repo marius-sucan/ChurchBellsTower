@@ -5,6 +5,11 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.4.5 - 2024 / 01 / 01
+  - CBT will now display the date specific to the Persian and Islamic calendars, if one clicks on the local time label, in the About Today astronomy panel
+  - added sounds for «world arabic language day» and «armistice day»
+  - bug fixes related to civil twilight duration calculations
+
 v3.4.3 - 2023 / 12 / 27
   - cosmetic improvements and added keyboard shortcuts to the «About Today» panel
 
