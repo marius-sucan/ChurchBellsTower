@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2024)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.4.5
+;@Ahk2Exe-SetVersion 3.4.6
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -166,7 +166,7 @@ Global displayTimeFormat := 1
 ; Release info
 , ThisFile               := A_ScriptName
 , Version                := "3.4.5"
-, ReleaseDate            := "2024 / 01 / 01"
+, ReleaseDate            := "2024 / 01 / 04"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -216,7 +216,7 @@ Global CSthin      := "░"   ; light gray
 , defAnalogClockPosChanged := 0, allowAutoUpdateTodayPanel := 0
 , FontChangedTimes := 0, AnyWindowOpen := 0, CurrentPrefWindow := 0
 , mEquiDay := 79, jSolsDay := 172, sEquiDay := 266, dSolsDay := 356
-, mEquiDate := A_Year "0320010203", jSolsDaTe := A_Year "0621010203", sEquiDate := A_Year "0923010203", dSolsDate := A_Year "1222010203"
+, mEquiDate := A_Year "0320010203", jSolsDate := A_Year "0621010203", sEquiDate := A_Year "0923010203", dSolsDate := A_Year "1222010203"
 , LastBibleQuoteDisplay := 1, hSolarGraphPic, gDllType := 0
 , LastBibleQuoteDisplay2 := 1, countriesArrayList := []
 , LastBibleMsg := "", AllowDarkModeForWindow := ""
@@ -457,16 +457,6 @@ ToggleWelcomeInfos() {
   GuiControlGet, NoWelcomePopupInfo
   ; NoWelcomePopupInfo := !NoWelcomePopupInfo
   INIaction(1, "NoWelcomePopupInfo", "SavedSettings")
-/*
-  CloseWindow()
-  Sleep, 10
-  If (NoWelcomePopupInfo=1)
-  {
-     MsgBox, 52, %appName%, Do you want to keep the welcome window open for now?
-     IfMsgBox, Yes
-       ShowWelcomeWindow()
-  } Else ShowWelcomeWindow()
-*/
 }
 
 analogClockStarter() {
@@ -3110,31 +3100,32 @@ PanelShowSettings() {
     Gui, Add, Text, x+15 y+15 Section +0x200 vvolLevel, % "Audio volume: " BeepsVolume " % "
     Gui, Add, Slider, x+5 hp ToolTip NoTicks gVolSlider w200 vBeepsVolume Range0-99, %BeepsVolume%
     Gui, Add, Checkbox, gVerifyTheOptions xs y+7 Checked%DynamicVolume% vDynamicVolume, Dynamic volume (adjusted relative to the master volume)
-    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%AutoUnmute% vAutoUnmute, Automatically unmute master volume [when required]
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%AutoUnmute% vAutoUnmute, Automatically unmute master volume
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%userMuteAllSounds% vuserMuteAllSounds, Mute all sounds
-    Gui, Add, Checkbox, y+20 gVerifyTheOptions Checked%tollNoon% vtollNoon, Toll distinctively every six hours [eg., noon, midnight]
+    Gui, Add, Text, xs+17 y+10 hp+4 +0x200, Interval between tower strikes (in milisec.):
+    GuiAddEdit("x+5 w70 geditsOSDwin +0x200 r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37", strikeInterval)
+    Gui, Add, UpDown, gVerifyTheOptions vstrikeInterval Range900-5500, %strikeInterval%
+
+    Gui, Add, Checkbox, xs y+15 gVerifyTheOptions Checked%tollNoon% vtollNoon, Toll distinctively every six hours [eg., noon, midnight]
     Gui, Add, Checkbox, y+10 gcheckBoxStrikeQuarter Checked%tollQuarters% vtollQuarters, Strike quarter-hours
     Gui, Add, Checkbox, x+10 wp -wrap hp gVerifyTheOptions Checked%tollQuartersException% vtollQuartersException, ... except on the hour
     Gui, Add, Checkbox, xs y+10 wp gcheckBoxStrikeHours Checked%tollHours% vtollHours, Strike on the hour
     Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%tollHoursAmount% vtollHoursAmount, ... and the number of hours
-    Gui, Add, Checkbox, xs y+10 gcheckBoxStrikeAdditional Checked%AdditionalStrikes% vAdditionalStrikes, Additional strike every (in minutes)
+    Gui, Add, Checkbox, xs y+10 hp+5 gcheckBoxStrikeAdditional Checked%AdditionalStrikes% vAdditionalStrikes, Additional strike every (in minutes):
     GuiAddEdit("x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38", strikeEveryMin, "Additional strike every (in minutes)")
     Gui, Add, UpDown, gVerifyTheOptions vstrikeEveryMin Range1-720, %strikeEveryMin%
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%markFullMoonHowls% vmarkFullMoonHowls, Mark full moon by wolves howling
-    Gui, Add, Text, xs y+10, Interval between tower strikes (in miliseconds):
-    GuiAddEdit("x+5 w70 geditsOSDwin r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF37", strikeInterval)
-    Gui, Add, UpDown, gVerifyTheOptions vstrikeInterval Range900-5500, %strikeInterval%
 
     wu := (PrefsLargeFonts=1) ? 125 : 95
     vu := (PrefsLargeFonts=1) ? 55 : 45
     mf := (PrefsLargeFonts=1) ? 260 : 193
     Gui, Tab, 2 ; extras
-    Gui, Add, Checkbox, x+15 y+15 Section gVerifyTheOptions Checked%showBibleQuotes% vshowBibleQuotes, Show a Bible verse every (in hours)
+    Gui, Add, Checkbox, x+15 y+15 Section gVerifyTheOptions Checked%showBibleQuotes% vshowBibleQuotes +hwndhTemp, Show a Bible verse every (in hours)
     GuiAddEdit("x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF40", BibleQuotesInterval, "Show a Bible verse every (in hours)")
     Gui, Add, UpDown, gVerifyTheOptions vBibleQuotesInterval Range1-12, %BibleQuotesInterval%
-    GuiAddDropDownList("xs+15 y+7 w" mf " gVerifyTheOptions AltSubmit Choose" BibleQuotesLang " vBibleQuotesLang", "World English Bible (2000)|Français: La Bible de Jérusalem (1998?)|Español: Reina Valera (1989)|Latin: Clementine Vulgate (1598)|German: Lutherbibel (1912)|Greek: Revised Vamvas (1994?)|Russian: Synodal edition (1956)", "Bible edition and language")
+    GuiAddDropDownList("xs+15 y+7 w" mf " gVerifyTheOptions AltSubmit Choose" BibleQuotesLang " vBibleQuotesLang", "World English Bible (2000)|Français: La Bible de Jérusalem (1998?)|Español: Reina Valera (1989)|Latin: Clementine Vulgate (1598)|German: Lutherbibel (1912)|Greek: Revised Vamvas (1994?)|Russian: Synodal edition (1956)", [hTemp, 0, "Bible edition and language"])
     Gui, Add, Checkbox, x+5 hp gVerifyTheOptions Checked%orderedBibleQuotes% vorderedBibleQuotes, Define the start point
-    Gui, Add, Text, xs+15 y+10 vTxt10, Font size
+    Gui, Add, Text, xs+15 y+10 hp +0x200 vTxt10, Font size:
     GuiAddEdit("x+10 w" vu " geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF73", FontSizeQuotes, "Font size for Bible quotes")
     Gui, Add, UpDown, gVerifyTheOptions vFontSizeQuotes Range10-200, %FontSizeQuotes%
     Gui, Add, Button, x+10 hp w%wu% gInvokeBibleQuoteNow vBtn2, Preview verse
@@ -3142,7 +3133,7 @@ PanelShowSettings() {
     Gui, Add, UpDown, gVerifyTheOptions vuserBibleStartPoint Range1-27400, % userBibleStartPoint
     ml := (PrefsLargeFonts=1) ? 40 : 32
     GuiAddButton("x+5 hp w" ml " gBtnHelpOrderedDisplay vBtn5", " ?", "Help")
-    Gui, Add, Text, xs+15 y+10 vTxt4, Maximum line length (in characters)
+    Gui, Add, Text, xs+15 y+10 hp +0x200 vTxt4, Maximum line length (in characters):
     GuiAddEdit("x+10 w" vu " geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60", maxBibleLength)
     Gui, Add, UpDown, vmaxBibleLength gVerifyTheOptions Range20-130, %maxBibleLength%
     Gui, Add, Checkbox, xs+15 y+10 gVerifyTheOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen when displaying Bible verses
@@ -3170,9 +3161,9 @@ PanelShowSettings() {
     Gui, Add, Text, x+15 y+15 Section, OSD position (x, y)
     GuiAddEdit("xs+" columnBpos2 " ys w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF1", GuiX, "OSD position on X")
     Gui, Add, UpDown, vGuiX gVerifyTheOptions 0x80 Range-9995-9998, %GuiX%
-    GuiAddEdit("x+5 w70 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF2", GuiY, "OSD position on Y")
+    GuiAddEdit("x+5 w65 geditsOSDwin r1 limit4 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF2", GuiY, "OSD position on Y")
     Gui, Add, UpDown, vGuiY gVerifyTheOptions 0x80 Range-9995-9998, %GuiY%
-    Gui, Add, Button, x+5 w60 hp gLocatePositionA vBtn4, Locate
+    Gui, Add, Button, x+5 w65 hp gLocatePositionA vBtn4, Locate
 
     Gui, Add, Text, xm+15 ys+30 Section, Margins (top, bottom, sides)
     GuiAddEdit("xs+" columnBpos2 " ys+0 w65 Section geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF11", OSDmarginTop, "Top margin")
@@ -3185,27 +3176,27 @@ PanelShowSettings() {
     Gui, Add, Text, xm+15 y+10 Section, Font name
     Gui, Add, Text, xs yp+30, OSD colors and opacity
     Gui, Add, Text, xs yp+30, Font size
+    Gui, Add, Text, xs yp+30 hp +0x200, Display time (in sec.)
     Gui, Add, Checkbox, xs yp+30 hp gVerifyTheOptions Checked%showTimeWhenIdle% vshowTimeWhenIdle, Display time when idle
-    Gui, Add, Text, xs yp+30, Display time (in sec.)
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%displayClock% vdisplayClock, Display time when bells toll
-    Gui, Add, Checkbox, xs+16 y+10 gVerifyTheOptions Checked%analogDisplay% vanalogDisplay, Analog clock display
-    Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%displayTimeFormat% vdisplayTimeFormat, 24 hours format
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%analogDisplay% vanalogDisplay, Analog clock display
+    Gui, Add, Checkbox, xs+%columnBpos2% yp gVerifyTheOptions Checked%displayTimeFormat% vdisplayTimeFormat, 24 hours format
     Gui, Add, Checkbox, xs y+15 h25 +0x1000 gVerifyTheOptions Checked%ShowPreview% vShowPreview, Show preview window
-    Gui, Add, Checkbox, x+5 hp gVerifyTheOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date
+    Gui, Add, Checkbox, xs+%columnBpos2% yp hp gVerifyTheOptions Checked%ShowPreviewDate% vShowPreviewDate, Include current date
 
     mf := (PrefsLargeFonts=1) ? 170 : 143
     GuiAddDropDownList("xs+" columnBpos2 " ys+0 section w205 gVerifyTheOptions Sort Choose1 vFontName", FontName, "OSD font name")
-    hLV1 := GuiAddColor("xp+0 yp+30 w55 h25", "OSDtextColor", "OSD text color")
+    hLV1 := GuiAddColor("xp+0 yp+30 w65 h25", "OSDtextColor", "OSD text color")
     hLV2 := GuiAddColor("x+5 wp hp", "OSDbgrColor", "OSD background color")
-    GuiAddEdit("x+5 yp+0 w55 hp geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF10", OSDalpha, "OSD opacity")
+    GuiAddEdit("x+5 yp+0 w65 hp geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF10", OSDalpha, "OSD opacity")
     Gui, Add, UpDown, vOSDalpha gVerifyTheOptions Range75-250, %OSDalpha%
-    GuiAddEdit("xp-120 yp+30 w55 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5", FontSize, "OSD font size")
+    GuiAddEdit("xp-140 yp+30 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5", FontSize, "OSD font size")
     Gui, Add, UpDown, gVerifyTheOptions vFontSize Range12-295, %FontSize%
-    GuiAddEdit("xp yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99", showTimeIdleAfter, "Idle time in minutes")
-    Gui, Add, UpDown, vshowTimeIdleAfter gVerifyTheOptions Range1-950, %showTimeIdleAfter%
-    Gui, Add, Text, x+5 vtxt100, idle time (in min.)
-    GuiAddEdit("xs yp+30 w55 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6", DisplayTimeUser, "OSD display duration in seconds")
+    GuiAddEdit("xs yp+30 w65 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6", DisplayTimeUser, "OSD display duration in seconds")
     Gui, Add, UpDown, vDisplayTimeUser gVerifyTheOptions Range1-99, %DisplayTimeUser%
+    GuiAddEdit("xp yp+30 w65 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF99", showTimeIdleAfter, "Idle time in minutes")
+    Gui, Add, UpDown, vshowTimeIdleAfter gVerifyTheOptions Range1-950, %showTimeIdleAfter%
+    Gui, Add, Text, x+5 vtxt100 hp +0x200, idle time (in min.)
     If !FontList._NewEnum()[k, v]
     {
         Fnt_GetListOfFonts()
@@ -3224,11 +3215,11 @@ PanelShowSettings() {
     ppl := (zw[1] && zw.Count()>4) ? zw[1] : "NONE" 
 
     Gui, Tab, 5 ; more
-    Gui, Add, Text, x+15 y+15 Section , OSD progress bar line:
-    GuiAddDropDownList("x+5 wp+20 gVerifyTheOptions AltSubmit Choose" showOSDprogressBar " vshowOSDprogressBar", "None|Current day|Moon's synodic period|Current month|Astronomical seasons|Current year")
-    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners for the OSD
-    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%showMoonPhaseOSD% vshowMoonPhaseOSD, Display the moon illumination fraction (phase)
-    Gui, Add, Checkbox, xs y+15 gVerifyTheOptions Checked%overrideOSDcolorsAstro% vOverrideOSDcolorsAstro, Override OSD colors based on:
+    Gui, Add, Text, x+15 y+15 Section +0x200 +hwndhTemp, OSD progress bar line:
+    GuiAddDropDownList("x+5 wp+20 gVerifyTheOptions AltSubmit Choose" showOSDprogressBar " vshowOSDprogressBar", "None|Current day|Moon's synodic period|Current month|Astronomical seasons|Current year", [hTemp])
+    Gui, Add, Checkbox, xs y+12 gVerifyTheOptions Checked%OSDroundCorners% vOSDroundCorners, Round corners for the OSD
+    Gui, Add, Checkbox, xs y+12 gVerifyTheOptions Checked%showMoonPhaseOSD% vshowMoonPhaseOSD, Display the moon illumination fraction (phase)
+    Gui, Add, Checkbox, xs y+12 gVerifyTheOptions Checked%overrideOSDcolorsAstro% vOverrideOSDcolorsAstro, Override OSD colors based on:
     GuiAddDropDownList("xp+15 y+5 wp gVerifyTheOptions AltSubmit Choose" OSDastralMode " vOSDastralMode", "Daylight|Moonlight|Moon phase|Automatic", "OSD colors based on")
     Gui, Add, Button, x+5 hp ghelpOSDastroColors, &Help
     Gui, Add, Text, xs+15 y+10 hp +0x200, Astro colors:
@@ -3285,6 +3276,7 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), editF73
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Btn2
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Txt4
+    GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Txt10
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), makeScreenDark
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), BibleQuotesLang
     GuiControl, % (showBibleQuotes=0 ? "Disable" : "Enable"), Btn5
@@ -3676,7 +3668,7 @@ testCelebrations() {
    isHolidayToday := obju[2]
 }
 
-coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
+coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode, testWhat:=0) {
   Critical, On
   testEquiSols()
   If (ObserveHolidays=0 && SemantronHoliday=0)
@@ -3764,6 +3756,12 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
         aTypeHolidayOccured := 1
   }
 
+  If (testWhat=1)
+     Return [aTypeHolidayOccured, aisHolidayToday]
+
+  If (testWhat=2)
+     aisHolidayToday := aTypeHolidayOccured := ""
+
   If (ObserveSecularDays=1)
   {
      Static theList := "New Year's Day - Happy New Year!|01.01`n"
@@ -3804,6 +3802,12 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
      }
   }
 
+  If (testWhat=2)
+     Return [aTypeHolidayOccured, aisHolidayToday]
+
+  If (testWhat=3)
+     aisHolidayToday := aTypeHolidayOccured := ""
+
   PersonalDay := INIactionNonGlobal(0, testFeast, 0, "Celebrations")
   If InStr(PersonalDay, "default disabled")
   {
@@ -3816,6 +3820,9 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode) {
 
   If (isListMode=0)
      OSDprefix := ""
+
+  If (testWhat=3)
+     Return [aTypeHolidayOccured, aisHolidayToday]
 
   If (StrLen(aisHolidayToday)>2 && ObserveHolidays=1 && isListMode=0)
   {
@@ -3881,7 +3888,7 @@ PanelManageCelebrations(tabChoice:=1) {
   btnWid := (PrefsLargeFonts=1) ? 70 : 50
   lstWid2 := lstWid - btnWid
   Gui, Add, Button, xs+%lstWid2% yp+0 gPaneladdNewEntryWindow w%btnWid% h30, &Add
-  Gui, Add, Tab3, xs+0 y+0 AltSubmit Choose%tabChoice% vCurrentTabLV, Religious|Easter related|Secular|Personal
+  Gui, Add, Tab3, xs+0 y+5 AltSubmit Choose%tabChoice% vCurrentTabLV, Religious|Easter related|Secular|Personal
 
   Gui, Tab, 1
   GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r9 Grid NoSort -Hdr vLViewOthers", "Date|Details|Index", "Religious celebrations", "CelebrationsGuia")
@@ -4263,7 +4270,7 @@ ActionListViewKBDs() {
 
      LV_GetText(dateSelected, A_EventInfo, 3)
      LV_GetText(eventusName, A_EventInfo, 2)
-     If (eventusName="Detailz" || !eventusName || !dateSelected || StrLen(dateSelected)>5)
+     If (eventusName="Details" || !eventusName || !dateSelected || StrLen(dateSelected)>5)
         Return
 
      DisableMsg := "default disabled"
@@ -4283,7 +4290,8 @@ ActionListViewKBDs() {
            reactivate := 2
            questionMsg := "Do you want to no longer observe " eventusName " ?"
         }
-questionMsg .= " | " dateSelected
+
+        questionMsg .= " | " dateSelected
         If (A_TickCount - lastAsked>4000)
         {
            answerPositive := 0
@@ -4616,8 +4624,7 @@ ToggleObsHoliEvents() {
 }
 
 coreUpcomingEvents(doToday, dayzCheck, limitList) {
-    startDate := ""
-    listu := ""
+    startDate := listu := ""
     If (StrLen(isHolidayToday)>2 && ObserveHolidays=1 && doToday=1)
     {
        relName := (UserReligion=1) ? "Catholic" : "Orthodox"
@@ -4631,6 +4638,10 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
     startYday := A_YDay
     totalYDays := isLeapYear() ? 366 : 365
     listed := 0
+    If (doToday=2)
+       startDate += -2, Days
+
+    friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
     Loop, % dayzCheck
     {
         startDate += 1, Days
@@ -4639,13 +4650,23 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
         thisYear := SubStr(startDate, 1, 4)
         startYday++
         thisYday := (startYday>totalYDays) ? startYday - totalYDays : startYday
-        obju := coretestCelebrations(thisMon, thisMDay, thisYday, 1)
-        ; ToolTip, % thisYear "/" thisMon "/" thisMDay " = " thisYday "[" totalYDays "]"  , , , 2
-        ; Sleep, 950
-        If obju[2]
+        wasItem := 0
+        Loop, 3
         {
-           prefixu := (obju[1]=1) ? "✝ " : ""
-           listu .= thisYear "/" thisMon "/" thisMDay ". " prefixu obju[2] "`n`n"
+           obju := coretestCelebrations(thisMon, thisMDay, thisYday, 1, A_Index)
+           ; ToolTip, % thisYear "/" thisMon "/" thisMDay " = " thisYday "[" totalYDays "]"  , , , 2
+           ; Sleep, 950
+           If obju[2]
+           {
+              wasItem := 1
+              prefixu := (obju[1]=1) ? "✝ " : ""
+              datum := friendlyDating(thisYear "/" thisMon "/" thisMDay, startDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+              listu .= datum ". " prefixu obju[2] ".`n`n"
+           }
+        }
+
+        If wasItem
+        {
            listed++
            If (listed>=limitList && limitList>0)
               Break
@@ -4654,28 +4675,66 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
     Return listu
 }
 
+friendlyDating(datum, startDate, yesterday, tudayDate, tmrwDate, mtmrwDate) {
+  If (SubStr(startDate, 1, 8)=yesterday)
+     datum := "Yesterday"
+  Else If (SubStr(startDate, 1, 8)=tudayDate)
+     datum := "Today"
+  Else If (SubStr(startDate, 1, 8)=tmrwDate)
+     datum := "Tomorrow"
+  Else If (SubStr(startDate, 1, 8)=mtmrwDate)
+     datum := "Overmorrow"
+
+  Return datum
+}
+
+listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, showAll) {
+    listu := ""
+    FormatTime, OutputVar, % mEquiDate, yyyy/MM/dd
+    OutputVar := friendlyDating(OutputVar, mEquiDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+    If (isinRange(mEquiDay, A_YDay, A_YDay + 30) || showAll=1)
+       listu .= OutputVar ". ▀ March Equinox`n`n"
+ 
+    FormatTime, OutputVar, % jSolsDate, yyyy/MM/dd
+    OutputVar := friendlyDating(OutputVar, jSolsDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+    If (isinRange(jSolsDay, A_YDay, A_YDay + 30) || showAll=1)
+       listu .= OutputVar ". ⬤ June Solstice`n`n"
+  
+    FormatTime, OutputVar, % sEquiDate, yyyy/MM/dd
+    OutputVar := friendlyDating(OutputVar, sEquiDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+    If (isinRange(sEquiDay, A_YDay, A_YDay + 30) || showAll=1)
+       listu .= OutputVar ". ▃ September Equinox`n`n"
+  
+    FormatTime, OutputVar, % dSolsDate, yyyy/MM/dd
+    OutputVar := friendlyDating(OutputVar, dSolsDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+    If (isinRange(dSolsDay, A_YDay, A_YDay + 30) || showAll=1)
+       listu .= OutputVar ". ◯ December Solstice`n`n"
+
+    Return listu
+}
+
+friendlyInitDating(ByRef yesterday, ByRef tudayDate, ByRef tmrwDate, ByRef mtmrwDate) {
+    yesterday := tmrwDate := mtmrwDate := ""
+    tmrwDate += 1, Days
+    tmrwDate := SubStr(tmrwDate, 1, 8)
+    mtmrwDate += 2, Days
+    mtmrwDate := SubStr(mtmrwDate, 1, 8)
+    yesterday += -1, Days
+    tudayDate := yesterday
+    tudayDate += 1, Days
+    tudayDate := SubStr(tudayDate, 1, 8)
+    yesterday := SubStr(yesterday, 1, 8)
+}
+
 PopulateIncomingCelebs() {
+    friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
     If (ObserveHolidays=1)
-       listu := coreUpcomingEvents(1, 30, 0)
+       listu := coreUpcomingEvents(2, 32, 0)
     If !Trim(listu)
        listu := "No religious or secular events are observed for the next 30 days.`n`n"
 
     listu .= "Astronomic events:`n`n"
-    FormatTime, OutputVar, % mEquiDate, yyyy/MM/dd
-    If isinRange(mEquiDay, A_YDay, A_YDay + 30)
-       listu .= OutputVar ". ▀ March Equinox`n`n"
- 
-    FormatTime, OutputVar, % jSolsDate, yyyy/MM/dd
-    If isinRange(jSolsDay, A_YDay, A_YDay + 30)
-       listu .= OutputVar ". ⬤ June Solstice`n`n"
-  
-    FormatTime, OutputVar, % sEquiDate, yyyy/MM/dd
-    If isinRange(sEquiDay, A_YDay, A_YDay + 30)
-       listu .= OutputVar ". ▃ September Equinox`n`n"
-  
-    FormatTime, OutputVar, % dSolsDate, yyyy/MM/dd
-    If isinRange(dSolsDay, A_YDay, A_YDay + 30)
-       listu .= OutputVar ". ◯ December Solstice`n`n"
+    listu .= listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 0)
 
     prevu := startDate := A_Year A_Mon A_MDay 010101
     ; startDate := 2022 01 01 010101
@@ -4688,6 +4747,7 @@ PopulateIncomingCelebs() {
         {
            prevu := xu
            FormatTime, OutputVar, % startDate, yyyy/MM/dd
+           OutputVar := friendlyDating(OutputVar, startDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
            listu .= OutputVar ". " pk[1] "`n`n"
            ; listu .= OutputVar " = " pk[1] "`n p=" pk[3] "; f=" pk[4] "; a=" pk[5] " `n"
         }
@@ -5557,11 +5617,11 @@ PanelSunYearGraphTable() {
     Gui, Tab, 4
     GuiAddListView("x+5 y+10 w" lstWid " r15 -multi +ReadOnly Grid vLViewOthers", "Day|Date|Sunlight|Diff|Twilight|Diff|Total light|Difference", "Daylight time differences")
     Gui, Tab, 5
-    Gui, Add, Text, x+10 y+10 Section, Location:
+    Gui, Add, Text, x+10 y+10 Section +0x200 +hwndhTemp, Location:
     widu := (PrefsLargeFonts=1) ? 190 : 120
-    GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryGraphChooser Choose" uiUserCountry " vuiUserCountry", countriesList, "Country")
+    GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryGraphChooser Choose" uiUserCountry " vuiUserCountry", countriesList, [hTemp, 0, "Country"])
     GuiAddDropDownList("x+5 wp AltSubmit gUIcityGraphChooser Choose" uiUserCity " vuiUserCity", getCitiesList(uiUserCountry), "City")
-    Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
+    Gui, Add, Button, x+5 hp gSearchOpenPanelEarthMap, &Search
     Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
     Gui, Add, Text, xs y+10 w%graphW% -wrap vGraphInfoLine, Hover graph for more information.`n-
     Gui, Add, Text, xs y+10 w1 h1, Sunlight duration graph for entire year
@@ -5619,8 +5679,8 @@ PanelMoonYearGraphTable() {
     GuiAddListView("x+5 y+10 w" lstWid " r15 -multi +ReadOnly Grid vLViewSunCombined", "Day|Date|Rise|Culminant|Altitude|Set|Moonlight|Diff", "Entire year moon events")
     Gui, Tab, 2
     widu := (PrefsLargeFonts=1) ? 190 : 120
-    Gui, Add, Text, x+10 y+10 Section, Location:
-    GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryGraphChooser Choose" uiUserCountry " vuiUserCountry", countriesList, "Country")
+    Gui, Add, Text, x+10 y+10 Section +0x200 +hwndhTemp, Location:
+    GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryGraphChooser Choose" uiUserCountry " vuiUserCountry", countriesList, [hTemp, 0, "Country"])
     GuiAddDropDownList("x+5 wp AltSubmit gUIcityGraphChooser Choose" uiUserCity " vuiUserCity", getCitiesList(uiUserCountry), "City")
     Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
     Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
@@ -6050,7 +6110,11 @@ UiLVgeoSearch() {
    }
 }
 
-PanelEarthMap() {
+SearchOpenPanelEarthMap() {
+    PanelEarthMap("search")
+}
+
+PanelEarthMap(modus:=0) {
     If reactWinOpened(A_ThisFunc, 1)
        Return
 
@@ -6076,7 +6140,9 @@ PanelEarthMap() {
     txtW := (PrefsLargeFonts=1) ? lstWid - 105 : lstWid - 100
     graphW := lstWid - 10  ; (PrefsLargeFonts=1) ? 640 : 380
     graphH := (PrefsLargeFonts=1) ? 310 : 195
- 
+    If (modus="search")
+       tabChoice := 2
+
     Global GeoDataSearchField, newGeoDataLocationUserEdit, btn5
     Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Earth map|Search location
     Gui, Tab, 1
@@ -8353,6 +8419,7 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
         Return
  
      Static w := 360, h := 180
+     ; to-do, transform all sizes relative to main dimensions (w, h)
      mainBitmap := Gdip_CreateBitmap(w, h)
      If !mainBitmap
         Return
@@ -8364,7 +8431,6 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
         Return
      }
  
-     m := (PrefsLargeFonts=1) ? 30 : 20
      clru := (todaySunMoonGraphMode=1) ? "0xff112222" : "0xff112233"
      Gdip_GraphicsClear(G, clru)
 
@@ -8389,10 +8455,10 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
      If gmtOffset
         startZeit += -1*gmtOffset, Hours
 
-     Gdip_FillRectangle(G, darkBrush, w/2, 0, 3, h)
-     ; startZeit += -12, Hours
-     pPath := Gdip_CreatePath()
      x := 3
+     m := (PrefsLargeFonts=1) ? 30 : 20
+     Gdip_FillRectangle(G, darkBrush, w/2, 0, 3, h)
+     pPath := Gdip_CreatePath()
      hc := (PrefsLargeFonts=1) ? 10:8
      Loop, 48
      {
@@ -9629,7 +9695,7 @@ UItodayInfosYear() {
 
   FormatTime, gyd, % thisTime, Yday
   d := isLeapYear(yearu) ? 366 : 365
-  f := isLeapYear(yearu) ? yearu " is a leap year (Gregorian calendar)" : yearu " is not a leap year (Gregorian calendar)"
+  f := isLeapYear(yearu) ? yearu " is a leap year" : yearu " is not a leap year"
   rd := d - gyd
   dayum := LTrim(SubStr(thisTime, 7, 2), 0)
   montum := LTrim(SubStr(thisTime, 5, 2), 0)
@@ -9773,7 +9839,7 @@ PanelTodayInfos() {
     Else If (A_YDay>dSolsDay || A_YDay<jSolsDay)
        extras .= "`n`nThe days are getting longer until the June solstice."
 
-    If (StrLen(isHolidayToday)>2 && ObserveHolidays=1)
+    If (StrLen(isHolidayToday)>2 && ObserveHolidays=1 && (TypeHolidayOccured=1 || TypeHolidayOccured=3))
     {
        relName := (UserReligion=1) ? "Catholic" : "Orthodox"
        holidayMsg := relName " Christians celebrate today: " isHolidayToday "."
@@ -9787,32 +9853,25 @@ PanelTodayInfos() {
        extras .= "`n`nSeason's greetings! Enjoy the holidays! 😊"
 
     testFeast := A_Mon "." A_MDay
-    If isLeapYear()
+    If (isLeapYear() && testFeast="01.01")
        extras .= "`n`n" A_Year " is a leap year."
 
-    If (testFeast="02.29")
+    showThis := (ObserveHolidays=1 && ObserveSecularDays=1) ? 0 : 1
+    If (testFeast="02.29" && showThis=1)
        extras .= "`n`nToday is the 29th of February - a leap year day."
 
-    If (testFeast="01.01" && ObserveHolidays=1)
+    If (testFeast="01.01" && showThis=1)
        extras .= "`n`nHappy new year! All the best to you and your family."
 
     If (ObserveHolidays=1)
-       listu := coreUpcomingEvents(0, 14, 3)
+       listu := coreUpcomingEvents(2, 14, 4)
     If listu
-       extras .= "`n`nUpcoming events: `n" Trim(listu, "`n")
+       extras .= "`n`nOBSERVED EVENTS: `n" Trim(listu, "`n")
 
-    listu := "Solar seasons:`n"
-    FormatTime, OutputVar, % mEquiDate, yyyy/MM/dd
-    listu .= OutputVar ". ▀ March Equinox.`n"
- 
-    FormatTime, OutputVar, % jSolsDate, yyyy/MM/dd
-    listu .= OutputVar ". ⬤ June Solstice.`n"
-  
-    FormatTime, OutputVar, % sEquiDate, yyyy/MM/dd
-    listu .= OutputVar ". ▃ September Equinox.`n"
-  
-    FormatTime, OutputVar, % dSolsDate, yyyy/MM/dd
-    listu .= OutputVar ". ◯ December Solstice."
+    listu := "SOLAR SEASONS:`n"
+    friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
+    szn := listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 1)
+    listu .= StrReplace(szn, "`n`n", "`n")
 
     rzz := (PrefsLargeFonts=1) ? 17 : 20
     txtWid2 := (PrefsLargeFonts=1) ? txtWid + 40 : txtWid + 25
@@ -9821,11 +9880,11 @@ PanelTodayInfos() {
     Gui, Tab, 2
     UItodayPanelResetDate("yo")
     sml := (PrefsLargeFonts=1) ? 70 : 40
-    Gui, Add, Text, xs y+15 Section +hwndhTemp, Location:
+    Gui, Add, Text, xs y+15 Section +0x200 +hwndhTemp, Location:
     widu := (PrefsLargeFonts=1) ? 190 : 120
-    GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryChooser Choose" uiUserCountry " vuiUserCountry", countriesList, "Country")
+    GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryChooser Choose" uiUserCountry " vuiUserCountry", countriesList, [hTemp, 0, "Country"])
     GuiAddDropDownList("x+5 wp AltSubmit gUIcityChooser Choose" uiUserCity " vuiUserCity", getCitiesList(uiUserCountry), "City")
-    Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
+    Gui, Add, Button, x+5 hp gSearchOpenPanelEarthMap, &Search
     Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
     Gui, Add, Text, xs y+10 , Time and date to observe
     Gui, Add, DateTime, xs yp Choose%uiUserFullDateUTC% Right gUItodayDateCtrl vuiUserFullDateUTC +hwndhDatTime, dddd, d MMMM, yyyy; HH:mm (UTC)
@@ -9834,6 +9893,7 @@ PanelTodayInfos() {
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate +hwndhTemp, &Now
     ToolTip2ctrl(hTemp, "Reset to current time and date (\)")
     hBtnTodayNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vUIbtnTodayNext", ">>", "Next hour (.)")
+    Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
     sml := (PrefsLargeFonts=1) ? 500 : 370
     Gui, Add, Text, xs y+5 w%sml% Section hp +0x200 vuiInfoGeoData -wrap, Geo data.
     sml := (PrefsLargeFonts=1) ? 100 : 60
@@ -11264,25 +11324,6 @@ updateColoredRectCtrl(coloru, varu, guiu:="SettingsGUIA", clrHwnd:=0) {
     Return r
 }
 
-GetWindowPlacement(hWnd) {
-    Local WINDOWPLACEMENT, Result := {}
-    NumPut(VarSetCapacity(WINDOWPLACEMENT, 44, 0), WINDOWPLACEMENT, 0, "UInt")
-    r := DllCall("GetWindowPlacement", "UPtr", hWnd, "UPtr", &WINDOWPLACEMENT)
-    If (r=0)
-    {
-       WINDOWPLACEMENT := ""
-       Return 0
-    }
-    Result.x := NumGet(WINDOWPLACEMENT, 28, "Int")
-    Result.y := NumGet(WINDOWPLACEMENT, 32, "Int")
-    Result.w := NumGet(WINDOWPLACEMENT, 36, "Int") - Result.x
-    Result.h := NumGet(WINDOWPLACEMENT, 40, "Int") - Result.y
-    Result.flags := NumGet(WINDOWPLACEMENT, 4, "UInt") ; 2 = WPF_RESTORETOMAXIMIZED
-    Result.showCmd := NumGet(WINDOWPLACEMENT, 8, "UInt") ; 1 = normal, 2 = minimized, 3 = maximized
-    WINDOWPLACEMENT := ""
-    Return Result
-}
-
 oldupdateColoredRectCtrl(coloru, clrHwnd) {
     If !clrHwnd
        Return 0
@@ -11373,6 +11414,31 @@ GuiAddDropDownList(options, listu, labelu:="", tipu:="", guiu:="SettingsGUIA") {
     } Else
     {
        Gui, %guiu%: Add, DropDownList, % combosDarkModus A_Space options " +hwndhTemp" , % listu
+       If IsObject(labelu)
+       {
+          ; WinGetPos, , , w, h, ahk_id %hTemp%
+          ; GetWinClientSize(w, h, hTemp, 2)
+          z := GetWindowPlacement(labelu[1])
+          If (labelu[2])
+          {
+             g := GetWindowPlacement(labelu[2])
+             z.w := g.w
+          }
+
+          r := GetWindowPlacement(hTemp)
+          SetWindowPlacement(labelu[1], z.x, z.y, z.w, r.h, 1)
+          If (labelu[2] && labelu[3])
+          {
+             p := GetWindowPlacement(labelu[3])
+             SetWindowPlacement(hTemp, p.x, r.y, r.w, r.h, 1)
+          }
+
+          ; GuiControl, %guiu%: MoveDraw, %tipu%, w%w% h%h%
+          If labelu[3]
+             labelu := labelu[3]
+          Else
+             labelu := tipu := ""
+       }
     }
 
     tipu := tipu ? tipu : labelu
@@ -12030,8 +12096,8 @@ InfosDummy() {
       Try Run, % WinStorePath
 
    lastInvoked := A_TickCount
-  ToolTip, % A_AppData "`n" A_ScriptDir "`n" x "`n" hasCreated " | " WinStorePath
-  SetTimer, removeTooltip, -2000
+   ToolTip, % A_AppData "`n" A_ScriptDir "`n" x "`n" hasCreated " | " WinStorePath
+   SetTimer, removeTooltip, -2000
 }
 
 DetermineWindowsStorePath() {
@@ -12054,6 +12120,40 @@ Trimmer(string, whatTrim:="") {
    Else
       string := Trim(string, "`r`n `t`f`v`b")
    Return string
+}
+
+
+GetWindowPlacement(hWnd) {
+    Local WINDOWPLACEMENT, Result := {}
+    NumPut(VarSetCapacity(WINDOWPLACEMENT, 44, 0), WINDOWPLACEMENT, 0, "UInt")
+    r := DllCall("GetWindowPlacement", "UPtr", hWnd, "UPtr", &WINDOWPLACEMENT)
+    If (r=0)
+    {
+       WINDOWPLACEMENT := ""
+       Return 0
+    }
+    Result.x := NumGet(WINDOWPLACEMENT, 28, "Int")
+    Result.y := NumGet(WINDOWPLACEMENT, 32, "Int")
+    Result.w := NumGet(WINDOWPLACEMENT, 36, "Int") - Result.x
+    Result.h := NumGet(WINDOWPLACEMENT, 40, "Int") - Result.y
+    Result.flags := NumGet(WINDOWPLACEMENT, 4, "UInt") ; 2 = WPF_RESTORETOMAXIMIZED
+    Result.showCmd := NumGet(WINDOWPLACEMENT, 8, "UInt") ; 1 = normal, 2 = minimized, 3 = maximized
+    WINDOWPLACEMENT := ""
+    Return Result
+}
+
+SetWindowPlacement(hWnd, x, y, w, h, showCmd:=1) {
+    ; showCmd: 1 = normal, 2 = minimized, 3 = maximized
+    Local WINDOWPLACEMENT
+    NumPut(VarSetCapacity(WINDOWPLACEMENT, 44, 0), WINDOWPLACEMENT, 0, "UInt")
+    NumPut(x, WINDOWPLACEMENT, 28, "Int")
+    NumPut(y, WINDOWPLACEMENT, 32, "Int")
+    NumPut(w + x, WINDOWPLACEMENT, 36, "Int")
+    NumPut(h + y, WINDOWPLACEMENT, 40, "Int")
+    NumPut(showCmd, WINDOWPLACEMENT, 8, "UInt")
+    r := DllCall("SetWindowPlacement", "UPtr", hWnd, "UPtr", &WINDOWPLACEMENT)
+    WINDOWPLACEMENT := ""
+    Return r
 }
 
 gregorian_to_jd(year, month, day) {
@@ -12250,7 +12350,7 @@ jd_to_hebrew(jd) {
 }
 
 
-#If, (WinActive( "ahk_id " hSetWinGui) && isInRange(AnyWindowOpen, 1, 6))
+#If, ((WinActive( "ahk_id " hSetWinGui) && isInRange(AnyWindowOpen, 1, 6)) || (WinActive( "ahk_id " hCelebsMan) && windowManageCeleb=1))
     AppsKey::
       coreSettingsContextMenu()
     Return 

@@ -15,8 +15,8 @@ InitClockFace() {
       Return
    }
 
-   faceElements := OSDbgrColor
-   faceBgrColor := OSDtextColor
+   faceElements := "111111"
+   faceBgrColor := "eeEEee"
    If (moduleAnalogClockInit!=1 || PrefOpen=1)
    {
       If (constantAnalogClock=1 && PrefOpen=0)
@@ -193,16 +193,7 @@ UpdateEverySecond() {
 ; Draw HoursPointer
    t := (A_Hour*360//12) + ((A_Min//15*15)*360//60)//12 + 90
    R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.50, 2) ; outer position
-   If (analogMoonPhases=1 && isInRange(A_Hour, 16, 20))
-   {
-      pPen := Gdip_CreatePen("0x88" faceBgrColor, Round((ClockDiameter/100)*4.6, 4))
-      Gdip_DrawLine(globalG, pPen, CenterX, CenterY
-         , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
-         , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
-      Gdip_DeletePen(pPen)
-   }
-
-   pPen := Gdip_CreatePen("0xaa" faceElements, Round((ClockDiameter/100)*3.3, 4))
+   pPen := Gdip_CreatePen("0xff666666", Round((ClockDiameter/100)*3.9, 4))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
       , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
       , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
@@ -218,7 +209,7 @@ UpdateEverySecond() {
 ; Draw MinutesPointer
    t := Round(A_Min*360/60+90, 4)
    R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.35, 4) ; outer position
-   pPen := Gdip_CreatePen("0x55" faceElements, Round((ClockDiameter/100)*2.8, 4))
+   pPen := Gdip_CreatePen("0xff707070", Round((ClockDiameter/100)*2.3, 4))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
       , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
       , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
@@ -227,7 +218,7 @@ UpdateEverySecond() {
 ; Draw SecondsPointer
    t := Round(A_Sec*360/60+90, 4)
    R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.25, 4) ; outer position
-   pPen := Gdip_CreatePen("0x99" faceElements, Round((ClockDiameter/100)*1.3, 4))
+   pPen := Gdip_CreatePen("0xdd898989", Round((ClockDiameter/100)*1.3, 4))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
       , Round(CenterX - (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
       , Round(CenterY - (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
@@ -235,7 +226,7 @@ UpdateEverySecond() {
 
 ; Draw SecondsPointer end stick
    R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.75, 4) ; outer position
-   pPen := Gdip_CreatePen("0x99" faceElements, Round((ClockDiameter/100)*1.3, 4))
+   pPen := Gdip_CreatePen("0xdd898989", Round((ClockDiameter/100)*1.3, 4))
    Gdip_DrawLine(globalG, pPen, CenterX, CenterY
       , Round(CenterX + (R1 * Cos(t * Atan(1) * 4 / 180)), 4)
       , Round(CenterY + (R1 * Sin(t * Atan(1) * 4 / 180)), 4))
@@ -379,7 +370,7 @@ DrawHoursLabels(R1, R2, G) {
       If (zo[A_Index]=1)
          x1 -= R2/18
 
-      txtOptions := "x" x1 " y" y1 " Center vCenter cEE" OSDbgrColor " Bold nowrap s" Round(R2*0.22)
+      txtOptions := "x" x1 " y" y1 " Center vCenter cEE111111 Bold nowrap s" Round(R2*0.22)
       Gdip_TextToGraphics(G, zf, txtOptions, "Arial", 3*(x2 - x1), 3*(y2 - y1))
    }
 }
