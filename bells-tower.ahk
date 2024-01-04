@@ -165,7 +165,7 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.4.5"
+, Version                := "3.4.6"
 , ReleaseDate            := "2024 / 01 / 04"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
@@ -9766,7 +9766,7 @@ PanelTodayInfos() {
 
     Global UIastroInfoDaylight, UIastroInfoDawn, UIastroInfoRise, UIastroInfoNoon, UIastroInfoSet, UIastroInfoDusk, UIastroInfoMphase, UIastroInfoMoon
          , UIastroInfoProgressAnnum, UIastroInfoAnnum, UIastroInfoProgressDayu, UIastroInfoDayu, UIastroInfoProgressMoon, UIastroInfoMoonlight
-         , uiastroinfoLightMode, UIastroInfoLtimeGMT, UIastroInfoObjElev, UIastroInfoLtimeus, UIastroInfoObjInfo, UIastroInfoObjVisibility
+         , uiastroinfoLightMode, UIastroInfoLtimeGMT, UIastroInfoObjElev, UIastroInfoLtimeus, UIastroInfoObjInfo, UIastroInfoObjVisibility, UItodayEventsEditu
          , UIastroInfoTotalLight, UIastroInfoElevNoon, UIastroInfoLabelDawn, UIastroInfoLabelDusk, UIastroInfoLightDiff, UIbtnRemGeoLoc, UIastroInfoTotalDiffLight
          , BtnAstroModa, UIastroInfoLabelTotalLight, UIastroInfoLtimeDate, UIbtnTodayPrev, UIbtnTodayNext, UIastroInfoLabelRise, UIastroInfoLabelSetu
 
@@ -9875,7 +9875,7 @@ PanelTodayInfos() {
 
     rzz := (PrefsLargeFonts=1) ? 17 : 20
     txtWid2 := (PrefsLargeFonts=1) ? txtWid + 40 : txtWid + 25
-    Gui, Add, Edit, y+15 w%txtWid2% +ReadOnly -Border r%rzz%, % Trim(extras, "`n") "`n`n" listu
+    Gui, Add, Edit, y+15 w%txtWid2% +ReadOnly -Border r%rzz% vUItodayEventsEditu, % Trim(extras, "`n") "`n`n" listu
 
     Gui, Tab, 2
     UItodayPanelResetDate("yo")
@@ -11599,7 +11599,7 @@ WM_RBUTTONUP() {
        mouseTurnOFFtooltip()
     Else If (HfaceClock=thisWin)
        ClockGuiGuiContextMenu(thisWin, "lol", "N", 1, 2, 3)
-    Else If ((AnyWindowOpen || PrefOpen=1 || windowManageCeleb=1) && !InStr(A_GuiControl, "lview"))
+    Else If ((AnyWindowOpen || PrefOpen=1 || windowManageCeleb=1) && !InStr(A_GuiControl, "lview") && !InStr(A_GuiControl, "UItodayEventsEdit"))
        SettingsToolTips()
 }
 
@@ -11711,7 +11711,6 @@ SettingsToolTips() {
    mouseCreateOSDinfoLine(msg2show, PrefsLargeFonts)
    Return msg2show
 }
-
 
 cRound(n, j:=0) {
    Return Round(n)
