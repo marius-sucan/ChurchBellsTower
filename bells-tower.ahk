@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2024)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.4.6
+;@Ahk2Exe-SetVersion 3.4.7
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -119,6 +119,9 @@ Global displayTimeFormat := 1
 , FontSize               := 26
 , FontSizeQuotes         := 20
 , PrefsLargeFonts        := 0
+, clockOutColor          := "222222"
+, clockBgrColor          := "eeEEee"
+, clockFgrColor          := "111111"
 , OSDbgrColor            := "131209"
 , OSDastroALTcolor       := "106699"
 , OSDastroALTOcolor       := "006612"
@@ -165,8 +168,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.4.6"
-, ReleaseDate            := "2024 / 01 / 04"
+, Version                := "3.4.7"
+, ReleaseDate            := "2024 / 03 / 22"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -2948,7 +2951,8 @@ InvokeSeetNewColor(hC, event, c, err=0) {
   updateColoredRectCtrl(r, ctrl, g, hC)
 
   ; GuiControl, %g%:+Background%r%, %ctrl%
-  ; GuiControl, %g%:Enable, ApplySettingsBTN
+  If (CurrentPrefWindow=5)
+     GuiControl, %g%:Enable, ApplySettingsBTN
   Sleep, 100
   OSDpreview()
 }
@@ -3229,6 +3233,11 @@ PanelShowSettings() {
     If (A_PtrSize!=8)
        Gui, Add, Text, xs+15 y+10 wp, WARNING: The astronomy features are not available on the 32 bits edition.
 
+    Gui, Add, Text, xs y+10 hp +0x200, Analog clock colors:
+    hLV8 := GuiAddColor("xs+15 y+5 w55 h25", "clockBgrColor", "Background face color")
+    hLV9 := GuiAddColor("x+10 wp hp", "clockFgrColor", "Hands and numbers color")
+    hLV10 := GuiAddColor("x+10 wp hp", "clockOutColor", "Exterior color")
+ 
     Gui, Tab
     Gui, Add, Button, xm+0 y+10 w70 h30 Default gApplySettings vApplySettingsBTN, A&pply
     Gui, Add, Button, x+8 wp hp gCloseSettings, C&ancel
@@ -3236,7 +3245,7 @@ PanelShowSettings() {
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Customize: %appName%
     VerifyTheOptions(0)
-    ColorPickerHandles := hLV1 "," hLV2 "," hLV3 "," hLV5 "," hLV6 "," hLV7 "," hTXT
+    ColorPickerHandles := hLV1 "," hLV2 "," hLV3 "," hLV5 "," hLV6 "," hLV7 "," hLV8 "," hLV9 "," hLV10 "," hTXT
 }
 
 helpOSDastroColors() {
@@ -3532,6 +3541,7 @@ palmSunday(ByRef aisHolidayToday, thisYDay) {
   EnvAdd, result, -7, days
 
   FormatTime, lola, %result%, yday
+  ; fnOutputDebug("palmSunday=" thisYday "|" result "|" lola)
   If (lola=thisYDay)
      aisHolidayToday := "Flowery/Palm Sunday - Jesus' triumphal entry into Jerusalem"
 
@@ -4636,12 +4646,26 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
     }
 
     startYday := A_YDay
+    ; startDate := 20241231111536
+    ; FormatTime, startYday, % startDate, yday
     totalYDays := isLeapYear() ? 366 : 365
     listed := 0
     If (doToday=2)
+    {
+       startYday -= 2
        startDate += -2, Days
+    }
 
     friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
+    ; yesterday := 20241230
+    ; tudayDate := 20241231
+    ; tmrwDate := 20250101
+    ; mtmrwDate := 20250102
+    ; fnOutputDebug("s=" startDate)
+    ; fnOutputDebug("y=" yesterday)
+    ; fnOutputDebug("t=" tudayDate)
+    ; fnOutputDebug("m=" tmrwDate)
+    ; fnOutputDebug("o=" mtmrwDate)
     Loop, % dayzCheck
     {
         startDate += 1, Days
@@ -4654,6 +4678,7 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
         Loop, 3
         {
            obju := coretestCelebrations(thisMon, thisMDay, thisYday, 1, A_Index)
+           ; fnOutputDebug(thisYear "/" thisMon "/" thisMDay " = " thisYday "[" totalYDays "]")
            ; ToolTip, % thisYear "/" thisMon "/" thisMDay " = " thisYday "[" totalYDays "]"  , , , 2
            ; Sleep, 950
            If obju[2]
@@ -10212,6 +10237,9 @@ INIsettings(a) {
   INIaction(a, "showOSDprogressBar", "OSDprefs")
   INIaction(a, "makeScreenDark", "SavedSettings")
   INIaction(a, "maxBibleLength", "OSDprefs")
+  INIaction(a, "clockFgrColor", "OSDprefs")
+  INIaction(a, "clockBgrColor", "OSDprefs")
+  INIaction(a, "clockOutColor", "OSDprefs")
 
   If (a=0) ; a=0 means to load from INI
      CheckSettings()
@@ -10345,6 +10373,9 @@ CheckSettings() {
    HexyVar(OSDtextColor, "FFFEFA")
    HexyVar(OSDastroALTcolor, "106699")
    HexyVar(OSDastroALTOcolor, "006612")
+   HexyVar(clockBgrColor, "eeEEee")
+   HexyVar(clockFgrColor, "111111")
+   HexyVar(clockOutColor, "222222")
 
 ; verify other values
    FontName := (StrLen(FontName)>2) ? FontName
