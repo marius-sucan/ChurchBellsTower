@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2024)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.4.7
+;@Ahk2Exe-SetVersion 3.5.0
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -36,7 +36,7 @@
 #SingleInstance Force
 #NoEnv
 #MaxMem 256
-#Include, Lib\va.ahk                   ; vista audio APIs wrapper by Lexikos
+#Include, Lib\va.ahk                   ; windows vista audio APIs wrapper by Lexikos
 #Include, Lib\mci.ahk
 #Include, Lib\gdip_all.ahk
 #Include, Lib\gdi.ahk
@@ -168,8 +168,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.4.7"
-, ReleaseDate            := "2024 / 03 / 22"
+, Version                := "3.5.0"
+, ReleaseDate            := "2024 / 06 / 16"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -193,7 +193,7 @@ If (FirstRun=0)
 
 ; Initialization variables. Altering these may lead to undesired results.
 
-Global CSthin      := "░"   ; light gray 
+Global CSthin := "░"   ; light gray 
 , CSmid       := "▒"   ; gray 
 , CSdrk       := "▓"   ; dark gray
 , CSblk       := "█"   ; full block
@@ -251,7 +251,7 @@ Global CSthin      := "░"   ; light gray
 , hFaceClock, lastShowTime := 1, pToken, scriptStartZeit := A_TickCount
 , globalG, globalhbm, globalhdc, globalobm, uiUserFullDateUTC
 , moduleAnalogClockInit := 0, darkWindowColor := 0x202020, darkControlColor := 0xEDedED
-, debugMode := !A_IsCompiled
+, debugMode := !A_IsCompiled, lastCalendarClickedDate := 0
 
 ; initDLLhack()
 If !pToken
@@ -473,6 +473,29 @@ analogClockStarter() {
   }
 }
 
+friendlyAlarmInfoz() {
+    alarmInfos := ""
+    If (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours))
+    {
+       timeu := Format("{:02}:{:02}", userAlarmHours, userAlarmMins)
+       If (userAlarmIsSnoozed=1)
+       {
+          alarmInfos := "`nAlarm is set at: " timeu " (snoozed for " userAlarmSnooze " min.)"
+       } Else If (userAlarmRepeated=1)
+       {
+          canDo := InStr(userAlarmWeekDays, A_WDay) ? 1 : 0
+          ; ToolTip, % canDo "=" ObserveHolidays "=" isHolidayToday , , , 2
+          If (canDo && ObserveHolidays=1 && StrLen(isHolidayToday)>2)
+             canDo := (InStr(userAlarmWeekDays, "p") && TypeHolidayOccured=3) || (InStr(userAlarmWeekDays, "s") && TypeHolidayOccured=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && TypeHolidayOccured=1 && ObserveReligiousDays=1) ? 0 : 1
+
+          alarmInfos := canDo ? "`nRegular alarm set at: " timeu : "" ; "`nRegular alarm set: exception rule applies for today"
+       } Else
+          alarmInfos := "`nAlarm set at: " timeu
+    }
+
+    Return alarmInfos
+}
+
 decideSysTrayTooltip(modus:=0) {
     Static lastInvoked := 1, lastMsg
     If (modus!="about")
@@ -487,24 +510,7 @@ decideSysTrayTooltip(modus:=0) {
     If (userMustDoTimer=1 && userTimerExpire)
        timerInfos := "`nTimer set to expire at: " userTimerExpire
 
-    If (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours))
-    {
-       timeu := Format("{:02}:{:02}", userAlarmHours, userAlarmMins)
-       If (userAlarmIsSnoozed=1)
-       {
-          alarmInfos := "`nAlarm is set at: " timeu " (snoozed for " userAlarmSnooze " min.)"
-       } Else If (userAlarmRepeated=1)
-       {
-          canDo := InStr(userAlarmWeekDays, A_WDay) ? 1 : 0
-          ; ToolTip, % canDo "=" ObserveHolidays "=" isHolidayToday , , , 2
-          If (canDo && ObserveHolidays=1 && StrLen(isHolidayToday)>2)
-             canDo := (InStr(userAlarmWeekDays, "p") && TypeHolidayOccured=3) || (InStr(userAlarmWeekDays, "s") && TypeHolidayOccured=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && TypeHolidayOccured=1 && ObserveReligiousDays=1) ? 0 : 1
-
-          alarmInfos := canDo ? "`nDaily alarm set at: " timeu : "`nDaily alarm set: exception rule applies"
-       } Else
-          alarmInfos := "`nAlarm set at: " timeu
-    }
-
+    alarmInfos := friendlyAlarmInfoz()
     If (stopWatchRealStartZeit || stopWatchBeginZeit)
        stopwInfos := "`nStopwatch is running"
     If (userMuteAllSounds=1 || BeepsVolume<1)
@@ -2261,10 +2267,13 @@ InitializeTrayMenu() {
     Menu, Tray, Add, &Preferences, :moreOpts
     Menu, Tray, Add, 
     Menu, Tray, Add, Astronom&y / Today, PanelTodayInfos
-    Menu, Tray, Add, Analo&g clock display, toggleAnalogClock
+    Menu, Tray, Add, Celebrations / &holidays, PanelIncomingCelebrations
+    Menu, Tray, Add, Calen&dar, PanelCalendarWindow
+    Menu, Tray, Add
     Menu, Tray, Add, Set &alarm or timer, PanelSetAlarm
     Menu, Tray, Add, Stop&watch, PanelStopWatch
-    Menu, Tray, Add, Celebrations / &holidays, PanelIncomingCelebrations
+    Menu, Tray, Add
+    Menu, Tray, Add, Analo&g clock display, toggleAnalogClock
 
     If (ShowBibleQuotes=1)
        Menu, Tray, Add, Show pre&vious Bible quote, ShowLastBibleMsg
@@ -2275,10 +2284,10 @@ InitializeTrayMenu() {
     Menu, Tray, Add, &Mute all sounds, ToggleAllMuteSounds
     If (userMuteAllSounds=1)
        Menu, Tray, Check, &Mute all sounds
-    Menu, Tray, Add, &Restart app, ReloadScriptNow
     Menu, Tray, Add
     Menu, Tray, Add, Abou&t, PanelAboutWindow
     Menu, Tray, Add
+    Menu, Tray, Add, &Restart app, ReloadScriptNow
     Menu, Tray, Add, E&xit, KillScript, P50
 
     ; Menu, Tray, Default, Abou&t
@@ -2339,6 +2348,8 @@ reopenCurrentWin() {
        PanelEarthMap()
     Else If (o_win=9)
        PanelMoonYearGraphTable()
+    Else If (o_win=10)
+       PanelCalendarWindow()
     Else If (windowManageCeleb=1)
     {
        CloseCelebListWin()
@@ -2743,6 +2754,7 @@ CloseWindow() {
        SoundLoop("")
 
     Gui, SettingsGUIA: Destroy
+    trackImageListButtons("kill")
     hSetWinGui := ""
 }
 
@@ -2751,6 +2763,7 @@ CloseSettings() {
    GuiControlGet, ApplySettingsBTN, Enabled
    PrefOpen := 0
    CloseWindow()
+   trackImageListButtons("kill")
    If (ApplySettingsBTN=0)
    {
       ShowPreview := 1
@@ -2785,13 +2798,27 @@ SettingsGUIAGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
        lastInvoked := A_TickCount
        Return
     }
-
-    coreSettingsContextMenu()
+ 
+    k := (IsRightClick) ? "rclick" : 0
+    coreSettingsContextMenu(k)
     lastInvoked := A_TickCount
     Return
 }
 
-coreSettingsContextMenu() {
+coreSettingsContextMenu(modus:=0) {
+   ActiveWin := WinActive("A")
+   If (ActiveWin=hCelebsMan && windowManageCeleb=1)
+      Gui, CelebrationsGuia: Default
+   Else
+      Gui, SettingsGUIA: Default
+
+   GuiControlGet, WhatsFocused, FocusV
+   If (isVarEqualTo(WhatsFocused, "holiListu", "UIcalendarEventsEditu", "UIcalendarNewEventEdit", "GeoDataSearchField", "newGeoDataLocationUserEdit", "UItodayEventsEditu") && modus!="rclick")
+   {
+      SendInput, {AppsKey}
+      Return
+   }
+
     Menu, ContextMenu, UseErrorLevel
     Menu, ContextMenu, Delete
     Sleep, 25
@@ -2834,15 +2861,28 @@ coreSettingsContextMenu() {
        }
 
        Menu, ContextMenu, Add
-       Menu, ContextMenu, Add, Astronom&y / Today, PanelTodayInfos
+       If (AnyWindowOpen!=6)
+          Menu, ContextMenu, Add, Astronom&y / Today, PanelTodayInfos
+       If (AnyWindowOpen!=3)
+          Menu, ContextMenu, Add, Celebrations / &holidays, PanelIncomingCelebrations
+       If (AnyWindowOpen!=10)
+          Menu, ContextMenu, Add, Calen&dar, PanelCalendarWindow
+
+       Menu, ContextMenu, Add
        Menu, ContextMenu, Add, Analo&g clock display, toggleAnalogClock
        If (constantAnalogClock=1)
           Menu, ContextMenu, Check, Analo&g clock display
 
-       Menu, ContextMenu, Add, Celebrations / &holidays, PanelIncomingCelebrations
-       Menu, ContextMenu, Add, Set &alarm or timer, PanelSetAlarm
-       Menu, ContextMenu, Add, Stop&watch, PanelStopWatch
-       Menu, ContextMenu, Add, Abou&t, PanelAboutWindow
+       If (AnyWindowOpen!=4)
+          Menu, ContextMenu, Add, Set &alarm or timer, PanelSetAlarm
+       If (AnyWindowOpen!=5)
+          Menu, ContextMenu, Add, Stop&watch, PanelStopWatch
+
+       If (AnyWindowOpen!=1)
+       {
+          Menu, ContextMenu, Add
+          Menu, ContextMenu, Add, Abou&t, PanelAboutWindow
+       }
     }
 
     Menu, ContextMenu, Add
@@ -3115,10 +3155,10 @@ PanelShowSettings() {
     Gui, Add, Checkbox, x+10 wp -wrap hp gVerifyTheOptions Checked%tollQuartersException% vtollQuartersException, ... except on the hour
     Gui, Add, Checkbox, xs y+10 wp gcheckBoxStrikeHours Checked%tollHours% vtollHours, Strike on the hour
     Gui, Add, Checkbox, x+10 gVerifyTheOptions Checked%tollHoursAmount% vtollHoursAmount, ... and the number of hours
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%markFullMoonHowls% vmarkFullMoonHowls, Mark full moon by wolves howling
     Gui, Add, Checkbox, xs y+10 hp+5 gcheckBoxStrikeAdditional Checked%AdditionalStrikes% vAdditionalStrikes, Additional strike every (in minutes):
     GuiAddEdit("x+5 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF38", strikeEveryMin, "Additional strike every (in minutes)")
     Gui, Add, UpDown, gVerifyTheOptions vstrikeEveryMin Range1-720, %strikeEveryMin%
-    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%markFullMoonHowls% vmarkFullMoonHowls, Mark full moon by wolves howling
 
     wu := (PrefsLargeFonts=1) ? 125 : 95
     vu := (PrefsLargeFonts=1) ? 55 : 45
@@ -3141,7 +3181,6 @@ PanelShowSettings() {
     GuiAddEdit("x+10 w" vu " geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF60", maxBibleLength)
     Gui, Add, UpDown, vmaxBibleLength gVerifyTheOptions Range20-130, %maxBibleLength%
     Gui, Add, Checkbox, xs+15 y+10 gVerifyTheOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen when displaying Bible verses
-    Gui, Add, Checkbox, y+10 gVerifyTheOptions Checked%noBibleQuoteMhidden% vnoBibleQuoteMhidden, Do not show Bible verses when the mouse cursor is hidden`n(e.g., when watching videos on full-screen)
 
     Gui, Add, Checkbox, xs y+20 gVerifyTheOptions Checked%ObserveHolidays% vObserveHolidays, Observe Christian and/or secular holidays
     Gui, Add, Checkbox, xs y+7 gVerifyTheOptions Checked%SemantronHoliday% vSemantronHoliday, Mark days of feast by regular semantron drumming
@@ -3160,6 +3199,7 @@ PanelShowSettings() {
     GuiAddEdit("x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF36", silentHoursB, "End hour")
     Gui, Add, UpDown, gVerifyTheOptions vsilentHoursB Range0-23, %silentHoursB%
     Gui, Add, Text, x+1 hp +0x200 vtxt3, :59
+    Gui, Add, Checkbox, xs y+15 gVerifyTheOptions Checked%noBibleQuoteMhidden% vnoBibleQuoteMhidden, Do not show Bible verses when the mouse cursor is hidden`n(e.g., when watching videos on full-screen)
 
     Gui, Tab, 4 ; style
     Gui, Add, Text, x+15 y+15 Section, OSD position (x, y)
@@ -3233,15 +3273,15 @@ PanelShowSettings() {
     If (A_PtrSize!=8)
        Gui, Add, Text, xs+15 y+10 wp, WARNING: The astronomy features are not available on the 32 bits edition.
 
-    Gui, Add, Text, xs y+10 hp +0x200, Analog clock colors:
+    Gui, Add, Text, xs y+10, Analog clock colors:
     hLV8 := GuiAddColor("xs+15 y+5 w55 h25", "clockBgrColor", "Background face color")
     hLV9 := GuiAddColor("x+10 wp hp", "clockFgrColor", "Hands and numbers color")
     hLV10 := GuiAddColor("x+10 wp hp", "clockOutColor", "Exterior color")
  
     Gui, Tab
-    Gui, Add, Button, xm+0 y+10 w70 h30 Default gApplySettings vApplySettingsBTN, A&pply
-    Gui, Add, Button, x+8 wp hp gCloseSettings, C&ancel
-    Gui, Add, Button, x+8 w%btnWid% hp gDeleteSettings, R&estore defaults
+    Gui, Add, Button, xm+0 y+10 w75 h30 Default gApplySettings vApplySettingsBTN, A&pply
+    Gui, Add, Button, x+5 wp hp gCloseSettings, C&ancel
+    Gui, Add, Button, x+5 w%btnWid% hp gDeleteSettings, R&estore defaults
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Customize: %appName%
     VerifyTheOptions(0)
@@ -3673,12 +3713,12 @@ lifeGivingSpring(ByRef aisHolidayToday, thisYDay) {
 }
 
 testCelebrations() {
-   obju := coreTestCelebrations(A_Mon, A_MDay, A_YDay, 0)
+   obju := coreTestCelebrations(A_Mon, A_MDay, A_YDay, 0, 0, A_Year)
    TypeHolidayOccured := obju[1]
    isHolidayToday := obju[2]
 }
 
-coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode, testWhat:=0) {
+coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear) {
   Critical, On
   testEquiSols()
   If (ObserveHolidays=0 && SemantronHoliday=0)
@@ -3766,6 +3806,10 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode, testWhat:=0) {
         aTypeHolidayOccured := 1
   }
 
+  NoRelDay := INIactionNonGlobal(0, testFeast ".r", 0, "Celebrations")
+  If StrLen(NoRelDay)>2
+     aisHolidayToday := aTypeHolidayOccured := ""
+
   If (testWhat=1)
      Return [aTypeHolidayOccured, aisHolidayToday]
 
@@ -3812,21 +3856,29 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode, testWhat:=0) {
      }
   }
 
+  NoSecDay := INIactionNonGlobal(0, testFeast ".s", 0, "Celebrations")
+  If StrLen(NoSecDay)>2
+     aisHolidayToday := aTypeHolidayOccured := ""
+
   If (testWhat=2)
      Return [aTypeHolidayOccured, aisHolidayToday]
 
   If (testWhat=3)
      aisHolidayToday := aTypeHolidayOccured := ""
 
-  PersonalDay := INIactionNonGlobal(0, testFeast, 0, "Celebrations")
-  If InStr(PersonalDay, "default disabled")
+  today := INIactionNonGlobal(0, testFeast "." thisYear, 0, "Celebrations")
+  PersonalDay := INIactionNonGlobal(0, testFeast ".a", 0, "Celebrations")
+  If (StrLen(today)>2)
   {
-     aisHolidayToday := PersonalDay := aTypeHolidayOccured := 0
+     aisHolidayToday := today
+     If (StrLen(PersonalDay)>2)
+        aisHolidayToday .= " | " PersonalDay
+     aTypeHolidayOccured := 3
   } Else If (StrLen(PersonalDay)>2)
   {
      aisHolidayToday := PersonalDay
      aTypeHolidayOccured := 3
-  }
+  } Else PersonalDay := ""
 
   If (isListMode=0)
      OSDprefix := ""
@@ -3871,8 +3923,116 @@ OpenListCelebrationsBtn() {
   PanelManageCelebrations()
 }
 
-PanelManageCelebrations(tabChoice:=1) {
+BTNimportCalendarEvents() {
+  Gui, CelebrationsGuia: +OwnDialogs
+  FileSelectFile, filu, 3, % A_WorkingDir, Import calendar events, CBT calendar (*.clbt)
+  If ErrorLevel
+     Return
 
+  FileRead, content, % filu
+  ; chr := SubStr(content, 1, 1)
+  Loop, Parse, content, `n,`r
+  {
+      pp := StrSplit(A_LoopField, CSmid)
+      zz := StrSplit(pp[1], ".")
+      okay := (StrLen(zz[1])=2 && StrLen(zz[2])=2 && StrLen(zz[3])>0 && StrLen(zz[3])<5) ? 1 : 0
+      ; fnOutputDebug(chr " | " okay " | " pp[1] " | " pp[2] " | " zz[1])
+      If (StrLen(pp[2])>2 && okay=1)
+         INIactionNonGlobal(1, pp[1], pp[2], "Celebrations")
+  }
+  GuiControl, CelebrationsGuia: Choose, CurrentTabLV, 4
+  updateHolidaysLVs()
+}
+
+BTNexportCalendarEvents() {
+  CheckDay := 0
+  CheckMonth := "01"
+  listum := ""
+  ToolTip, Please wait - preparing list
+  lastMsg := A_TickCount
+  Loop, 400
+  {
+     CheckDay++
+     If (CheckDay>31)
+     {
+        CheckDay := "01"
+        CheckMonth++
+        If (CheckMonth<10)
+           CheckMonth := "0" CheckMonth
+     } Else If (CheckDay<10)
+        CheckDay := "0" CheckDay
+
+     testFeast := CheckMonth "." CheckDay
+     PersonalDate := celebYear CheckMonth CheckDay 010101
+     FormatTime, PersonalDate, %PersonalDate%, LongDate
+     If (StrLen(PersonalDate)<3)
+        Continue
+
+     PersonalDay := INIactionNonGlobal(0, testFeast ".a", 0, "Celebrations")
+     If (StrLen(PersonalDay)>2)
+        listum .= testFeast ".a" CSmid PersonalDay "`n"
+
+     startYear := A_Year - 10
+     Loop, 150
+     {
+        dayum := INIactionNonGlobal(0, testFeast "." startYear, 0, "Celebrations")
+        If (StrLen(dayum)>2)
+           listum .= testFeast "." startYear CSmid dayum "`n"
+
+        startYear++
+     }
+
+     If (A_TickCount -lastMsg>400)
+     {
+        lastMsg := A_TickCount
+        xx := Round(A_Index/4)
+        ToolTip, Please wait - preparing list: %xx% `%
+     }
+
+  }
+  ToolTip
+  file2save := saveFileDialogWrapper("S", "PathMustExist", A_ScriptDir "\personal-events", "Export the list of user defined events", "User-defined celebrations (*.clbt)|All (*.*)", 1, 1)
+  If (!RegExMatch(file2save, "i)(.\.clbt)$") && file2save)
+     file2save .= ".clbt"
+
+  If !file2save
+     Return
+
+  FileSetAttrib, -R, %file2save%
+  Sleep, 5
+  Try FileDelete, %file2save%
+  Sleep, 5
+  Try FileAppend, % listum, % file2save, UTF-8
+  Catch wasError
+  {
+        MsgBox, , % appName, Failed to save to file the user deefined events. Access denied? Please try again.
+        Return
+  } 
+
+  ToolTip, Saved to file succesfully.
+  SoundBeep 900, 100
+  SetTimer, removeTooltip, -500
+}
+
+saveFileDialogWrapper(p_Type, optionz, startPath, msg, pattern, ByRef n_FilterIndex:="", chooseFilterIndex:=1, defaultEditField:="") {
+   thisHwnd := windowManageCeleb ? hCelebsMan : hSetWinGui
+   If FolderExist(startPath)
+      pathSymbol := "\"
+
+   If !chooseFilterIndex
+      chooseFilterIndex := 1
+
+   optionz .= " NoChangeDir HideReadOnly"
+   r := Dlg_OpenSaveFile(p_Type, thisHwnd, msg, pattern, chooseFilterIndex, startPath pathSymbol, "", optionz)
+   n_FilterIndex := NumGet(optionz, (A_PtrSize=8) ? 44:24,"UInt")
+   r := Trimmer(r)
+   If StrLen(r)<4
+      r := ""
+
+   Return r
+}
+
+PanelManageCelebrations(tabChoice:=1) {
   Global LViewEaster, LViewOthers, LViewSecular, LViewPersonal, CurrentTabLV, ResetYearBTN
   If (AnyWindowOpen && PrefOpen!=1)
      CloseWindow()
@@ -3895,19 +4055,21 @@ PanelManageCelebrations(tabChoice:=1) {
   windowManageCeleb := 1
   Gui, Add, Checkbox, x15 y10 gupdateOptionsLVsGui Checked%ObserveReligiousDays% vObserveReligiousDays, Observe religious feasts / holidays
   GuiAddDropDownList("x+2 w100 gupdateOptionsLVsGui AltSubmit Choose" UserReligion " vUserReligion", "Catholic|Orthodox", "Religion",,"CelebrationsGuia")
-  btnWid := (PrefsLargeFonts=1) ? 70 : 50
-  lstWid2 := lstWid - btnWid
-  Gui, Add, Button, xs+%lstWid2% yp+0 gPaneladdNewEntryWindow w%btnWid% h30, &Add
-  Gui, Add, Tab3, xs+0 y+5 AltSubmit Choose%tabChoice% vCurrentTabLV, Religious|Easter related|Secular|Personal
-
+  btnWid := (PrefsLargeFonts=1) ? 71 : 48
+  lstWid2 := lstWid - (btnWid)*3
+  Gui, Add, Button, x+10 gPanelAddNewCalendarEvent w%btnWid% hp, &Add
+  Gui, Add, Button, x+5 gBTNimportCalendarEvents wp hp, &Import
+  Gui, Add, Button, x+5 gBTNexportCalendarEvents wp hp, &Export
+  Gui, Add, Tab3, xs y+10 AltSubmit Choose%tabChoice% vCurrentTabLV, Religious|Easter related|Secular|Personal
+  rz := (PrefsLargeFonts=1) ? 9 : 11
   Gui, Tab, 1
-  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r9 Grid NoSort -Hdr vLViewOthers", "Date|Details|Index", "Religious celebrations", "CelebrationsGuia")
+  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r" rz " Grid NoSort -Hdr vLViewOthers", "Date|Details|Indexed date", "Religious celebrations", "CelebrationsGuia")
   Gui, Tab, 2
-  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r9 Grid NoSort -Hdr vLViewEaster", "Date|Details|Index", "Easter related celebrations", "CelebrationsGuia")
+  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r" rz " Grid NoSort -Hdr vLViewEaster", "Date|Details|Indexed date", "Easter related celebrations", "CelebrationsGuia")
   Gui, Tab, 3
-  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r9 Grid NoSort -Hdr vLViewSecular", "Date|Details|Index", "Secular celebrations", "CelebrationsGuia")
+  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r" rz " Grid NoSort -Hdr vLViewSecular", "Date|Details|Indexed date", "Secular celebrations", "CelebrationsGuia")
   Gui, Tab, 4
-  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r9 Grid NoSort -Hdr vLViewPersonal", "Date|Details|Index", "User defined celebrations", "CelebrationsGuia")
+  GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r" rz " Grid NoSort -Hdr vLViewPersonal", "Date|Details|Indexed date", "User defined celebrations", "CelebrationsGuia")
 
   Gui, Tab
   Gui, Add, Checkbox, y+15 Section gupdateOptionsLVsGui Checked%ObserveSecularDays% vObserveSecularDays, Observe secular holidays
@@ -3920,10 +4082,10 @@ PanelManageCelebrations(tabChoice:=1) {
      Gui, Add, Button, xs y+15 w%btnWid% h30 gPanelIncomingCelebrations, &Back
 
   btnWid := (PrefsLargeFonts=1) ? 42 : 32
-  GuiAddButton("x+5 w" btnWid " h30 gPrevYearList", "<<", "Previous year", 0, "CelebrationsGuia")
+  GuiAddButton("x+5 w" btnWid " h30 gPrevYearList", "<", "Previous year", 0, "CelebrationsGuia")
   Gui, Add, Button, x+1 wp+15 hp gResetYearList vResetYearBTN +hwndhTemp, %celebYear%
   ToolTip2ctrl(hTemp, "Reset to current year")
-  GuiAddButton("x+1 wp-15 hp gNextYearList", ">>", "Next year", 0, "CelebrationsGuia")
+  GuiAddButton("x+1 wp-15 hp gNextYearList", ">", "Next year", 0, "CelebrationsGuia")
   applyDarkMode2winPost("CelebrationsGuia", hCelebsMan)
   Gui, Show, AutoSize, Celebrations list: %appName%
   updateOptionsLVsGui()
@@ -4018,7 +4180,7 @@ updateHolidaysLVs() {
         . "Corpus Christi|" corpuschristidate
 
      Gui, ListView, LViewEaster
-     processHolidaysList(theList)
+     processHolidaysList(theList, ".r")
      Static theList2 := "Divine Maternity of the Blessed Virgin Mary|" MaterDei "`n"
         . "Epiphany|" Epiphany "`n"
         . "Presentation of the Lord Jesus Christ|" PresentationLord "`n"
@@ -4046,7 +4208,7 @@ updateHolidaysLVs() {
         . "Feast of the Holy Innocents|" FeastHolyInnocents
 
      Gui, ListView, LViewOthers
-     processHolidaysList(theList2)
+     processHolidaysList(theList2, ".r")
   } Else If (UserReligion=2 && ObserveReligiousDays=1)
   {
      theList3 := "Flowery Sunday|" palmdaydate "`n"
@@ -4062,7 +4224,7 @@ updateHolidaysLVs() {
         . "All Saints' day|" TrinitySundaydate
 
      Gui, ListView, LViewEaster
-     processHolidaysList(theList3)
+     processHolidaysList(theList3, ".r")
 
      Static theList4 := "Theophany|" Epiphany "`n"
         . "Synaxis of Saint John the Baptist|" SynaxisSaintJohnBaptist "`n"
@@ -4086,7 +4248,7 @@ updateHolidaysLVs() {
         . "Christmas - 2nd day|" Christmas2nday
 
      Gui, ListView, LViewOthers
-     processHolidaysList(theList4)
+     processHolidaysList(theList4, ".r")
   } Else
   {
      response := "-- { religious holidays are not observed } --"
@@ -4123,7 +4285,7 @@ updateHolidaysLVs() {
        . "International Day of Disabled Persons|12.03`n"
        . "Human Rights Day|12.10`n"
        . "World Arabic Language Day|12.18"
-     processHolidaysList(theListS)
+     processHolidaysList(theListS, ".s")
   } Else
   {
      response := "-- { secular holidays are not observed } --"
@@ -4145,19 +4307,25 @@ updateHolidaysLVs() {
      } Else If (CheckDay<10)
         CheckDay := "0" CheckDay
 
-     testFeast := CheckMonth "." CheckDay
-     PersonalDay := INIactionNonGlobal(0, testFeast, 0, "Celebrations")
-     If (StrLen(PersonalDay)>2)
-     {
-        PersonalDate := celebYear CheckMonth CheckDay 010101
-        FormatTime, PersonalDate, %PersonalDate%, LongDate
-        If (StrLen(PersonalDate)<3) || InStr(PersonalDay, "default disabled")
-           Continue
+     PersonalDate := celebYear CheckMonth CheckDay 010101
+     FormatTime, PersonalDate, %PersonalDate%, LongDate
+     If (StrLen(PersonalDate)<3)
+        Continue
 
-        LV_Add(A_Index, PersonalDate, PersonalDay, testFeast)
+     testFeast := CheckMonth "." CheckDay
+     PersonalDay := INIactionNonGlobal(0, testFeast ".a", 0, "Celebrations")
+     dayum := INIactionNonGlobal(0, testFeast "." celebYear, 0, "Celebrations")
+     If (StrLen(PersonalDay)>2 || StrLen(dayum)>2)
+     {
+        If (StrLen(PersonalDay)>2)
+           LV_Add(A_Index, PersonalDate, PersonalDay, testFeast ".a")
+        If (StrLen(dayum)>2)
+           LV_Add(A_Index, PersonalDate, dayum, testFeast "." celebYear)
+
         loopsOccured++
      }
   }
+
   If (loopsOccured<1)
      LV_Add(1,"-- { no personal entries added } --")
 
@@ -4182,11 +4350,12 @@ updateHolidaysLVs() {
      LV_ModifyCol(A_Index, "AutoHdr Left")
   If (ObserveSecularDays=1)
      LV_ModifyCol(3, 1)
+
   GuiControl, CelebrationsGuia:, ResetYearBTN, %celebYear%
 }
 
-PaneladdNewEntryWindow() {
-  Global newDay, newMonth, newEvent
+PanelAddNewCalendarEvent() {
+  Global newDay, newMonth, newEvent, uiCalendarNewAllYears
   Gui, CelebrationsGuia: Destroy
   Sleep, 15
   Gui, CelebrationsGuia: Default
@@ -4205,6 +4374,8 @@ PaneladdNewEntryWindow() {
   GuiAddDropDownList("y+10 Choose" A_MDay " w" drpWid " vnewDay", "01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31", "Day of month",, "CelebrationsGuia")
   GuiAddDropDownList("x+5 Choose" A_Mon " w" drpWid2 " vnewMonth", "01 January|02 February|03 March|04 April|05 May|06 June|07 July|08 August|09 September|10 October|11 November|12 December", "Month of year",, "CelebrationsGuia")
   GuiAddEdit("xs y+7 w400 r1 limit90 -multi -wantReturn -wantTab -wrap vnewEvent", "", "Event name", "CelebrationsGuia")
+  Gui, Add, Checkbox, y+10 Checked1 vuiCalendarNewAllYears, Observe the event every year
+
   Gui, Add, Button, xs y+15 w%btnWid% h30 Default gSaveNewEntryBtn , &Add entry
   Gui, Add, Button, x+5 wp-25 hp gCancelNewEntryBtn, &Cancel
   applyDarkMode2winPost("CelebrationsGuia", hCelebsMan)
@@ -4218,6 +4389,7 @@ SaveNewEntryBtn() {
   GuiControlGet, newDay
   GuiControlGet, newMonth
   GuiControlGet, newEvent
+  GuiControlGet, uiCalendarNewAllYears
 
   If (StrLen(newEvent)<4)
      wrongThis := 1
@@ -4237,13 +4409,14 @@ SaveNewEntryBtn() {
   } Else
   {
      Gui, CelebrationsGuia: Destroy
-     PersonalDay := INIactionNonGlobal(1, newMonth "." newDay, newEvent, "Celebrations")
+     pp := (uiCalendarNewAllYears=1) ? ".a" : "." celebYear
+     PersonalDay := INIactionNonGlobal(1, newMonth "." newDay pp, newEvent, "Celebrations")
      Sleep, 200
      PanelManageCelebrations(4)
   }
 }
 
-processHolidaysList(theList) {
+processHolidaysList(theList, typu) {
    Loop, Parse, theList, `n
    {
       lineArr := StrSplit(A_LoopField, "|")
@@ -4257,7 +4430,7 @@ processHolidaysList(theList) {
       If (StrLen(LongaData)<3)
          Continue
 
-      PersonalDay := INIactionNonGlobal(0, miniDate, 0, "Celebrations")
+      PersonalDay := INIactionNonGlobal(0, miniDate typu, 0, "Celebrations")
       byeFlag := (StrLen(PersonalDay)>2) ? "(*) " : ""
       LV_Add(A_Index, byeFlag LongaData, lineArr[1], miniDate)
    }
@@ -4280,18 +4453,15 @@ ActionListViewKBDs() {
 
      LV_GetText(dateSelected, A_EventInfo, 3)
      LV_GetText(eventusName, A_EventInfo, 2)
-     If (eventusName="Details" || !eventusName || !dateSelected || StrLen(dateSelected)>5)
+     If (eventusName="Details" || !eventusName || !dateSelected || StrLen(dateSelected)>10)
         Return
 
      DisableMsg := "default disabled"
      If (CurrentTabLV<4)
      {
+        dateSelected := (CurrentTabLV=3) ? dateSelected ".s" : dateSelected ".r"
         PersonalDay := INIactionNonGlobal(0, dateSelected, 0, "Celebrations")
-        If (StrLen(PersonalDay)>2 && !InStr(PersonalDay, DisableMsg))
-        {
-           reactivate := 1
-           questionMsg := eventusName " is overridden by a custom celebration entry: " PersonalDay ".`n`nDo you want to observe again the default celebration ? `n`nBy answering Yes, the personal entry will be removed."
-        } Else If (StrLen(PersonalDay)>2 && InStr(PersonalDay, DisableMsg))
+        If (StrLen(PersonalDay)>2)
         {
            reactivate := 1
            questionMsg := "Do you want to begin observing again " eventusName " ?"
@@ -4320,13 +4490,14 @@ ActionListViewKBDs() {
              INIactionNonGlobal(1, dateSelected, "-- { " DisableMsg " } --", "Celebrations")
           Else If (reactivate=1)
              INIactionNonGlobal(1, dateSelected, "-", "Celebrations")
+         
           updateHolidaysLVs()
         }
      } Else If (CurrentTabLV=4)
      {
-        If InStr(eventusName, DisableMsg)
-           questionMsg := "Do you want to begin observing again the default celebration ?"
-        Else
+        ; If InStr(eventusName, DisableMsg)
+        ;    questionMsg := "Do you want to begin observing again the default celebration ?"
+        ; Else
            questionMsg := "Do you want to remove " eventusName " ?"
 
         If (A_TickCount - lastAsked>2000)
@@ -4610,7 +4781,7 @@ PanelIncomingCelebrations() {
     If (tickTockNoise!=1)
        SoundLoop(tickTockSound)
 
-    btnW1 := (PrefsLargeFonts=1) ? 105 : 80
+    btnW1 := (PrefsLargeFonts=1) ? 90 : 65
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     Gui, Add, Button, xs+1 y+15 w1 h1, L
     doResetGuiFont()
@@ -4618,9 +4789,9 @@ PanelIncomingCelebrations() {
     Gui, Add, Checkbox, xs y+8 gToggleObsHoliEvents Checked%ObserveHolidays% vObserveHolidays, &Observe Christian and/or secular holidays
 
     Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn vbtn1, &Manage
-    Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Today
-    Gui, Add, Button, x+5 hp wp+15 gPanelShowSettings, &Settings
-    Gui, Add, Button, x+5 hp wp-15 gCloseWindow, &Close
+    Gui, Add, Button, x+5 hp wp+25 gPanelTodayInfos, &Astronomy
+    Gui, Add, Button, x+5 hp wp gPanelCalendarWindow, &Calendar
+    Gui, Add, Button, x+5 hp wp-25 gCloseWindow, C&lose
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Celebrations list: %appName%
     PopulateIncomingCelebs()
@@ -4675,9 +4846,9 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
         startYday++
         thisYday := (startYday>totalYDays) ? startYday - totalYDays : startYday
         wasItem := 0
-        Loop, 3
+        Loop, 3 ; for every type of celebration
         {
-           obju := coretestCelebrations(thisMon, thisMDay, thisYday, 1, A_Index)
+           obju := coretestCelebrations(thisMon, thisMDay, thisYday, 1, A_Index, thisYear)
            ; fnOutputDebug(thisYear "/" thisMon "/" thisMDay " = " thisYday "[" totalYDays "]")
            ; ToolTip, % thisYear "/" thisMon "/" thisMDay " = " thisYday "[" totalYDays "]"  , , , 2
            ; Sleep, 950
@@ -4713,26 +4884,26 @@ friendlyDating(datum, startDate, yesterday, tudayDate, tmrwDate, mtmrwDate) {
   Return datum
 }
 
-listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, showAll) {
+listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, showAll, dayz) {
     listu := ""
     FormatTime, OutputVar, % mEquiDate, yyyy/MM/dd
     OutputVar := friendlyDating(OutputVar, mEquiDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
-    If (isinRange(mEquiDay, A_YDay, A_YDay + 30) || showAll=1)
+    If (isinRange(mEquiDay, A_YDay, A_YDay + dayz) || showAll=1)
        listu .= OutputVar ". ▀ March Equinox`n`n"
  
     FormatTime, OutputVar, % jSolsDate, yyyy/MM/dd
     OutputVar := friendlyDating(OutputVar, jSolsDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
-    If (isinRange(jSolsDay, A_YDay, A_YDay + 30) || showAll=1)
+    If (isinRange(jSolsDay, A_YDay, A_YDay + dayz) || showAll=1)
        listu .= OutputVar ". ⬤ June Solstice`n`n"
   
     FormatTime, OutputVar, % sEquiDate, yyyy/MM/dd
     OutputVar := friendlyDating(OutputVar, sEquiDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
-    If (isinRange(sEquiDay, A_YDay, A_YDay + 30) || showAll=1)
+    If (isinRange(sEquiDay, A_YDay, A_YDay + dayz) || showAll=1)
        listu .= OutputVar ". ▃ September Equinox`n`n"
   
     FormatTime, OutputVar, % dSolsDate, yyyy/MM/dd
     OutputVar := friendlyDating(OutputVar, dSolsDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
-    If (isinRange(dSolsDay, A_YDay, A_YDay + 30) || showAll=1)
+    If (isinRange(dSolsDay, A_YDay, A_YDay + dayz) || showAll=1)
        listu .= OutputVar ". ◯ December Solstice`n`n"
 
     Return listu
@@ -4759,7 +4930,7 @@ PopulateIncomingCelebs() {
        listu := "No religious or secular events are observed for the next 30 days.`n`n"
 
     listu .= "Astronomic events:`n`n"
-    listu .= listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 0)
+    listu .= listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 0, 30)
 
     prevu := startDate := A_Year A_Mon A_MDay 010101
     ; startDate := 2022 01 01 010101
@@ -4808,6 +4979,7 @@ reactWinOpened(funcu, idu) {
 
 SetPresetTimers(a, b, c) {
    Static lastInvoked := 1, prevu := 0
+   GuiControlGet, a, SettingsGUIA: hwnd, userUItimerQuickSet
    ControlGetText, info, , ahk_id %a%
    info := StrReplace(info, "&")
    info := Trim(StrReplace(info, "m"))
@@ -4843,6 +5015,7 @@ PanelSetAlarm() {
     INIaction(0, "userTimerMins", "SavedSettings")
     INIaction(0, "userTimerHours", "SavedSettings")
     INIaction(0, "userTimerMsg", "SavedSettings")
+    INIaction(0, "userAlarmWeekDays", "SavedSettings")
     MinMaxVar(userTimerMins, 0, 59, 2)
     MinMaxVar(userTimerHours, 0, 12, 0)
 
@@ -4884,9 +5057,10 @@ PanelSetAlarm() {
     doResetGuiFont()
     Gui, Add, Tab3,, Timer|Alarm
     Gui, Tab, 1
-    Gui, Add, Text, x+15 y+15 Section +hwndhTemp, Set timer to (in minutes):
+    Gui, Add, Text, x+15 y+15 Section +hwndhTemp, Predefined timer (in minutes):
     ml := (PrefsLargeFonts=1) ? 60 : 50
-    GuiAddDropDownList("x+5 w" ml " Choose1 vuserUItimerQuickSet gSetPresetTimers", "0|1|2|3|4|5|10|15|30|45|60|90|120", [hTemp])
+    GuiAddDropDownList("x+5 w" ml " Choose1 vuserUItimerQuickSet", "0|1|2|3|4|5|10|15|30|45|60|90|120", [hTemp])
+    Gui, Add, Button, x+5 wp hp gSetPresetTimers, Set
     Gui, Add, Checkbox, xs y+10 Section gupdateUIalarmsPanel Checked%userMustDoTimer% vuserMustDoTimer, Set timer duration (in hours`, mins):
     Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
     GuiAddEdit("xs+15 y+10 w" nW " h" nH " Center number -multi limit2 gupdateUIalarmsPanel veditF1", userTimerHours, "Hours")
@@ -4992,9 +5166,9 @@ PanelStopWatch() {
     Gui, Add, Tab3,, Main|Records
 
     Gui, Tab, 1 ; general
-    Gui, Add, Text, x+15 y+15 Section, Time is here and there...
+    Gui, Add, Text, x+15 y+15 Section, Start time and total time:
     Gui, Add, Text, y+5 vUIstopWatchInfos gstartStopWatchCounter, 00:00:00 - 00:00:00
-    Gui, Add, Text, x+5 gstartStopWatchCounter, (total time)
+    ; Gui, Add, Text, x+5 gstartStopWatchCounter, (total time)
     Gui, Font, s22
     Gui, Add, Text, xs y+10 vUIstopWatchLabel gstartStopWatchCounter, 00:00:00.00
     doResetGuiFont()
@@ -5010,17 +5184,399 @@ PanelStopWatch() {
     
     Gui, Tab, 2
     nW := (PrefsLargeFonts=1) ? 265 : 240
-    GuiAddListView("x+15 y+15 Section w" nW " r8 Grid -multi +ReadOnly vLViewStopWatch", "Index|Lap|Laps total|Total", "Recorded time intervals")
+    GuiAddListView("x+15 y+15 Section w" nW " r8 Grid -multi +ReadOnly vLViewStopWatch", "Index|Lap duration|Laps total|Total|System time", "Recorded time intervals")
 
     Gui, Tab
+    Global UIbtnRecordInterval, UIbtnStartStopWatch
     Gui, Add, Checkbox, xm+0 y+15 gToggleAlwaysOnTopSettingsWindow  Checked%setAlwaysOnTop% vsetAlwaysOnTop, Always on top
-    Gui, Add, Button, xm+0 y+5 h30 wp Section Default gstartStopWatchCounter, &Start / Pause
-    Gui, Add, Button, x+5 h30 wp gRecordStopWatchInterval, &Record interval
-    Gui, Add, Button, xs+0 y+5 hp wp gResetStopWatchCounter, &Reset
+    Gui, Add, Button, xm+0 y+5 h30 wp Section Default gstartStopWatchCounter vUIbtnStartStopWatch, &Start / Pause
+    Gui, Add, Button, x+5 h30 wp gRecordStopWatchInterval vUIbtnRecordInterval, &Record interval
+    Gui, Add, Button, xs+0 y+5 hp wp gResetStopWatchCounter, &Reset all
     Gui, Add, Button, x+5 hp wp gCloseWindow, &Cancel
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Stopwatch: %appName%
+}
+
+PanelCalendarWindow() {
+    If reactWinOpened(A_ThisFunc, 10)
+       Return
+
+    GenericPanelGUI(0)
+    LastWinOpened := A_ThisFunc
+    AnyWindowOpen := 10
+    INIaction(1, "LastWinOpened", "SavedSettings")
+    btnWid := 100
+    txtWid := 360
+    Global btn1, editF1, editF2, editF4
+    If (PrefsLargeFonts=1)
+    {
+       btnWid := btnWid + 50
+       txtWid := txtWid + 105
+    }
+
+    doResetGuiFont()
+    Global uiCalendarL1C1, uiCalendarL1C2, uiCalendarL1C3, uiCalendarL1C4, uiCalendarL1C5, uiCalendarL1C6, uiCalendarL1C7
+    Global uiCalendarL2C1, uiCalendarL2C2, uiCalendarL2C3, uiCalendarL2C4, uiCalendarL2C5, uiCalendarL2C6, uiCalendarL2C7
+    Global uiCalendarL3C1, uiCalendarL3C2, uiCalendarL3C3, uiCalendarL3C4, uiCalendarL3C5, uiCalendarL3C6, uiCalendarL3C7
+    Global uiCalendarL4C1, uiCalendarL4C2, uiCalendarL4C3, uiCalendarL4C4, uiCalendarL4C5, uiCalendarL4C6, uiCalendarL4C7
+    Global uiCalendarL5C1, uiCalendarL5C2, uiCalendarL5C3, uiCalendarL5C4, uiCalendarL5C5, uiCalendarL5C6, uiCalendarL5C7
+    Global uiCalendarL6C1, uiCalendarL6C2, uiCalendarL6C3, uiCalendarL6C4, uiCalendarL6C5, uiCalendarL6C6, uiCalendarL6C7
+    Global uiCalendarWeek1, uiCalendarWeek2, uiCalendarWeek3, uiCalendarWeek4, uiCalendarWeek5, uiCalendarWeek6
+    Global uiCalendarDatumLabel, UIcalendarEventsEditu, UIcalendarSelectedDatum, UIcalendarNewEventEdit, uiCalendarNewAllYears
+
+    kw := (PrefsLargeFonts=1) ? 48 : 40
+    kz := kw//2
+    ka := Ceil(kw*6.32)
+    kh := (PrefsLargeFonts=1) ? 30 : 25
+    ColorPickerHandles := ""
+    lastCalendarClickedDate := uiUserFullDateUTC := A_Now
+    GuiAddButton("xm ym w" kz " h" kh " gBtnChangeDateCalendar", "<", "Previous month ( , )")
+    GuiAddButton("x+0 wp hp gBtnChangeDateCalendar", ">", "Next month ( . )")
+    Gui, Add, Text, x+1 w%ka% hp +0x200 -wrap +Center +border vuiCalendarDatumLabel ginvokeCalendarMonthsMenu +hwndhTemp, Month, 2024
+    ColorPickerHandles .= hTemp ","
+    ToolTip2ctrl(hTemp, "Choose month")
+    GuiAddButton("x+1 w" kz " hp gBtnChangeDateCalendar", "◀", "Previous year ( Page up )")
+    GuiAddButton("x+0 wp hp gBtnChangeDateCalendar", "▶", "Next year ( Page down )")
+
+    Gui, Add, Text, xs y+10 w%kw% h%kh% +0x200 Center +hwndhTemp ginvokeCalendarMonthsMenu, #
+    ColorPickerHandles .= hTemp ","
+    ToolTip2ctrl(hTemp, "Week number")
+    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Mon
+    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Tue
+    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Wed
+    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Thu
+    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Fri
+    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Sat
+    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Sun
+
+    Loop, 6
+    {
+        t := A_Index
+        Gui, Add, Text, xs y+2 wp hp +0x200 Center vuiCalendarWeek%t% +hwndhTemp, % t
+        WinSet, Transparent, 170, ahk_id %hTemp%
+        Loop, 7
+            Gui, Add, Checkbox, x+2 wp hp +0x1000 gBTNcalendarDayAct vuiCalendarL%t%C%A_Index%, %t%.%A_Index%
+    }
+
+    ; Gui, Add, ComboBox, xs y+10 w250 vUserStopWatchListZeits, No records||
+    btnW3 := (PrefsLargeFonts=1) ? 110 : 80
+    btnW2 := (PrefsLargeFonts=1) ? 205 : 125
+    btnW1 := (PrefsLargeFonts=1) ? 70 : 50
+    Gui, Add, Button, xm y+20 h30 w%btnW3% gPanelTodayInfos, &Astronomy
+    Gui, Add, Button, x+5 hp w%btnW2% gOpenListCelebrationsBtn, &Manage celebrations
+    Gui, Add, Button, x+5 hp w%btnW1% Default gCloseWindow, &Close
+    col := (PrefsLargeFonts=1) ? 415 : 350
+    Gui, Font, % (PrefsLargeFonts=1) ? "s16" : "s15"
+    Gui, Add, Text, xm+%col% ym w%ka% hp +0x200 Center +Border Section gBtnChangeDateCalendar vUIcalendarSelectedDatum +hwndhTemp, Today date
+    ToolTip2ctrl(hTemp, "Reset to current date ( \ )")
+    ColorPickerHandles .= hTemp ","
+    doResetGuiFont()
+    pr := (PrefsLargeFonts=1) ? 7 : 11
+    Gui, Add, Edit, xs y+10 wp +ReadOnly -Border r%pr% vUIcalendarEventsEditu, ---
+    Gui, Add, Text, xs y+10 wp, Personal event to observe:
+    GuiAddEdit("xs y+1 wp r1 limit90 -multi -wantReturn -wantTab -wrap vUIcalendarNewEventEdit", "", "Event name")
+    Gui, Add, Button, xs y+2 w%kW% h%kH% gBTNcalendarSaveNewEntry +hwndhTemp, Set
+    Gui, Add, Button, x+5 wp+10 hp gBTNcalendarClearEvent +hwndhTemp, Clear
+    ToolTip2ctrl(hTemp, "Clear personal event for the selected date.")
+    Gui, Add, Checkbox, x+5 hp Checked1 vuiCalendarNewAllYears, For every year
+    ToolTip2ctrl(hTemp, "If this is checked, the newly defined event will be observed every year.")
+
+    applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
+    Gui, Show, AutoSize, Calendar: %appName%
+    uiPopulateCalendar()
+    uiPopulateSelDate()
+}
+
+BTNcalendarClearEvent() {
+   year := SubStr(lastCalendarClickedDate, 1, 4)
+   newMonth := SubStr(lastCalendarClickedDate, 5, 2)
+   newDay := SubStr(lastCalendarClickedDate, 7, 2)
+   pDay := INIactionNonGlobal(0, newMonth "." newDay ".a", 0, "Celebrations")
+   If (StrLen(pDay)>2)
+      INIactionNonGlobal(1, newMonth "." newDay ".a", "-", "Celebrations")
+
+   pDay := INIactionNonGlobal(0, newMonth "." newDay "." year, 0, "Celebrations")
+   If (StrLen(pDay)>2)
+      INIactionNonGlobal(1, newMonth "." newDay "." year, "-", "Celebrations")
+   SoundBeep, 900, 100
+   uiPopulateSelDate()
+}
+
+BTNcalendarSaveNewEntry() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, UIcalendarNewEventEdit
+  GuiControlGet, uiCalendarNewAllYears
+  If (StrLen(UIcalendarNewEventEdit)<4)
+  {
+     ToolTip, Event name too short.
+     SoundBeep, 300, 300
+     Sleep, 900
+     ToolTip
+  } Else
+  {
+     newMonth := SubStr(lastCalendarClickedDate, 5, 2)
+     newDay := SubStr(lastCalendarClickedDate, 7, 2)
+     yearu := (uiCalendarNewAllYears=1) ? "a" : SubStr(lastCalendarClickedDate, 1, 4)
+     PersonalDay := INIactionNonGlobal(1, newMonth "." newDay "." yearu, UIcalendarNewEventEdit, "Celebrations")
+     SoundBeep, 900, 100
+     uiPopulateSelDate()
+  }
+}
+
+BTNcalendarDayAct(a, b, c) {
+   Gui, SettingsGUIA: Default
+   ; ControlGetText, OutputVar,, ahk_id %a%
+   GuiControlGet, WhatsFocused, SettingsGUIA: FocusV
+   ; ToolTip, % a "|"  b "|" c "|" WhatsFocused  , , , 2
+  od := lastCalendarClickedDate
+  tDate := getUIcalendarDate()
+  Loop, 6
+  {
+    t := A_Index
+    Loop, 7
+    {
+        pp := "uiCalendarL" t "C" A_Index
+        If (pp=WhatsFocused)
+        {
+           GuiControlGet, zz, SettingsGUIA:, % pp
+           lastCalendarClickedDate := tDate
+           GuiControl, SettingsGUIA:, % pp, % !zz
+           ; ToolTip, % zz "|"  , , , 2
+           Break
+        } Else
+        {
+          tDate += 1, Days
+        }
+    }
+  }
+  If (od=lastCalendarClickedDate && SubStr(lastCalendarClickedDate, 1, 6)!=SubStr(uiUserFullDateUTC, 1, 6))
+     uiUserFullDateUTC := lastCalendarClickedDate
+
+  ; ToolTip, % tDate "|" lastCalendarClickedDate "|" weekday , , , 2
+  uiPopulateCalendar()
+  uiPopulateSelDate()
+}
+
+BtnChangeDateCalendar(a, b, c) {
+   Gui, SettingsGUIA: Default
+   If (b="given")
+   {
+      GuiControlGet, WhatsFocused, FocusV
+      If (WhatsFocused="UIcalendarNewEventEdit")
+      {
+         SendInput, {%a%}
+         Return
+      }
+   }
+
+   ControlGetText, t,, ahk_id %a%
+   t := (b="given") ? c : Trimmer(t)
+   If InStr(t, "previous month")
+      uiUserFullDateUTC += -30, Days
+   Else If InStr(t, "next month")
+      uiUserFullDateUTC += 30, Days
+   Else If InStr(t, "previous year")
+      uiUserFullDateUTC += -365, Days
+   Else If InStr(t, "next year")
+      uiUserFullDateUTC += 365, Days
+   Else If InStr(t, "previous day")
+      uiUserFullDateUTC += -1, Days
+   Else If InStr(t, "next day")
+      uiUserFullDateUTC += 1, Days
+   Else
+      uiUserFullDateUTC := A_Now
+
+   lastCalendarClickedDate := uiUserFullDateUTC
+   uiPopulateCalendar()
+   uiPopulateSelDate()
+   ; ToolTip, % a "|" t "|" uiUserFullDateUTC , , , 2
+}
+
+invokeCalendarMonthsMenu() {
+     Try Menu, monthsMenu, Delete
+     Menu, monthsMenu, Add,  01 January, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  02 February, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  03 March, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  04 April, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  05 May, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  06 June, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  07 July, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  08 August, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  09 September, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  10 October, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  11 November, MenuSetCalendarMonth
+     Menu, monthsMenu, Add,  12 December, MenuSetCalendarMonth
+     Menu, monthsMenu, Show
+}
+
+MenuSetCalendarMonth(a, b, c) {
+    ; ToolTip, % a "|" b "|" c , , , 2
+    thisMon := SubStr(a, 1, 2)
+    thisMDay := SubStr(lastCalendarClickedDate, 7, 2)
+    thisYear := SubStr(lastCalendarClickedDate, 1, 4)
+    If (thisMDay>30 || thisMon="02")
+       thisMDay := (thisMon="02") ? 28 : 30
+
+    uiUserFullDateUTC := lastCalendarClickedDate := thisYear thisMon thisMDay 010101
+    uiPopulateCalendar()
+    uiPopulateSelDate()
+}
+
+givenDateTestCelebrations(givenDate) {
+    FormatTime, thisYday, % givenDate, YDay
+    FormatTime, WeDay, % givenDate, Wday
+    thisMon := SubStr(givenDate, 5, 2)
+    thisMDay := SubStr(givenDate, 7, 2)
+    thisYear := SubStr(givenDate, 1, 4)
+    listu := ""
+    Loop, 3 ; for every type of celebration
+    {
+       obju := coretestCelebrations(thisMon, thisMDay, thisYday, 1, A_Index, thisYear)
+       If obju[2]
+       {
+          prefixu := (obju[1]=1) ? "✝ " : "▣ "
+          If (obju[1]=3) ; personal
+             prefixu := "▣ "
+ 
+          listu .= prefixu obju[2] ".`n`n"
+       }
+    } 
+
+    If (mEquiDay=thisYday)
+       listu .= "▀ March Equinox.`n`n"
+    Else If (jSolsDay=thisYday)
+       listu .= "⬤ June Solstice.`n`n"
+    Else If (sEquiDay=thisYday)
+       listu .= "▃ September Equinox.`n`n"
+    Else If (dSolsDay=thisYday)
+       listu .= "◯ December Solstice.`n`n"
+
+    prevu := startDate := thisYear thisMon thisMDay 010101
+    Loop, 4
+    {
+        startDate += 5, Hours
+        pk := oldMoonPhaseCalculator(startDate)
+        xu := pk[1]
+        If (prevu!=xu && (InStr(xu, "full") || InStr(xu, "new")))
+        {
+           prevu := xu
+           listu .= "* " pk[1] ".`n`n"
+        }
+    }
+
+    alarmInfos := ""
+    If (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours))
+    {
+       tipu := 0
+       If InStr(listu, "✝")
+          tipu := 1
+       Else If InStr(listu, "▦")
+          tipu := 3
+       Else If InStr(listu, "▣")
+          tipu := 2
+
+       timeu := Format("{:02}:{:02}", userAlarmHours, userAlarmMins)
+       If (userAlarmRepeated=1)
+       {
+          canDo := InStr(userAlarmWeekDays, WeDay) ? 1 : 0
+          ; ToolTip, % canDo "=" ObserveHolidays "=" isHolidayToday , , , 2
+          If (canDo && ObserveHolidays=1)
+             canDo := (InStr(userAlarmWeekDays, "p") && tipu=3) || (InStr(userAlarmWeekDays, "s") && tipu=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && tipu=1 && ObserveReligiousDays=1) ? 0 : 1
+
+          alarmInfos := canDo ? "`nRegular alarm set at: " timeu : "" ; "`nRegular alarm set: exception rule applies for today"
+       } Else If (SubStr(givenDate, 1, 8)=SubStr(A_Now, 1, 8))
+          alarmInfos := "`nAlarm set at: " timeu
+    }
+
+    If alarmInfos
+       listu := Trimmer(alarmInfos) ".`n`n" listu
+
+    Return listu
+}
+
+uiPopulateSelDate() {
+  Gui, SettingsGUIA: Default
+  FormatTime, k, % lastCalendarClickedDate, dddd`, d MMMM
+  GuiControl, SettingsGUIA:, UIcalendarSelectedDatum, % k
+  listu := givenDateTestCelebrations(lastCalendarClickedDate)
+  actu := !listu ? "Disable" : "Enable"
+  If !listu 
+     listu := " - no events observed - "
+
+  GuiControl, SettingsGUIA:, UIcalendarEventsEditu, % listu
+  GuiControl, SettingsGUIA: %actu%, UIcalendarEventsEditu
+}
+
+getUIcalendarDate() {
+  tDate := SubStr(uiUserFullDateUTC, 1, 6) . "01010101"
+  FormatTime, weekday, % tDate, WDay
+  weekday -= 2
+  If (weekday=0)
+     weekday := 7
+
+  If (weekday=-1)
+     tDate += -6, Days
+  Else If (weekday<7)
+     tDate += -weekday, Days
+
+  Return tDate
+}
+
+uiPopulateCalendar() {
+  Gui, SettingsGUIA: Default
+  FormatTime, OutputVar, % uiUserFullDateUTC, MMMM, yyyy
+  GuiControl, SettingsGUIA:, uiCalendarDatumLabel, % OutputVar
+  gMon := SubStr(uiUserFullDateUTC, 5, 2)
+  tDate := getUIcalendarDate()
+  GuiControlGet, hVar, SettingsGUIA: hwnd, uiCalendarL1C1
+  WinGetPos, , , mW, mH, ahk_id %hVar%
+  mW -= 2,     mH -= 2
+  nW := mW -2, nH := mH - 2
+  
+  lDate := SubStr(lastCalendarClickedDate, 1, 8)
+  prevListu := ""
+  Loop, 6
+  {
+    t := A_Index
+    FormatTime, isoYWeek, % tDate, YWeek
+    GuiControl, SettingsGUIA:, uiCalendarWeek%t%, % LTrim(SubStr(isoYWeek, 5), "0")
+    Loop, 7
+    {
+        FormatTime, dayu, % tDate, d
+        If (dayu=1)
+           dayu .= "‎" ; invisible space
+
+        GuiControlGet, hVar, SettingsGUIA: hwnd, uiCalendarL%t%C%A_Index%
+        lista := listu := givenDateTestCelebrations(tDate)
+        If InStr(prevListu, "* full moon.")
+           lista := Trimmer(StrReplace(listu, "* full moon."))
+        If InStr(prevListu, "* new moon.")
+           lista := Trimmer(StrReplace(listu, "* new moon."))
+
+        tMon := SubStr(tDate, 5, 2)
+        opp := (tMon=gMon) ? 255 : 123
+        If (SubStr(tDate, 1, 8)=lDate)
+        {
+           opp := 190
+           WinSet, Region,, ahk_id %hVar%
+        } Else
+        {
+           ; If (tMon=gMon)
+           ;    WinSet, Region, 1-1 W%mW% H%mH%, ahk_id %hVar%
+           ; Else
+              WinSet, Region, 2-2 W%nW% H%nH%, ahk_id %hVar%
+        }
+
+        WinSet, Transparent, % opp, ahk_id %hVar%
+        tDate += 1, Days
+        GuiControl, SettingsGUIA:, uiCalendarL%t%C%A_Index%, % dayu
+        GuiControl, SettingsGUIA:, uiCalendarL%t%C%A_Index%, % lista ? 1 : 0
+        prevListu := listu
+    }
+  }
+
+    ; ToolTip, % thisDate "`n" uiUserFullDateUTC , , , 2
 }
 
 ToggleAlwaysOnTopSettingsWindow() {
@@ -5055,7 +5611,8 @@ RecordStopWatchInterval() {
      countu := stopWatchIntervalInfos[3] + 1
      stopWatchRecordsInterval[countu] := valuePushable
      Gui, ListView, LViewStopWatch
-     LV_Add(1, countu, HrzB "." SecC, Hrz "." SecB, HrzA)
+     FormatTime, sysTime, , HH:mm:ss
+     LV_Add(1, countu, HrzB "." SecC, Hrz "." SecB, HrzA, sysTime)
      If (countu=1)
      {
         Loop, 4
@@ -5068,6 +5625,32 @@ RecordStopWatchInterval() {
      stopWatchIntervalInfos.Push(valuePushable)
      stopWatchLapPauseZeit := 0.001
      stopWatchLapBeginZeit := A_TickCount
+  } Else If (AnyWindowOpen=5 && stopWatchPauseZeit)
+  {
+     Gui, SettingsGUIA: Default
+     Gui, ListView, LViewStopWatch
+     total := LV_GetCount()
+     listu := "#|Lap duration|Laps total|Total|System time`n"
+     Loop, % total
+     {
+        row := A_Index
+        Loop, 5
+        {
+            LV_GetText(z, row, A_Index)
+            listu .= z "|"
+        }
+        listu .= "`n"
+     }
+
+     Try Clipboard := listu
+     Catch wasError
+           Sleep, 1
+
+     If wasError
+        ToolTip, Failed to copy to clipboard.
+     Else
+        ToolTip, The recorded lap intervals were copied to clipboard.
+     SetTimer, removeTooltip, -1500
   }
 }
 
@@ -5094,6 +5677,8 @@ ResetStopWatchCounter() {
    SetTimer, uiStopWatchPausedUpdater, Off
    If (AnyWindowOpen=5)
    {
+      GuiControl, SettingsGUIA: Disable, UIbtnRecordInterval
+      GuiControl, SettingsGUIA:, UIbtnStartStopWatch, &Start
       GuiControl, SettingsGUIA:, UIstopWatchInfos, 00:00:00 - 00:00:00
       GuiControl, SettingsGUIA:, UIstopWatchLabel, 00:00:00.0
       GuiControl, SettingsGUIA:, UIstopWatchInterval, 00:00:00.0
@@ -5102,12 +5687,13 @@ ResetStopWatchCounter() {
 }
 
 startStopWatchCounter() {
-   If (AnyWindowOpen-5)
+   If (AnyWindowOpen=5)
    {
       Gui, SettingsGUIA: Default
       GuiControlGet, stopWatchDoBeeps
    }
 
+   GuiControl, SettingsGUIA: Enable, UIbtnRecordInterval
    If stopWatchBeginZeit
    {
       SetTimer, uiStopWatchUpdater, Off
@@ -5116,7 +5702,12 @@ startStopWatchCounter() {
       stopWatchLapPauseZeit += A_TickCount - stopWatchLapBeginZeit
       stopWatchLapBeginZeit := 0
       If stopWatchRealStartZeit
+      {
+         GuiControl, SettingsGUIA:, UIbtnRecordInterval, &Copy intervals
+         GuiControl, SettingsGUIA:, UIbtnStartStopWatch, &Resume
          SetTimer, uiStopWatchPausedUpdater, 50
+      } Else
+         GuiControl, SettingsGUIA:, UIbtnStartStopWatch, &Start
       Return
    }
 
@@ -5129,6 +5720,8 @@ startStopWatchCounter() {
       stopWatchHumanStartTime := CurrentTime
       stopWatchRealStartZeit := A_TickCount
    }
+   GuiControl, SettingsGUIA:, UIbtnRecordInterval, &Record interval
+   GuiControl, SettingsGUIA:, UIbtnStartStopWatch, &Pause
    SetTimer, uiStopWatchUpdater, 50
 }
 
@@ -5315,26 +5908,22 @@ BtnApplyAlarms() {
   userTimerMsg := Trim(userTimerMsg)
   userAlarmMsg := Trim(userAlarmMsg)
   userAlarmWeekDays := ""
+  GuiControlGet, userAlarmExceptRelu
+  GuiControlGet, userAlarmExceptSeculu
+  GuiControlGet, userAlarmExceptPerso
   If userAlarmExceptRelu
-     userAlarmWeekDays .= "r"
+     userAlarmWeekDays .= "r|"
   If userAlarmExceptSeculu
-     userAlarmWeekDays .= "s"
+     userAlarmWeekDays .= "s|"
   If userAlarmExceptPerso
-     userAlarmWeekDays .= "p"
-  If userAlarmWday1
-     userAlarmWeekDays .= 1
-  If userAlarmWday2
-     userAlarmWeekDays .= 2
-  If userAlarmWday3
-     userAlarmWeekDays .= 3
-  If userAlarmWday4
-     userAlarmWeekDays .= 4
-  If userAlarmWday5
-     userAlarmWeekDays .= 5
-  If userAlarmWday6
-     userAlarmWeekDays .= 6
-  If userAlarmWday7
-     userAlarmWeekDays .= 7
+     userAlarmWeekDays .= "p|"
+
+  Loop, 7
+  {
+     GuiControlGet, userAlarmWday%A_Index%
+     If userAlarmWday%A_Index%
+        userAlarmWeekDays .= A_Index "|"
+  }
 
   INIaction(1, "userMustDoAlarm", "SavedSettings")
   INIaction(1, "AlarmersDarkScreen", "SavedSettings")
@@ -5600,9 +6189,10 @@ PanelAboutWindow() {
     btnW3 := (PrefsLargeFonts=1) ? 110 : 80
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     Gui, Add, Button, xm+0 y+25 Section h%btnH% w%btnW1% Default gCloseWindowAbout, &Deus lux est
-    Gui, Add, Button, x+5 hp wp-10 gPanelTodayInfos, &Today
-    Gui, Add, Button, x+5 hp w%btnW2% gPanelShowSettings, &Settings
+    Gui, Add, Button, x+5 hp wp-15 gPanelTodayInfos, &Today
     Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations, &Celebrations
+    Gui, Add, Button, x+5 hp w%btnW2% gPanelShowSettings, &Settings
+    ; Gui, Add, Button, x+5 hp w%btnW2% gCloseWindow, C&lose
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, About: %appName%
@@ -5659,16 +6249,17 @@ PanelSunYearGraphTable() {
        Gui, Add, Text, xm+0 y+10, WARNING: The astronomy features are not available on the 32 bits edition.
     Else
        Gui, Add, Text, xm+0 y+10 wp Section -wrap vuiInfoGeoData, Please wait...
+
     Gui, Add, Text, xp y+5 wp -wrap vUIastroInfoAnnum, -
-    Gui, Add, Button, xp y+20 h%btnH% w%btnW% Default gCloseWindow, &Close
-    Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
+    Gui, Add, Button, xp y+20 h%btnH% w%btnW% gPanelTodayInfos, &Back
     Gui, Add, Button, x+5 hp wp gbtnCopySolarData, &Copy
     Gui, Add, Button, x+5 hp wp gbtnHelpYearSolarGraph, &Help
     widu := (PrefsLargeFonts=1) ? 40 : 32
-    GuiAddButton("x+5 hp w" widu " guiPrevSolarDataYear", "<<", "Previous year")
+    GuiAddButton("x+5 hp w" widu " guiPrevSolarDataYear", "<", "Previous year")
     Gui, Add, Button, x+1 hp wp+15 guiThisSolarDataYear vuiInfoGeoYear +hwndhTemp, % SubStr(uiUserFullDateUTC, 1, 4)
     ToolTip2ctrl(hTemp, "Reset to current year")
-    GuiAddButton("x+1 hp wp-15 guiNextSolarDataYear", ">>", "Next year")
+    GuiAddButton("x+1 hp wp-15 guiNextSolarDataYear", ">", "Next year")
+    Gui, Add, Button, x+5 w%btnW% hp Default gCloseWindow, &Close
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Year graph and table (sun): %appName%
@@ -5723,16 +6314,17 @@ PanelMoonYearGraphTable() {
        Gui, Add, Text, xm+0 y+10, WARNING: The astronomy features are not available on the 32 bits edition.
     Else
        Gui, Add, Text, xm+0 y+10 wp Section -wrap vuiInfoGeoData, Please wait...
+
     Gui, Add, Text, xp y+5 wp -wrap vUIastroInfoAnnum, -
-    Gui, Add, Button, xp y+20 h%btnH% w%btnW% Default gCloseWindow, &Close
-    Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
+    Gui, Add, Button, xp y+20 h%btnH% w%btnW% gPanelTodayInfos, &Back
     Gui, Add, Button, x+5 hp wp gbtnCopySolarData, &Copy
     Gui, Add, Button, x+5 hp wp gbtnHelpYearMoonGraph, &Help
     widu := (PrefsLargeFonts=1) ? 40 : 32
-    GuiAddButton("x+5 hp w" widu " guiPrevSolarDataYear", "<<", "Previous year")
+    GuiAddButton("x+5 hp w" widu " guiPrevSolarDataYear", "<", "Previous year")
     Gui, Add, Button, x+1 hp wp+15 guiThisSolarDataYear vuiInfoGeoYear +hwndhTemp, % SubStr(uiUserFullDateUTC, 1, 4)
     ToolTip2ctrl(hTemp, "Reset to current year")
-    GuiAddButton("x+1 hp wp-15 guiNextSolarDataYear", ">>", "Next year")
+    GuiAddButton("x+1 hp wp-15 guiNextSolarDataYear", ">", "Next year")
+    Gui, Add, Button, x+5 w%btnW% hp Default gCloseWindow, &Close
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Year graph and table (moon): %appName%
@@ -6175,10 +6767,10 @@ PanelEarthMap(modus:=0) {
     widu := (PrefsLargeFonts=1) ? 190 : 120
     GuiAddDropDownList("xp y+5 w" widu " -wrap AltSubmit Choose" showEarthSunMapModus " gToggleEarthSunMap vshowEarthSunMapModus", "Show indexed cities|Show sunlight map|Show moonlight map", "Earth map data")
     widu := (PrefsLargeFonts=1) ? 40 : 32
-    GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<<", "Previous 6 hours")
+    GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<", "Previous 6 hours")
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate vbtn5 +hwndhTemp, &Now
     ToolTip2ctrl(hTemp, "Reset to current time and date")
-    GuiAddButton("x+5 wp-10 hp gNextTodayBTN vbtn2", ">>", "Next 6 hours")
+    GuiAddButton("x+5 wp-10 hp gNextTodayBTN vbtn2", ">", "Next 6 hours")
 
     ; Gui, -DPIScale
     Gui, Add, Text, xs y+10 w1 h1, Earth map illustration
@@ -6196,11 +6788,12 @@ PanelEarthMap(modus:=0) {
     thisu := StrReplace(countriesArrayList[uiUserCountry] ":" geoData[uiUserCountry "|" uiUserCity], "Custom locations:")
     GuiAddEdit("xm+0 y+10 w" ww " -wrap vnewGeoDataLocationUserEdit", thisu, "New custom location to be added")
     Gui, Add, Button, x+5 hp vbtn4 gbtnUIaddNewGeoLocation, &Add to list
-    Gui, Add, Button, xm+0 y+20 h%btnH% w%btnW% gCloseWindow, &Close
-    Gui, Add, Button, x+5 hp wp gPanelTodayInfos, &Back
+
+    Gui, Add, Button, xm+0 y+20 h%btnH% w%btnW% Default gPanelTodayInfos, &Back
     If !storeSettingsREG
         Gui, Add, Button, x+5 hp guiBTNupdateExtendedGeoData vbtn3, &Update index
     txtW := (PrefsLargeFonts=1) ? lstWid - 245 : lstWid - 210
+    Gui, Add, Button, x+5 h%btnH% w%btnW% gCloseWindow, &Close
     Gui, Add, Text, x+5 hp w%txtW% +0x200 -wrap vUIastroInfoSet, Please wait...
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
@@ -7634,6 +8227,7 @@ UItodayPanelResetDate(modus:="") {
   Static lastInvoked := 1
   If (A_TickCount - lastInvoked<250)
      Return
+
   lastInvoked := A_TickCount
   uiUserFullDateUTC := A_NowUTC
   allowAutoUpdateTodayPanel := 1
@@ -9150,7 +9744,8 @@ UIcityChooser() {
       OutputVar := ""
       Loop, 2160
       {
-          pk := oldMoonPhaseCalculator(startDate)
+          ; pk := (uiUserFullDateUTC>startDate) ? 0 : oldMoonPhaseCalculator(startDate)
+          pk := (uiUserFullDateUTC>startDate) ? 0 : MoonPhaseCalculator(startDate, 0, w[2], w[3])
           xu := pk[1]
           fg := IsInRange(pk[5], 2, 14) || IsInRange(pk[5], 16, 27) ? 120 : 10
           startDate += fg, Minutes
@@ -9189,7 +9784,8 @@ UIcityChooser() {
   w := brrYD/7
   ylength := isLeapYear(CurrentYear) ? 529240 : 527825
   percentileYear := clampInRange(Round(((brrYD*24)*60 + minsPassed)/ylength*100, 1), 0, 99.9) "%"
-  weeksPassed := clampInRange(Round(w, 1), 0, 52.2)
+  FormatTime, isoYWeek, % timi, YWeek
+  weeksPassed := LTrim(SubStr(isoYWeek, 5), "0") ; clampInRange(Round(w, 1), 0, 52.2)
   weeksPlural := (weeksPassed>1) ? "weeks" : "week"
   weeksPlural2 := (weeksPassed>1) ? "have" : "has"
   If (weeksPassed<1)
@@ -9895,7 +10491,7 @@ PanelTodayInfos() {
 
     listu := "SOLAR SEASONS:`n"
     friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
-    szn := listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 1)
+    szn := listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 1, 0)
     listu .= StrReplace(szn, "`n`n", "`n")
 
     rzz := (PrefsLargeFonts=1) ? 17 : 20
@@ -9914,10 +10510,10 @@ PanelTodayInfos() {
     Gui, Add, Text, xs y+10 , Time and date to observe
     Gui, Add, DateTime, xs yp Choose%uiUserFullDateUTC% Right gUItodayDateCtrl vuiUserFullDateUTC +hwndhDatTime, dddd, d MMMM, yyyy; HH:mm (UTC)
     widu := (PrefsLargeFonts=1) ? 40 : 32
-    hBtnTodayPrev := GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vUIbtnTodayPrev", "<<", "Previous hour (,)")
+    hBtnTodayPrev := GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vUIbtnTodayPrev", "<", "Previous hour (,)")
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate +hwndhTemp, &Now
     ToolTip2ctrl(hTemp, "Reset to current time and date (\)")
-    hBtnTodayNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vUIbtnTodayNext", ">>", "Next hour (.)")
+    hBtnTodayNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vUIbtnTodayNext", ">", "Next hour (.)")
     Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
     sml := (PrefsLargeFonts=1) ? 500 : 370
     Gui, Add, Text, xs y+5 w%sml% Section hp +0x200 vuiInfoGeoData -wrap, Geo data.
@@ -10002,10 +10598,11 @@ PanelTodayInfos() {
     Gui, Tab
     If (A_PtrSize!=8)
        Gui, Add, Text, xm+0 y+10, WARNING: The astronomy features are not available on the 32 bits edition.
-    Gui, Add, Button, xm+0 y+20 Section h%btnH% w%btnW1% Default gCloseWindowAbout, &Deus lux est
-    Gui, Add, Button, x+5 hp w%btnW3% gPanelIncomingCelebrations, &Celebrations
+    Gui, Add, Button, xm+0 y+20 Section h%btnH% w%btnW3% gPanelIncomingCelebrations, &Celebrations
+    Gui, Add, Button, x+5 hp w%btnW3% gPanelCalendarWindow, C&alendar
     ; Gui, Add, Button, x+5 hp w%btnW1% gUIlistSunRiseSets , &Table
     Gui, Add, Button, x+5 hp w%btnW1% gBTNopenYearSolarTable, &Year graph
+    Gui, Add, Button, x+5 hp wp-20 gCloseWindow, C&lose
     ; Gui, Add, Button, x+5 hp w%btnW1% gbatchDumpTests , &Test all
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
@@ -10205,9 +10802,6 @@ INIsettings(a) {
   INIaction(0, "allowDSTchanges", "SavedSettings")
   INIaction(0, "allowAltitudeSolarChanges", "SavedSettings")
   INIaction(0, "lastUsedGeoLocation", "SavedSettings")
-  ; INIaction(a, "userAlarmExceptPerso", "SavedSettings")
-  ; INIaction(a, "userAlarmExceptRelu", "SavedSettings")
-  ; INIaction(a, "userAlarmExceptSeculu", "SavedSettings")
 
 ; OSD settings
   INIaction(a, "DisplayTimeUser", "OSDprefs")
@@ -10292,9 +10886,6 @@ CheckSettings() {
     BinaryVar(tollHours, 1)
     BinaryVar(tollHoursAmount, 1)
     BinaryVar(userAlarmRepeated, 0)
-    BinaryVar(userAlarmExceptSeculu, 0)
-    BinaryVar(userAlarmExceptRelu, 0)
-    BinaryVar(userAlarmExceptPerso, 0)
     BinaryVar(displayClock, 1)
     BinaryVar(AutoUnmute, 1)
     BinaryVar(tickTockNoise, 0)
@@ -10707,8 +11298,7 @@ SoundLoop(File := "") {
 }
 
 dummy() {
-  Sleep, 0
-  Return
+  Sleep, 1
 }
 
 sillySoundHack() {   ; this helps mitigate issues caused by apps like Team Viewer
@@ -11070,6 +11660,7 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
   r := DllCall(callCBTdllFunc("getMoonPhase"), "double", t, "double", latu, "double", longu, "double*", phase, "int*", IDphase, "double*", age, "double*", fraction, "double*", latitude, "double*", longitude, "double*", azimuth, "double*", eleva, "Int")
   If !r 
   {
+     fnOutputDebug("dll failed - calculating moon phase with ahk")
      r := AHKmoonPhaseCalculator(ot, gmtOffset)
      Return r
   }
@@ -11139,6 +11730,7 @@ oldMoonPhaseCalculator(t:=0, gmtOffset:=0, calcDetails:=0) {
   r := DllCall(callCBTdllFunc("oldgetMoonPhase"), "double", t, "Int", 1, "double*", phase, "int*", IDphase, "double*", age, "double*", fraction, "double*", latitude, "double*", longitude, "int*", zdc, "Int")
   If !r 
   {
+     fnOutputDebug("DLL failed - calculating moon phase with ahk")
      r := AHKmoonPhaseCalculator(ot, gmtOffset, calcDetails)
      Return r
   }
@@ -11351,8 +11943,19 @@ updateColoredRectCtrl(coloru, varu, guiu:="SettingsGUIA", clrHwnd:=0) {
     copt4 := [0, "0xFF" coloru, "0xFF" coloru,,,, "0xFF999999", 2, 0] ; disabled
     copt5 := [0, "0xFF" coloru, "0xFF" coloru,,,, "0xff999999", 4, 0] ; active/focused
     r := ImageButton.Create(clrHwnd, copt1, copt2, copt3, copt4, copt5)
+    If (r!="")
+       trackImageListButtons("record", r)
+
     ; ToolTip, % r "|" coloru "|" hwnd  , , , 2
     Return r
+}
+
+
+GuiAddCheckBox(options, readerLabel, uiLabel, guiu:="SettingsGUIA", ttip:=0) {
+    Gui, %guiu%: Add, Checkbox, % options " +hwndhTemp +0x1000 +0x8000", % readerLabel
+    SetImgButtonStyle(hTemp, uiLabel, 1)
+    thisu := ttip ? ttip : readerLabel
+    ToolTip2ctrl(hTemp, thisu)
 }
 
 oldupdateColoredRectCtrl(coloru, clrHwnd) {
@@ -11510,7 +12113,44 @@ SetImgButtonStyle(hwnd, newLabel:="", checkMode:=0) {
    Else
       r := ImageButton.Create(hwnd, lopt1, lopt2, lopt%pi%, lopt4, lopt5)
       ; ToolTip, % "r=" r.lasterror , , , 2
+   If (r!="")
+      trackImageListButtons("record", r, protectedHwnd)
    Return r
+}
+
+trackImageListButtons(actu, r:=0, hwnd:="") {
+    Critical, on
+    Static HILs := []
+    Static counteru := 0
+    If (actu="record")
+    {
+       ; SoundBeep , 300, 100
+       counteru++
+       HILs[counteru] := [r, hwnd]
+       Return
+    }
+
+    listu := new hashtable()
+    Loop, % counteru
+    {
+       If (StrLen(HILs[A_Index, 2])>1)
+       {
+          ; fnOutputDebug(A_ThisFunc ": skip= " HILs[A_Index, 2])
+          Continue
+       }
+
+       x := HILs[A_Index, 1]
+       If (x!="" && listu[x]!=1)
+       {
+          ; SoundBeep , 900, 100
+          ; fnOutputDebug(A_ThisFunc ": " HILs[A_Index, 1] "=" HILs[A_Index, 2])
+          DllCall("Comctl32.dll\ImageList_Destroy", "uptr", x)
+          HILs[A_Index, 1] := ""
+          listu[x] := 1
+       }
+    }
+    listu := ""
+    counteru := 0
 }
 
 
@@ -11631,10 +12271,10 @@ WM_RBUTTONUP() {
     Else If (HfaceClock=thisWin)
        ClockGuiGuiContextMenu(thisWin, "lol", "N", 1, 2, 3)
     Else If ((AnyWindowOpen || PrefOpen=1 || windowManageCeleb=1) && !InStr(A_GuiControl, "lview") && !InStr(A_GuiControl, "UItodayEventsEdit"))
-       SettingsToolTips()
+       SettingsToolTips("rclick")
 }
 
-SettingsToolTips() {
+SettingsToolTips(modus:=0) {
    ActiveWin := WinActive("A")
    If (ActiveWin!=hSetWinGui && ActiveWin!=hCelebsMan)
       Return
@@ -11647,8 +12287,10 @@ SettingsToolTips() {
    Else
       Gui, SettingsGUIA: Default
 
+   GuiControlGet, WhatsFocused, FocusV
    GuiControlGet, value, , %A_GuiControl%
-   If (A_GuiControl="holiListu")
+   If (isVarEqualTo(A_GuiControl, "holiListu", "UIcalendarEventsEditu", "UIcalendarNewEventEdit", "GeoDataSearchField", "newGeoDataLocationUserEdit", "UItodayEventsEditu")
+   || isVarEqualTo(WhatsFocused, "holiListu", "UIcalendarEventsEditu", "UIcalendarNewEventEdit", "GeoDataSearchField", "newGeoDataLocationUserEdit", "UItodayEventsEditu") && modus!="rclick")
       Return
 
    ; MouseGetPos, , , , hwnd, 1 ; |2|3]
@@ -12379,6 +13021,301 @@ jd_to_hebrew(jd) {
     return [year, month, day]
 }
 
+Dlg_OpenSaveFile(p_Type,hOwner:=0,p_Title:="",p_Filter:="",p_FilterIndex:="",p_Root:="",p_DfltExt:="",ByRef r_Flags:=0,p_HelpHandler:="") {
+; function source: https://www.autohotkey.com/boards/viewtopic.php?f=6&t=462
+; by jballi
+; modified by Marius Șucan
+
+    Static Dummy16963733
+          ,s_strFileMaxSize:=932768 ; ansi limit 32768
+                ;-- This is the ANSI byte limit.  For consistency, this value
+                ;   is also used to set the the maximum number characters that
+                ;   used in Unicode.  Note: Only the first entry contains the
+                ;   folder name so 32K characters can hold a very large number
+                ;   of file names.
+
+          ,HELPMSGSTRING:="commdlg_help"
+                ;-- Registered message string for the Help button on common
+                ;   dialogs
+
+          ,OPENFILENAME
+                ;-- Static OPENFILENAME structure.  Also used by the hook
+                ;   callback and the help message.
+
+          ;-- Open File Name flags
+          ,OFN_ALLOWMULTISELECT    :=0x200
+          ,OFN_CREATEPROMPT        :=0x2000
+          ,OFN_DONTADDTORECENT     :=0x2000000
+          ,OFN_ENABLEHOOK          :=0x20
+
+          ,OFN_EXPLORER            :=0x80000
+                ;-- This flag is set by default.  This function does not work
+                ;   with the old-style dialog box.
+
+          ,OFN_EXTENSIONDIFFERENT  :=0x400
+                ;-- Output flag only.
+
+          ,OFN_FILEMUSTEXIST       :=0x1000
+          ,OFN_FORCESHOWHIDDEN     :=0x10000000
+          ,OFN_HIDEREADONLY        :=0x4
+
+          ,OFN_NOCHANGEDIR         :=0x8
+          ,OFN_NODEREFERENCELINKS  :=0x100000
+
+          ,OFN_NOREADONLYRETURN    :=0x8000
+          ,OFN_NOTESTFILECREATE    :=0x10000
+          ,OFN_NOVALIDATE          :=0x100
+          ,OFN_OVERWRITEPROMPT     :=0x2
+          ,OFN_PATHMUSTEXIST       :=0x800
+          ,OFN_READONLY            :=0x1
+          ,OFN_SHOWHELP            :=0x10
+
+          ;-- Open File Name extended flags
+          ,OFN_EX_NOPLACESBAR      :=0x1
+                ;-- Note: This flag is only available as a text flag, i.e.
+                ;   "NoPlacesBar".
+
+          ;-- Misc.
+          ,TCharSize:=A_IsUnicode ? 2:1
+
+    ;[==============]
+    ;[  Parameters  ]
+    ;[==============]
+    ;-- Type
+    p_Type:=SubStr(p_Type,1,1)
+    StringUpper p_Type,p_Type
+        ;-- Convert to uppercase to simplify processing
+
+    if p_Type not in O,S
+        p_Type:="O"
+
+    ;-- Filter
+    if p_Filter is Space
+        p_Filter:="All Files (*.*)"
+
+    ;-- Flags
+    l_Flags  :=OFN_EXPLORER
+    l_FlagsEx:=0
+    if not r_Flags  ;-- Zero, blank, or null
+    {
+        if (p_Type="O")  ;-- Open dialog only
+            l_Flags|=OFN_FILEMUSTEXIST|OFN_HIDEREADONLY
+    } else
+    {
+        ;-- Bit flags
+        if r_Flags is Integer
+        {
+            l_Flags|=r_Flags
+        } else
+        {
+            ;-- Convert text flags into bit flags
+            Loop Parse,r_Flags,%A_Tab%%A_Space%,%A_Tab%%A_Space%
+            {
+                if A_LoopField is not Space
+                {
+                    if OFN_%A_LoopField% is Integer
+                    {
+                        if InStr(A_LoopField,"ex_")
+                            l_FlagsEx|=OFN_%A_LoopField%
+                        else
+                            l_Flags|=OFN_%A_LoopField%
+                    }
+                }
+            }
+        }
+    }
+
+    if IsFunc(p_HelpHandler)
+        l_Flags|=OFN_SHOWHELP
+
+    ; if (p_Type="O") and (l_Flags & OFN_ALLOWMULTISELECT)
+    ;     l_Flags|=OFN_ENABLEHOOK
+
+    ;-- Create and, if needed, populate the buffer used to initialize the
+    ;   File Name Edit control.  The dialog will also use this buffer to return
+    ;   the file(s) selected.
+    VarSetCapacity(strFile,s_strFileMaxSize*TCharSize,0)
+    SplitPath p_Root,l_RootFileName,l_RootDir
+    if l_RootFileName is not Space
+    {
+        DllCall("RtlMoveMemory"
+            ,"Str",strFile
+            ,"Str",l_RootFileName
+            ,"UInt",(StrLen(l_RootFileName)+1)*TCharSize)
+    }
+
+    ;-- Convert p_Filter into the format required by the API
+    VarSetCapacity(strFilter,StrLen(p_Filter)*(A_IsUnicode ? 5:3),0)
+        ;-- Enough space for the full description _and_ file pattern(s) of all
+        ;   filter strings (ANSI and Unicode) plus null characters between all
+        ;   of the pieces and a double null at the end.
+
+    l_Offset:=&strFilter
+    Loop Parse,p_Filter,|
+    {
+        ;-- Break the filter string into 2 parts
+        l_LoopField:=Trim(A_LoopField," `f`n`r`t`v")
+            ;-- Assign and remove all leading/trailing white space
+
+        l_Part1:=l_LoopField
+            ;-- Part 1: The entire filter string which includes the description
+            ;   and the file pattern(s) in parenthesis.  This is what is
+            ;   displayed in  the "File Of Types" or the "Save As Type"
+            ;   drop-down.
+
+        l_Part2:=SubStr(l_LoopField,InStr(l_LoopField,"(")+1,-1)
+            ;-- Part 2: File pattern(s) sans parenthesis.  The dialog uses this
+            ;   to filter the files that are displayed.
+
+        ;-- Calculate the length of the pieces
+        l_lenPart1:=(StrLen(l_LoopField)+1)*TCharSize
+            ;-- Size includes terminating null
+
+        l_lenPart2:=(StrLen(l_Part2)+1)*TCharSize
+            ;-- Size includes terminating null
+
+        ;-- Copy the pieces to the filter string.  Each piece includes a
+        ;   terminating null character.
+        DllCall("RtlMoveMemory","Ptr",l_Offset,"Str",l_Part1,"UInt",l_lenPart1)
+        DllCall("RtlMoveMemory","Ptr",l_Offset+l_lenPart1,"Str",l_Part2,"UInt",l_lenPart2)                          ;-- Length
+
+        ;-- Calculate the offset of the next filter string
+        l_Offset+=l_lenPart1+l_lenPart2
+    }
+
+    ;[==================]
+    ;[  Pre-Processing  ]
+    ;[==================]
+    ;-- Create and populate the OPENFILENAME structure
+    lStructSize:=VarSetCapacity(OPENFILENAME,(A_PtrSize=8) ? 152:88,0)
+    NumPut(lStructSize,OPENFILENAME,0,"UInt")
+        ;-- lStructSize
+    NumPut(hOwner,OPENFILENAME,(A_PtrSize=8) ? 8:4,"Ptr")
+        ;-- hwndOwner
+    NumPut(&strFilter,OPENFILENAME,(A_PtrSize=8) ? 24:12,"Ptr")
+        ;-- lpstrFilter
+    NumPut(p_FilterIndex,OPENFILENAME,(A_PtrSize=8) ? 44:24,"UInt")
+        ;-- nFilterIndex
+    NumPut(&strFile,OPENFILENAME,(A_PtrSize=8) ? 48:28,"Ptr")
+        ;-- lpstrFile
+    NumPut(s_strFileMaxSize,OPENFILENAME,(A_PtrSize=8) ? 56:32,"UInt")
+        ;-- nMaxFile
+    NumPut(&l_RootDir,OPENFILENAME,(A_PtrSize=8) ? 80:44,"Ptr")
+        ;-- lpstrInitialDir
+    NumPut(&p_Title,OPENFILENAME,(A_PtrSize=8) ? 88:48,"Ptr")
+        ;-- lpstrTitle
+    NumPut(l_Flags,OPENFILENAME,(A_PtrSize=8) ? 96:52,"UInt")
+        ;-- Flags
+    NumPut(&p_DfltExt,OPENFILENAME,(A_PtrSize=8) ? 104:60,"Ptr")
+        ;-- lpstrDefExt
+    NumPut(l_FlagsEx,OPENFILENAME,(A_PtrSize=8) ? 148:84,"UInt")
+        ;-- FlagsEx
+
+    ;[===============]
+    ;[  Show dialog  ]
+    ;[===============]
+    if (p_type="O")
+        RC:=DllCall("comdlg32\GetOpenFileName" . (A_IsUnicode ? "W":"A"),"Ptr",&OPENFILENAME)
+    else
+        RC:=DllCall("comdlg32\GetSaveFileName" . (A_IsUnicode ? "W":"A"),"Ptr",&OPENFILENAME)
+
+    ;[===================]
+    ;[  Post-Processing  ]
+    ;[===================]
+    ;-- If needed, turn off monitoring of help message
+    if l_HelpMsg
+        OnMessage(l_HelpMsg,"")  ;-- Turn off monitoring
+
+    ;-- Dialog canceled?
+    if (RC=0)
+        Return
+
+    ;-- Rebuild r_Flags for output
+    r_Flags  :=0
+    l_Flags:=NumGet(OPENFILENAME,(A_PtrSize=8) ? 96:52,"UInt")
+    ; n_FilterIndex := NumGet(OPENFILENAME,(A_PtrSize=8) ? 44:24,"UInt")
+    ;-- Flags
+
+    if p_DfltExt is not Space  ;-- Flag is ignored unless p_DfltExt contains a value
+    {
+        if l_Flags & OFN_EXTENSIONDIFFERENT
+            r_Flags|=OFN_EXTENSIONDIFFERENT
+    }
+
+    if (p_Type="O")  ;-- i.e. flag is ignored if using the Save dialog
+    {
+        if l_Flags & OFN_ALLOWMULTISELECT
+        {
+            ; Hook was used to collect ReadOnly status.  Collect the ReadOnly
+            ; status from the hook function.
+            Sleep, 1
+            ; if Dlg_OFNHookCallback("GetReadOnly","","","")
+            ; r_Flags|=OFN_READONLY
+        } else
+        {
+            ;-- Hook was NOT used to collect ReadOnly status.  Determine status from l_Flags
+            if l_Flags & OFN_READONLY
+                r_Flags|=OFN_READONLY
+        }
+    }
+
+    ;-- Extract file(s) from the buffer
+    l_FileList:=""
+    l_Offset  :=&strFile
+    Loop
+    {
+        ;-- Get next
+        l_Next:=StrGet(l_Offset,-1)
+
+        ;-- End of list?
+        if not StrLen(l_Next)
+        {
+            ;-- If end-of-list occurs on the 2nd iteration, it means that only
+            ;   one file was selected
+            if (A_Index=2)
+                l_FileList:=l_FileName
+            Break
+        }
+
+        ;-- Assign to working variable
+        l_FileName:=l_Next
+
+        ;-- Update the offset for the next iteration
+        l_Offset+=(StrLen(l_FileName)+1)*TCharSize
+
+        ;-- If this is the first iteration, we have to wait until the next loop
+        ;   before we can determine if this is a directory or file and if a
+        ;   file, if it is the only file selected.
+        if (A_Index=1)
+        {
+            l_Dir:=l_FileName
+            ;-- Windows adds "\" character when in root of the drive but doesn't
+            ;   add it otherwise.  Adjust if needed.
+            if (StrLen(l_Dir)<>3 && p_Type="O")
+                l_Dir.="\"
+
+            ;-- Continue to next
+            Continue
+        }
+
+        ;-- Add the file to the list
+        if (p_Type="O")
+           l_FileList.=(StrLen(l_FileList) ? "`n":"") . l_Dir . l_FileName
+        else
+           l_FileList := Trim(Trim(l_Dir, "\"))
+    }
+
+    Return l_FileList
+}
+
+
+FolderExist(filePath) {
+   If StrLen(filePath)<4
+      Return
+   Else
+      Return InStr(FileExist(filePath), "D")
+}
+
 
 #If, ((WinActive( "ahk_id " hSetWinGui) && isInRange(AnyWindowOpen, 1, 6)) || (WinActive( "ahk_id " hCelebsMan) && windowManageCeleb=1))
     AppsKey::
@@ -12386,60 +13323,94 @@ jd_to_hebrew(jd) {
     Return 
 #If 
 
+#If, (WinActive( "ahk_id " hSetWinGui) && AnyWindowOpen=10)
+    AppsKey::
+      coreSettingsContextMenu()
+    Return 
+
+    vkBC::     ; ,
+      BtnChangeDateCalendar(A_ThisHotkey, "given", "previous month")
+    Return 
+
+    vkBE::     ; .
+      BtnChangeDateCalendar(A_ThisHotkey, "given", "next month")
+    Return 
+
+    PgUp::
+      BtnChangeDateCalendar(A_ThisHotkey, "given", "previous year")
+    Return 
+
+    PgDn::
+      BtnChangeDateCalendar(A_ThisHotkey, "given", "next year")
+    Return 
+
+    vkDB::     ; [
+      BtnChangeDateCalendar(A_ThisHotkey, "given", "previous day")
+    Return 
+
+    vkDD::     ; ]
+      BtnChangeDateCalendar(A_ThisHotkey, "given", "next day")
+    Return 
+
+    vkDC::      ; \
+      BtnChangeDateCalendar(A_ThisHotkey, "given", "reset")
+    Return 
+#If 
+
 #If, (WinActive( "ahk_id " hSetWinGui) && AnyWindowOpen=6)
-    vkDC::
+    vkDC::      ; \
       UItodayPanelResetDate()
     Return 
 
-    vkBF::
+    vkBF::      ; /
       ToggleAstroInfosModa()
     Return 
 
-    vkBC::
+    vkBC::     ; ,
       NextTodayBTN(-1, 0, 1, 1, "hours")
     Return 
 
-    vkBE::
+    vkBE::     ; .
       NextTodayBTN(1, 0, 1, 1, "hours")
     Return 
 
-    +vkBC::
+    +vkBC::    ; Shift + ,
       NextTodayBTN(-1, 0, 1, 2, "hours")
     Return 
 
-    +vkBE::
+    +vkBE::    ; Shift + .
       NextTodayBTN(1, 0, 1, 2, "hours")
     Return 
 
-    vkDB::
+    vkDB::     ; [
       NextTodayBTN(-1, 0, 1, 1, "days")
     Return 
 
-    vkDD::
+    vkDD::     ; ]
       NextTodayBTN(1, 0, 1, 1, "days")
     Return 
 
-    +vkDB::
+    +vkDB::   ; Shift + [
       NextTodayBTN(-1, 0, 1, 2, "days")
     Return 
 
-    +vkDD::
+    +vkDD::   ; Shift + ]
       NextTodayBTN(1, 0, 1, 2, "days")
     Return 
 
-    vkBB::
+    vkBB::     ; -
       NextTodayBTN(-1, 0, 1, 5, "minutes")
     Return 
 
-    vkBD::
+    vkBD::     ; =
       NextTodayBTN(1, 0, 1, 5, "minutes")
     Return 
 
-    +vkBB::
+    +vkBB::    ; Shift + -
       NextTodayBTN(-1, 0, 1, 10, "minutes")
     Return 
 
-    +vkBD::
+    +vkBD::    ; Shift + =
       NextTodayBTN(1, 0, 1, 10, "minutes")
     Return 
 #If 

@@ -1,16 +1,23 @@
 ; Church Bells Tower - version history
 ; site: https://github.com/marius-sucan/ChurchBellsTower
 ; forum: https://www.autohotkey.com/boards/viewtopic.php?f=6&t=55833
-; by Marius Șucan - http://marius.sucan.ro/
+; by Marius Șucan - https://marius.sucan.ro/
 ; Work began on this project in late August 2018.
 ; ======================================================
+
+v3.5.0 - 2024 / 06 /  16
+  - [new] calendar panel; it allows users to see at a glance the observed celebrations and events for the current month or any other date
+  - [new] ability to import/export user defined events/celebrations/feasts to a file; this is meant to facilitate backups
+  - users can now add events that occur only once, on a given year; previously, the personal observed events were considered to be repeating every year
+  - improvements to the stopwatch; user can copy to clipboard the recorded intervals
+  - bug fixes related to «set alarm»
 
 v3.4.7 - 2024 / 03 / 22
   - [new] options to change the colors of the analog clock
   - bug fixes
 
 v3.4.6 - 2024 / 01 / 04
-  - «Celebrations» and «Today / Astronomy» panels are now able to list multiple events on the same day; three types of events can fall on the same day: secular, religious and/or user defined event
+  - «Celebrations» and «Today / Astronomy» panels are now able to list multiple events on the same day; three types of events can fall on the same day: secular, religious and/or a user defined event
   - the date of events listed are now described using friendly labels, instead of the exact date, eg. yesterday or tomorrow
   - improvements to the analog clock colour scheme
   - minor user interface improvements for the settings panel
