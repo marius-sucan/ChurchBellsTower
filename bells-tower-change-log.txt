@@ -5,7 +5,10 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
-v3.5.0 - 2024 / 06 /  16
+v3.5.1 - 2024 / 06 / 17
+  - bug fixes
+
+v3.5.0 - 2024 / 06 / 16
   - [new] calendar panel; it allows users to see at a glance the observed celebrations and events for the current month or any other date
   - [new] ability to import/export user defined events/celebrations/feasts to a file; this is meant to facilitate backups
   - users can now add events that occur only once, on a given year; previously, the personal observed events were considered to be repeating every year

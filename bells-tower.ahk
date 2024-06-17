@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2024)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.5.0
+;@Ahk2Exe-SetVersion 3.5.1
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -168,8 +168,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.5.0"
-, ReleaseDate            := "2024 / 06 / 16"
+, Version                := "3.5.1"
+, ReleaseDate            := "2024 / 06 / 17"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -3182,9 +3182,9 @@ PanelShowSettings() {
     Gui, Add, UpDown, vmaxBibleLength gVerifyTheOptions Range20-130, %maxBibleLength%
     Gui, Add, Checkbox, xs+15 y+10 gVerifyTheOptions Checked%makeScreenDark% vmakeScreenDark, Dim the screen when displaying Bible verses
 
-    Gui, Add, Checkbox, xs y+20 gVerifyTheOptions Checked%ObserveHolidays% vObserveHolidays, Observe Christian and/or secular holidays
+    Gui, Add, Checkbox, xs y+20 gVerifyTheOptions Checked%ObserveHolidays% vObserveHolidays, Observe feasts`, holidays and other events
     Gui, Add, Checkbox, xs y+7 gVerifyTheOptions Checked%SemantronHoliday% vSemantronHoliday, Mark days of feast by regular semantron drumming
-    Gui, Add, Button, xs+15 y+7 h30 gOpenListCelebrationsBtn vBtn3, Manage list of holidays
+    Gui, Add, Button, xs+15 y+7 h30 gOpenListCelebrationsBtn vBtn3, Manage the list of events
 
     Gui, Tab, 3 ; restrictions
     widu := (PrefsLargeFonts=1) ? 270 : 210
@@ -3930,6 +3930,7 @@ BTNimportCalendarEvents() {
      Return
 
   FileRead, content, % filu
+  ll := 0
   ; chr := SubStr(content, 1, 1)
   Loop, Parse, content, `n,`r
   {
@@ -3938,16 +3939,27 @@ BTNimportCalendarEvents() {
       okay := (StrLen(zz[1])=2 && StrLen(zz[2])=2 && StrLen(zz[3])>0 && StrLen(zz[3])<5) ? 1 : 0
       ; fnOutputDebug(chr " | " okay " | " pp[1] " | " pp[2] " | " zz[1])
       If (StrLen(pp[2])>2 && okay=1)
+      {
          INIactionNonGlobal(1, pp[1], pp[2], "Celebrations")
+         ll++
+      }
   }
+
   GuiControl, CelebrationsGuia: Choose, CurrentTabLV, 4
   updateHolidaysLVs()
+  If ll 
+  {
+     Tooltip, Imported %ll% events.
+     SetTimer, removeTooltip, -1500
+  }
 }
 
 BTNexportCalendarEvents() {
+  ; to-do todo use FileSelectFile, not the special function
   CheckDay := 0
   CheckMonth := "01"
   listum := ""
+  ll := 0
   ToolTip, Please wait - preparing list
   lastMsg := A_TickCount
   Loop, 400
@@ -3970,14 +3982,20 @@ BTNexportCalendarEvents() {
 
      PersonalDay := INIactionNonGlobal(0, testFeast ".a", 0, "Celebrations")
      If (StrLen(PersonalDay)>2)
+     {
+        ll++
         listum .= testFeast ".a" CSmid PersonalDay "`n"
+     }
 
      startYear := A_Year - 10
      Loop, 150
      {
         dayum := INIactionNonGlobal(0, testFeast "." startYear, 0, "Celebrations")
         If (StrLen(dayum)>2)
+        {
            listum .= testFeast "." startYear CSmid dayum "`n"
+           ll++
+        }
 
         startYear++
      }
@@ -3990,8 +4008,17 @@ BTNexportCalendarEvents() {
      }
 
   }
+
   ToolTip
-  file2save := saveFileDialogWrapper("S", "PathMustExist", A_ScriptDir "\personal-events", "Export the list of user defined events", "User-defined celebrations (*.clbt)|All (*.*)", 1, 1)
+  Gui, CelebrationsGuia: +OwnDialogs
+  If (!ll)
+  {
+     MsgBox, , % appName, No user defined events identified. Nothing to export.
+     Return
+  }
+
+  FileSelectFile, file2save, 18, % A_WorkingDir "\personal-events", Export user defined events, CBT calendar (*.clbt)
+  ; file2save := saveFileDialogWrapper("S", "PathMustExist", A_ScriptDir "\personal-events", "Export the list of user defined events", "User-defined celebrations (*.clbt)|All (*.*)", 1, 1)
   If (!RegExMatch(file2save, "i)(.\.clbt)$") && file2save)
      file2save .= ".clbt"
 
@@ -4012,24 +4039,6 @@ BTNexportCalendarEvents() {
   ToolTip, Saved to file succesfully.
   SoundBeep 900, 100
   SetTimer, removeTooltip, -500
-}
-
-saveFileDialogWrapper(p_Type, optionz, startPath, msg, pattern, ByRef n_FilterIndex:="", chooseFilterIndex:=1, defaultEditField:="") {
-   thisHwnd := windowManageCeleb ? hCelebsMan : hSetWinGui
-   If FolderExist(startPath)
-      pathSymbol := "\"
-
-   If !chooseFilterIndex
-      chooseFilterIndex := 1
-
-   optionz .= " NoChangeDir HideReadOnly"
-   r := Dlg_OpenSaveFile(p_Type, thisHwnd, msg, pattern, chooseFilterIndex, startPath pathSymbol, "", optionz)
-   n_FilterIndex := NumGet(optionz, (A_PtrSize=8) ? 44:24,"UInt")
-   r := Trimmer(r)
-   If StrLen(r)<4
-      r := ""
-
-   Return r
 }
 
 PanelManageCelebrations(tabChoice:=1) {
@@ -4072,8 +4081,8 @@ PanelManageCelebrations(tabChoice:=1) {
   GuiAddListView("y+10 w" lstWid " gActionListViewKBDs -multi ReadOnly r" rz " Grid NoSort -Hdr vLViewPersonal", "Date|Details|Indexed date", "User defined celebrations", "CelebrationsGuia")
 
   Gui, Tab
-  Gui, Add, Checkbox, y+15 Section gupdateOptionsLVsGui Checked%ObserveSecularDays% vObserveSecularDays, Observe secular holidays
-  Gui, Add, Checkbox, x+5 gupdateOptionsLVsGui Checked%PreferSecularDays% vPreferSecularDays, Prefer these holidays over religious ones
+  Gui, Add, Checkbox, y+15 Section gupdateOptionsLVsGui Checked%ObserveSecularDays% vObserveSecularDays, Observe secular events
+  Gui, Add, Checkbox, x+5 gupdateOptionsLVsGui Checked%PreferSecularDays% vPreferSecularDays, Prefer these events over religious ones
 
   btnWid := (PrefsLargeFonts=1) ? 55 : 45
   If (PrefOpen=1 && hSetWinGui)
@@ -4786,7 +4795,7 @@ PanelIncomingCelebrations() {
     Gui, Add, Button, xs+1 y+15 w1 h1, L
     doResetGuiFont()
     GuiAddEdit("xp+1 yp+1 ReadOnly r15 w" txtWid " vholiListu", listu, "Celebrations list")
-    Gui, Add, Checkbox, xs y+8 gToggleObsHoliEvents Checked%ObserveHolidays% vObserveHolidays, &Observe Christian and/or secular holidays
+    Gui, Add, Checkbox, xs y+8 gToggleObsHoliEvents Checked%ObserveHolidays% vObserveHolidays, &Observe feasts`, holidays and other events
 
     Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn vbtn1, &Manage
     Gui, Add, Button, x+5 hp wp+25 gPanelTodayInfos, &Astronomy
@@ -5267,8 +5276,8 @@ PanelCalendarWindow() {
     Gui, Add, Button, x+5 hp w%btnW2% gOpenListCelebrationsBtn, &Manage celebrations
     Gui, Add, Button, x+5 hp w%btnW1% Default gCloseWindow, &Close
     col := (PrefsLargeFonts=1) ? 415 : 350
-    Gui, Font, % (PrefsLargeFonts=1) ? "s16" : "s15"
-    Gui, Add, Text, xm+%col% ym w%ka% hp +0x200 Center +Border Section gBtnChangeDateCalendar vUIcalendarSelectedDatum +hwndhTemp, Today date
+    Gui, Font, % (PrefsLargeFonts=1) ? "s16" : "s14"
+    Gui, Add, Text, xm+%col% ym w%ka% h%kh%+0x200 Center +Border Section gBtnChangeDateCalendar vUIcalendarSelectedDatum +hwndhTemp, Today date
     ToolTip2ctrl(hTemp, "Reset to current date ( \ )")
     ColorPickerHandles .= hTemp ","
     doResetGuiFont()
@@ -5279,7 +5288,7 @@ PanelCalendarWindow() {
     Gui, Add, Button, xs y+2 w%kW% h%kH% gBTNcalendarSaveNewEntry +hwndhTemp, Set
     Gui, Add, Button, x+5 wp+10 hp gBTNcalendarClearEvent +hwndhTemp, Clear
     ToolTip2ctrl(hTemp, "Clear personal event for the selected date.")
-    Gui, Add, Checkbox, x+5 hp Checked1 vuiCalendarNewAllYears, For every year
+    Gui, Add, Checkbox, x+5 hp Checked1 vuiCalendarNewAllYears, Observe every year
     ToolTip2ctrl(hTemp, "If this is checked, the newly defined event will be observed every year.")
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
@@ -5315,6 +5324,15 @@ BTNcalendarSaveNewEntry() {
      ToolTip
   } Else
   {
+     If (ObserveHolidays!=1)
+     {
+        ObserveSecularDays := ObserveReligiousDays := 0
+        ObserveHolidays := 1
+        INIaction(1, "ObserveHolidays", "SavedSettings")
+        INIaction(1, "ObserveSecularDays", "SavedSettings")
+        INIaction(1, "ObserveReligiousDays", "SavedSettings")
+     }
+
      newMonth := SubStr(lastCalendarClickedDate, 5, 2)
      newDay := SubStr(lastCalendarClickedDate, 7, 2)
      yearu := (uiCalendarNewAllYears=1) ? "a" : SubStr(lastCalendarClickedDate, 1, 4)
@@ -10487,7 +10505,7 @@ PanelTodayInfos() {
     If (ObserveHolidays=1)
        listu := coreUpcomingEvents(2, 14, 4)
     If listu
-       extras .= "`n`nOBSERVED EVENTS: `n" Trim(listu, "`n")
+       extras .= "`n`nUPCOMING EVENTS: `n" Trim(listu, "`n")
 
     listu := "SOLAR SEASONS:`n"
     friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
@@ -13020,294 +13038,6 @@ jd_to_hebrew(jd) {
     day := (jd - hebrew_to_jd(year, month, 1)) + 1
     return [year, month, day]
 }
-
-Dlg_OpenSaveFile(p_Type,hOwner:=0,p_Title:="",p_Filter:="",p_FilterIndex:="",p_Root:="",p_DfltExt:="",ByRef r_Flags:=0,p_HelpHandler:="") {
-; function source: https://www.autohotkey.com/boards/viewtopic.php?f=6&t=462
-; by jballi
-; modified by Marius Șucan
-
-    Static Dummy16963733
-          ,s_strFileMaxSize:=932768 ; ansi limit 32768
-                ;-- This is the ANSI byte limit.  For consistency, this value
-                ;   is also used to set the the maximum number characters that
-                ;   used in Unicode.  Note: Only the first entry contains the
-                ;   folder name so 32K characters can hold a very large number
-                ;   of file names.
-
-          ,HELPMSGSTRING:="commdlg_help"
-                ;-- Registered message string for the Help button on common
-                ;   dialogs
-
-          ,OPENFILENAME
-                ;-- Static OPENFILENAME structure.  Also used by the hook
-                ;   callback and the help message.
-
-          ;-- Open File Name flags
-          ,OFN_ALLOWMULTISELECT    :=0x200
-          ,OFN_CREATEPROMPT        :=0x2000
-          ,OFN_DONTADDTORECENT     :=0x2000000
-          ,OFN_ENABLEHOOK          :=0x20
-
-          ,OFN_EXPLORER            :=0x80000
-                ;-- This flag is set by default.  This function does not work
-                ;   with the old-style dialog box.
-
-          ,OFN_EXTENSIONDIFFERENT  :=0x400
-                ;-- Output flag only.
-
-          ,OFN_FILEMUSTEXIST       :=0x1000
-          ,OFN_FORCESHOWHIDDEN     :=0x10000000
-          ,OFN_HIDEREADONLY        :=0x4
-
-          ,OFN_NOCHANGEDIR         :=0x8
-          ,OFN_NODEREFERENCELINKS  :=0x100000
-
-          ,OFN_NOREADONLYRETURN    :=0x8000
-          ,OFN_NOTESTFILECREATE    :=0x10000
-          ,OFN_NOVALIDATE          :=0x100
-          ,OFN_OVERWRITEPROMPT     :=0x2
-          ,OFN_PATHMUSTEXIST       :=0x800
-          ,OFN_READONLY            :=0x1
-          ,OFN_SHOWHELP            :=0x10
-
-          ;-- Open File Name extended flags
-          ,OFN_EX_NOPLACESBAR      :=0x1
-                ;-- Note: This flag is only available as a text flag, i.e.
-                ;   "NoPlacesBar".
-
-          ;-- Misc.
-          ,TCharSize:=A_IsUnicode ? 2:1
-
-    ;[==============]
-    ;[  Parameters  ]
-    ;[==============]
-    ;-- Type
-    p_Type:=SubStr(p_Type,1,1)
-    StringUpper p_Type,p_Type
-        ;-- Convert to uppercase to simplify processing
-
-    if p_Type not in O,S
-        p_Type:="O"
-
-    ;-- Filter
-    if p_Filter is Space
-        p_Filter:="All Files (*.*)"
-
-    ;-- Flags
-    l_Flags  :=OFN_EXPLORER
-    l_FlagsEx:=0
-    if not r_Flags  ;-- Zero, blank, or null
-    {
-        if (p_Type="O")  ;-- Open dialog only
-            l_Flags|=OFN_FILEMUSTEXIST|OFN_HIDEREADONLY
-    } else
-    {
-        ;-- Bit flags
-        if r_Flags is Integer
-        {
-            l_Flags|=r_Flags
-        } else
-        {
-            ;-- Convert text flags into bit flags
-            Loop Parse,r_Flags,%A_Tab%%A_Space%,%A_Tab%%A_Space%
-            {
-                if A_LoopField is not Space
-                {
-                    if OFN_%A_LoopField% is Integer
-                    {
-                        if InStr(A_LoopField,"ex_")
-                            l_FlagsEx|=OFN_%A_LoopField%
-                        else
-                            l_Flags|=OFN_%A_LoopField%
-                    }
-                }
-            }
-        }
-    }
-
-    if IsFunc(p_HelpHandler)
-        l_Flags|=OFN_SHOWHELP
-
-    ; if (p_Type="O") and (l_Flags & OFN_ALLOWMULTISELECT)
-    ;     l_Flags|=OFN_ENABLEHOOK
-
-    ;-- Create and, if needed, populate the buffer used to initialize the
-    ;   File Name Edit control.  The dialog will also use this buffer to return
-    ;   the file(s) selected.
-    VarSetCapacity(strFile,s_strFileMaxSize*TCharSize,0)
-    SplitPath p_Root,l_RootFileName,l_RootDir
-    if l_RootFileName is not Space
-    {
-        DllCall("RtlMoveMemory"
-            ,"Str",strFile
-            ,"Str",l_RootFileName
-            ,"UInt",(StrLen(l_RootFileName)+1)*TCharSize)
-    }
-
-    ;-- Convert p_Filter into the format required by the API
-    VarSetCapacity(strFilter,StrLen(p_Filter)*(A_IsUnicode ? 5:3),0)
-        ;-- Enough space for the full description _and_ file pattern(s) of all
-        ;   filter strings (ANSI and Unicode) plus null characters between all
-        ;   of the pieces and a double null at the end.
-
-    l_Offset:=&strFilter
-    Loop Parse,p_Filter,|
-    {
-        ;-- Break the filter string into 2 parts
-        l_LoopField:=Trim(A_LoopField," `f`n`r`t`v")
-            ;-- Assign and remove all leading/trailing white space
-
-        l_Part1:=l_LoopField
-            ;-- Part 1: The entire filter string which includes the description
-            ;   and the file pattern(s) in parenthesis.  This is what is
-            ;   displayed in  the "File Of Types" or the "Save As Type"
-            ;   drop-down.
-
-        l_Part2:=SubStr(l_LoopField,InStr(l_LoopField,"(")+1,-1)
-            ;-- Part 2: File pattern(s) sans parenthesis.  The dialog uses this
-            ;   to filter the files that are displayed.
-
-        ;-- Calculate the length of the pieces
-        l_lenPart1:=(StrLen(l_LoopField)+1)*TCharSize
-            ;-- Size includes terminating null
-
-        l_lenPart2:=(StrLen(l_Part2)+1)*TCharSize
-            ;-- Size includes terminating null
-
-        ;-- Copy the pieces to the filter string.  Each piece includes a
-        ;   terminating null character.
-        DllCall("RtlMoveMemory","Ptr",l_Offset,"Str",l_Part1,"UInt",l_lenPart1)
-        DllCall("RtlMoveMemory","Ptr",l_Offset+l_lenPart1,"Str",l_Part2,"UInt",l_lenPart2)                          ;-- Length
-
-        ;-- Calculate the offset of the next filter string
-        l_Offset+=l_lenPart1+l_lenPart2
-    }
-
-    ;[==================]
-    ;[  Pre-Processing  ]
-    ;[==================]
-    ;-- Create and populate the OPENFILENAME structure
-    lStructSize:=VarSetCapacity(OPENFILENAME,(A_PtrSize=8) ? 152:88,0)
-    NumPut(lStructSize,OPENFILENAME,0,"UInt")
-        ;-- lStructSize
-    NumPut(hOwner,OPENFILENAME,(A_PtrSize=8) ? 8:4,"Ptr")
-        ;-- hwndOwner
-    NumPut(&strFilter,OPENFILENAME,(A_PtrSize=8) ? 24:12,"Ptr")
-        ;-- lpstrFilter
-    NumPut(p_FilterIndex,OPENFILENAME,(A_PtrSize=8) ? 44:24,"UInt")
-        ;-- nFilterIndex
-    NumPut(&strFile,OPENFILENAME,(A_PtrSize=8) ? 48:28,"Ptr")
-        ;-- lpstrFile
-    NumPut(s_strFileMaxSize,OPENFILENAME,(A_PtrSize=8) ? 56:32,"UInt")
-        ;-- nMaxFile
-    NumPut(&l_RootDir,OPENFILENAME,(A_PtrSize=8) ? 80:44,"Ptr")
-        ;-- lpstrInitialDir
-    NumPut(&p_Title,OPENFILENAME,(A_PtrSize=8) ? 88:48,"Ptr")
-        ;-- lpstrTitle
-    NumPut(l_Flags,OPENFILENAME,(A_PtrSize=8) ? 96:52,"UInt")
-        ;-- Flags
-    NumPut(&p_DfltExt,OPENFILENAME,(A_PtrSize=8) ? 104:60,"Ptr")
-        ;-- lpstrDefExt
-    NumPut(l_FlagsEx,OPENFILENAME,(A_PtrSize=8) ? 148:84,"UInt")
-        ;-- FlagsEx
-
-    ;[===============]
-    ;[  Show dialog  ]
-    ;[===============]
-    if (p_type="O")
-        RC:=DllCall("comdlg32\GetOpenFileName" . (A_IsUnicode ? "W":"A"),"Ptr",&OPENFILENAME)
-    else
-        RC:=DllCall("comdlg32\GetSaveFileName" . (A_IsUnicode ? "W":"A"),"Ptr",&OPENFILENAME)
-
-    ;[===================]
-    ;[  Post-Processing  ]
-    ;[===================]
-    ;-- If needed, turn off monitoring of help message
-    if l_HelpMsg
-        OnMessage(l_HelpMsg,"")  ;-- Turn off monitoring
-
-    ;-- Dialog canceled?
-    if (RC=0)
-        Return
-
-    ;-- Rebuild r_Flags for output
-    r_Flags  :=0
-    l_Flags:=NumGet(OPENFILENAME,(A_PtrSize=8) ? 96:52,"UInt")
-    ; n_FilterIndex := NumGet(OPENFILENAME,(A_PtrSize=8) ? 44:24,"UInt")
-    ;-- Flags
-
-    if p_DfltExt is not Space  ;-- Flag is ignored unless p_DfltExt contains a value
-    {
-        if l_Flags & OFN_EXTENSIONDIFFERENT
-            r_Flags|=OFN_EXTENSIONDIFFERENT
-    }
-
-    if (p_Type="O")  ;-- i.e. flag is ignored if using the Save dialog
-    {
-        if l_Flags & OFN_ALLOWMULTISELECT
-        {
-            ; Hook was used to collect ReadOnly status.  Collect the ReadOnly
-            ; status from the hook function.
-            Sleep, 1
-            ; if Dlg_OFNHookCallback("GetReadOnly","","","")
-            ; r_Flags|=OFN_READONLY
-        } else
-        {
-            ;-- Hook was NOT used to collect ReadOnly status.  Determine status from l_Flags
-            if l_Flags & OFN_READONLY
-                r_Flags|=OFN_READONLY
-        }
-    }
-
-    ;-- Extract file(s) from the buffer
-    l_FileList:=""
-    l_Offset  :=&strFile
-    Loop
-    {
-        ;-- Get next
-        l_Next:=StrGet(l_Offset,-1)
-
-        ;-- End of list?
-        if not StrLen(l_Next)
-        {
-            ;-- If end-of-list occurs on the 2nd iteration, it means that only
-            ;   one file was selected
-            if (A_Index=2)
-                l_FileList:=l_FileName
-            Break
-        }
-
-        ;-- Assign to working variable
-        l_FileName:=l_Next
-
-        ;-- Update the offset for the next iteration
-        l_Offset+=(StrLen(l_FileName)+1)*TCharSize
-
-        ;-- If this is the first iteration, we have to wait until the next loop
-        ;   before we can determine if this is a directory or file and if a
-        ;   file, if it is the only file selected.
-        if (A_Index=1)
-        {
-            l_Dir:=l_FileName
-            ;-- Windows adds "\" character when in root of the drive but doesn't
-            ;   add it otherwise.  Adjust if needed.
-            if (StrLen(l_Dir)<>3 && p_Type="O")
-                l_Dir.="\"
-
-            ;-- Continue to next
-            Continue
-        }
-
-        ;-- Add the file to the list
-        if (p_Type="O")
-           l_FileList.=(StrLen(l_FileList) ? "`n":"") . l_Dir . l_FileName
-        else
-           l_FileList := Trim(Trim(l_Dir, "\"))
-    }
-
-    Return l_FileList
-}
-
 
 FolderExist(filePath) {
    If StrLen(filePath)<4
