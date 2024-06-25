@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2024)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.5.1
+;@Ahk2Exe-SetVersion 3.5.2
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -168,8 +168,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.5.1"
-, ReleaseDate            := "2024 / 06 / 17"
+, Version                := "3.5.2"
+, ReleaseDate            := "2024 / 06 / 25"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -508,19 +508,20 @@ decideSysTrayTooltip(modus:=0) {
     If A_IsSuspended
        RunType := " [DEACTIVATED]"
     If (userMustDoTimer=1 && userTimerExpire)
-       timerInfos := "`nTimer set to expire at: " userTimerExpire
+       timerInfos := "`nTimer set to expire at: " userTimerExpire "."
 
     alarmInfos := friendlyAlarmInfoz()
     If (stopWatchRealStartZeit || stopWatchBeginZeit)
-       stopwInfos := "`nStopwatch is running"
+       stopwInfos := "`nStopwatch is running."
     If (userMuteAllSounds=1 || BeepsVolume<1)
-       soundsInfos := "`nAll sounds are muted"
+       soundsInfos := "`nAll sounds are muted."
 
-    thisHoli := (TypeHolidayOccured=3) ? "personal" : "religious"
+    relName := (UserReligion=1) ? "a Catholic" : "an Orthodox"
+    thisHoli := (TypeHolidayOccured=3) ? "a personal" : relName " Christian"
     If (TypeHolidayOccured=2) ; secular
-       thisHoli := "secular"
+       thisHoli := "a secular"
 
-    thisHoli := (StrLen(isHolidayToday)>2) ? "`nToday a " thisHoli " event is observed" : ""
+    thisHoli := (StrLen(isHolidayToday)>2) ? "`nToday " thisHoli " event is observed." : ""
     If (modus!="about")
     {
        testu := wrapCalculateEquiSolsDates(A_YDay)
@@ -3801,7 +3802,10 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
      Else If (testFeast="12.28" && UserReligion=1)
         q := "Feast of the Holy Innocents - in remembrance of the young children killed in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus of Nazareth"
 
-     aisHolidayToday := q ? q : aisHolidayToday
+     If (q && aisHolidayToday)
+        aisHolidayToday := aisHolidayToday ". | ✝ " q
+     Else
+        aisHolidayToday := q ? q : aisHolidayToday
      If (StrLen(aisHolidayToday)>2)
         aTypeHolidayOccured := 1
   }
@@ -3898,7 +3902,7 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
         Gui, ShareBtnGui: Destroy
         CreateBibleGUI(generateDateTimeTxt() " || " aisHolidayToday, 1, 1)
         Gui, ShareBtnGui: Destroy
-        quoteDisplayTime := StrLen(aisHolidayToday) * 140
+        quoteDisplayTime := StrLen(aisHolidayToday) * 145
         If (InStr(aisHolidayToday, "Christmas") && !InStr(aisHolidayToday, "octave"))
            MCXI_Play(SNDmedia_christmas)
         Else If (InStr(aisHolidayToday, "arabic") && ObserveReligiousDays=1 && ObserveSecularDays=1)
@@ -4794,7 +4798,7 @@ PanelIncomingCelebrations() {
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     Gui, Add, Button, xs+1 y+15 w1 h1, L
     doResetGuiFont()
-    GuiAddEdit("xp+1 yp+1 ReadOnly r15 w" txtWid " vholiListu", listu, "Celebrations list")
+    GuiAddEdit("xp+1 yp+1 ReadOnly r15 w" txtWid " vholiListu", "---", "Celebrations list")
     Gui, Add, Checkbox, xs y+8 gToggleObsHoliEvents Checked%ObserveHolidays% vObserveHolidays, &Observe feasts`, holidays and other events
 
     Gui, Add, Button, xs+0 y+20 h%btnH% w%btnW1% Default gOpenListCelebrationsBtn vbtn1, &Manage
@@ -4866,7 +4870,7 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
               wasItem := 1
               prefixu := (obju[1]=1) ? "✝ " : ""
               datum := friendlyDating(thisYear "/" thisMon "/" thisMDay, startDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
-              listu .= datum ". " prefixu obju[2] ".`n`n"
+              listu .= Format("{:U}", datum) ". " prefixu obju[2] ".`n`n"
            }
         }
 
@@ -4937,7 +4941,6 @@ PopulateIncomingCelebs() {
        listu := coreUpcomingEvents(2, 32, 0)
     If !Trim(listu)
        listu := "No religious or secular events are observed for the next 30 days.`n`n"
-
     listu .= "Astronomic events:`n`n"
     listu .= listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 0, 30)
 
@@ -4945,6 +4948,7 @@ PopulateIncomingCelebs() {
     ; startDate := 2022 01 01 010101
     Loop, 60
     {
+        ; moon phases
         startDate += 12, Hours
         pk := oldMoonPhaseCalculator(startDate)
         xu := pk[1]
@@ -4953,11 +4957,14 @@ PopulateIncomingCelebs() {
            prevu := xu
            FormatTime, OutputVar, % startDate, yyyy/MM/dd
            OutputVar := friendlyDating(OutputVar, startDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
-           listu .= OutputVar ". " pk[1] "`n`n"
+           listu .= Format("{:U}", OutputVar) ". " pk[1] "`n`n"
            ; listu .= OutputVar " = " pk[1] "`n p=" pk[3] "; f=" pk[4] "; a=" pk[5] " `n"
         }
     }
- 
+
+    If InStr(listu, ". | ✝ ") 
+       listu := StrReplace(listu, ". | ✝ ", ".`n`n✝ ")
+
     GuiControl, SettingsGUIA:, holiListu, % listu
     If (ObserveHolidays=1)
        GuiControl, SettingsGUIA: Enable, btn1
@@ -5265,7 +5272,11 @@ PanelCalendarWindow() {
         Gui, Add, Text, xs y+2 wp hp +0x200 Center vuiCalendarWeek%t% +hwndhTemp, % t
         WinSet, Transparent, 170, ahk_id %hTemp%
         Loop, 7
-            Gui, Add, Checkbox, x+2 wp hp +0x1000 gBTNcalendarDayAct vuiCalendarL%t%C%A_Index%, %t%.%A_Index%
+        {
+            Gui, Add, Checkbox, x+2 w%kw% h%kh% +0x1000 gBTNcalendarDayAct vuiCalendarL%t%C%A_Index%, %t%.%A_Index%
+            If (uiDarkMode!=1)
+               Gui, Add, Text, xp yp wp hp +Border,
+        }
     }
 
     ; Gui, Add, ComboBox, xs y+10 w250 vUserStopWatchListZeits, No records||
@@ -5521,6 +5532,8 @@ uiPopulateSelDate() {
   actu := !listu ? "Disable" : "Enable"
   If !listu 
      listu := " - no events observed - "
+  If InStr(listu, ". | ✝ ") 
+     listu := StrReplace(listu, ". | ✝ ", ".`n`n✝ ")
 
   GuiControl, SettingsGUIA:, UIcalendarEventsEditu, % listu
   GuiControl, SettingsGUIA: %actu%, UIcalendarEventsEditu
@@ -5576,20 +5589,25 @@ uiPopulateCalendar() {
         opp := (tMon=gMon) ? 255 : 123
         If (SubStr(tDate, 1, 8)=lDate)
         {
-           opp := 190
+           opp := 253
            WinSet, Region,, ahk_id %hVar%
+           WinSet, Style, +0x800000, ahk_id %hVar%
+           If (tMon=gMon)
+              WinSet, Style, +0x8000000, ahk_id %hVar%
         } Else
         {
            ; If (tMon=gMon)
            ;    WinSet, Region, 1-1 W%mW% H%mH%, ahk_id %hVar%
            ; Else
               WinSet, Region, 2-2 W%nW% H%nH%, ahk_id %hVar%
+           WinSet, Style, -0x8000000, ahk_id %hVar%
+           WinSet, Style, -0x800000, ahk_id %hVar%
         }
 
         WinSet, Transparent, % opp, ahk_id %hVar%
         tDate += 1, Days
         GuiControl, SettingsGUIA:, uiCalendarL%t%C%A_Index%, % dayu
-        GuiControl, SettingsGUIA:, uiCalendarL%t%C%A_Index%, % lista ? 1 : 0
+        GuiControl, SettingsGUIA:, uiCalendarL%t%C%A_Index%, % (lista && opp!=253) ? 1 : 0
         prevListu := listu
     }
   }
@@ -6350,11 +6368,11 @@ PanelMoonYearGraphTable() {
 }
 
 btnHelpYearSolarGraph() {
-  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Sunlight and civil twilight duration per day. The X axis represents the days of year [from 1 to 365]. The Y axis represents how much of 24 hours has sunlight (bright yellow) and civil twilight (dark yellow). The taller the yellow bars are, the longer the duration of sunlight is. The bars are shaded based on the solar noon angle of that day. The higher the sun rises at noon the brighter the shade is.`n`n2. Sun rises and sun sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent rises and sets, while the darker ones, dawn and dusk. Between rises and sets, the solar noon is represented by bright blueish dots.")
+  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Sunlight and civil twilight duration per day. The X axis represents the days of year, 1 to 365. The Y axis represents the hours of the day, from 00:01 to 23:59. The taller the yellow bars are, the longer the duration of sunlight is on that day. The civil twilight is represented by a darker yellow at the top of the bars. The bars are shaded based on the solar noon angle of that day. The higher the sun rises at noon the brighter the shade is.`n`n2. Sun rises and sun sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent rises and sets, while the darker ones, dawn and dusk. Between rises and sets, the solar noon is represented by bright blueish dots.")
 }
 
 btnHelpYearMoonGraph() {
-  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Moonlight duration per day. The X axis represents the days of year [from 1 to 365]. The Y axis represents how much of 24 hours is moonlight. The taller the yellow bars are the longer the duration of moonlight is. The bars are shaded based on the culminant angle of that day. The higher the moon rises the brighter it is.`n`n2. Moon rises and moon sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent rises, and the darker ones, the sets.`n`nThe entire background has a wave pattern. It is calculated based on the moon illumination fraction. The peak blueish bright areas represent full moon, while the darkest shades are for the new moon.")
+  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Moonlight duration per day. The X axis represents the days of year, 1 to 365. The Y axis represents the hours of the day, from 00:01 to 23:59. The taller the yellow bars are, the longer the duration of moonlight is on that day. The bars are shaded based on the culminant angle of that day. The higher the moon rises the brighter it is.`n`n2. Moon rises and moon sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent rises, and the darker ones, the sets.`n`nThe entire background has a wave pattern. It is calculated based on the moon illumination fraction. The peak blueish bright areas represent full moon, while the darkest shades are for the new moon.")
 }
 
 scorifyCompareWords(thisUserWord, siti) {
@@ -8595,7 +8613,7 @@ uiPopulateTableYearSolarData() {
   ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
   ; ToolTip, % A_TickCount - startoperation , , , 2
   generatingEarthMapNow := 1
-  generateGraphYearSunData(graphArraySun, graphArrayElev, loopsu, graphArrayTimes)
+  generateGraphYearSunData(graphArraySun, graphArrayElev, loopsu, graphArrayTimes, yearu)
   generatingEarthMapNow := 0
   ToolTip
 }
@@ -8785,12 +8803,12 @@ uiPopulateTableYearMoonData() {
   ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
   ; ToolTip, % A_TickCount - startoperation , , , 2
   generatingEarthMapNow := 1
-  generateGraphYearMoonData(graphArrayMoon, graphArrayElev, loopsu, graphArrayTimes, intervalsList)
+  generateGraphYearMoonData(graphArrayMoon, graphArrayElev, loopsu, graphArrayTimes, intervalsList, yearu)
   generatingEarthMapNow := 0
   ToolTip
 }
 
-generateGraphYearSunData(graphArraySun, graphArrayElev, dayz, graphArrayTimes) {
+generateGraphYearSunData(graphArraySun, graphArrayElev, dayz, graphArrayTimes, yearu) {
     If !pToken
        Return
 
@@ -8808,6 +8826,7 @@ generateGraphYearSunData(graphArraySun, graphArrayElev, dayz, graphArrayTimes) {
 
     x := 0
     Gdip_GraphicsClear(G, "0xff112233")
+    todayBrush := Gdip_BrushCreateSolid("0x77FFee22")
     If (SolarYearGraphMode=1)
     {
        bu := 0
@@ -8839,6 +8858,9 @@ generateGraphYearSunData(graphArraySun, graphArrayElev, dayz, graphArrayTimes) {
           y := (graphArrayTimes[A_Index, 5]/86400) * 864
           If y
              Gdip_FillRectangle(G, civilBrush, x, y, 3, 9)
+
+          If (A_Year=yearu && A_YDay=A_Index)
+             Gdip_FillRectangle(G, todayBrush, x, 0, 2, 864)
           x += 2
           bu := !bu
         }
@@ -8870,6 +8892,8 @@ generateGraphYearSunData(graphArraySun, graphArrayElev, dayz, graphArrayTimes) {
           ; fnOutputDebug(A_Index "==" x "//" y)
           Gdip_DeleteBrush(sunBrush)
           Gdip_DeleteBrush(civilBrush)
+          If (A_Year=yearu && A_YDay=A_Index)
+             Gdip_FillRectangle(G, todayBrush, x, 0, 2, 864)
           x += 2
        }
     }
@@ -8887,11 +8911,12 @@ generateGraphYearSunData(graphArraySun, graphArrayElev, dayz, graphArrayTimes) {
     }
 
     Gdip_DeleteGraphics(G)
+    Gdip_DeleteBrush(todayBrush)
     Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
     Gdip_DisposeImage(mainBitmap, 1)
 }
 
-generateGraphYearMoonData(graphArrayMoon, graphArrayElev, dayz, graphArrayTimes, intervalsList) {
+generateGraphYearMoonData(graphArrayMoon, graphArrayElev, dayz, graphArrayTimes, intervalsList, yearu) {
     If !pToken
        pToken := Gdip_Startup()
 
@@ -8912,6 +8937,7 @@ generateGraphYearMoonData(graphArrayMoon, graphArrayElev, dayz, graphArrayTimes,
 
     x := 0
     Gdip_GraphicsClear(G, "0xff112233")
+    todayBrush := Gdip_BrushCreateSolid("0x77FFee22")
     If (SolarYearGraphMode=1)
     {
        sunColor := MixARGB("0x65667744", "0xCCffeebb", 0.75)
@@ -8936,6 +8962,9 @@ generateGraphYearMoonData(graphArrayMoon, graphArrayElev, dayz, graphArrayTimes,
           y := (graphArrayTimes[A_Index, 2]/86400) * 864
           If y
              Gdip_FillEllipse(G, civilBrush, x, y, 3, 14)
+
+          If (A_Year=yearu && A_YDay=A_Index)
+             Gdip_FillRectangle(G, todayBrush, x, 0, 2, 864)
           x += 2
         }
         Gdip_DeleteBrush(sunBrush)
@@ -9015,6 +9044,9 @@ generateGraphYearMoonData(graphArrayMoon, graphArrayElev, dayz, graphArrayTimes,
           Gdip_FillRectangle(G, sunBrush, x, y, 2, 864)
           ; fnOutputDebug(A_Index "==" x "//" y)
           Gdip_DeleteBrush(sunBrush)
+          If (A_Year=yearu && A_YDay=A_Index)
+             Gdip_FillRectangle(G, todayBrush, x, 0, 2, 864)
+
           x += 2
        }
     }
@@ -9032,6 +9064,7 @@ generateGraphYearMoonData(graphArrayMoon, graphArrayElev, dayz, graphArrayTimes,
     }
 
     Gdip_DeleteGraphics(G)
+    Gdip_DeleteBrush(todayBrush)
     Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
     Gdip_DisposeImage(mainBitmap, 1)
 }
@@ -10478,16 +10511,6 @@ PanelTodayInfos() {
     Else If (A_YDay>dSolsDay || A_YDay<jSolsDay)
        extras .= "`n`nThe days are getting longer until the June solstice."
 
-    If (StrLen(isHolidayToday)>2 && ObserveHolidays=1 && (TypeHolidayOccured=1 || TypeHolidayOccured=3))
-    {
-       relName := (UserReligion=1) ? "Catholic" : "Orthodox"
-       holidayMsg := relName " Christians celebrate today: " isHolidayToday "."
-       If (TypeHolidayOccured>1)
-          holidayMsg := "Today's event: " isHolidayToday "."
-
-       extras .= "`n`n" holidayMsg
-    }
-
     If (A_YDay>354 && ObserveHolidays=1)
        extras .= "`n`nSeason's greetings! Enjoy the holidays! 😊"
 
@@ -10505,12 +10528,16 @@ PanelTodayInfos() {
     If (ObserveHolidays=1)
        listu := coreUpcomingEvents(2, 14, 4)
     If listu
-       extras .= "`n`nUPCOMING EVENTS: `n" Trim(listu, "`n")
+       extras .= "`n`nCALENDAR EVENTS: `n" Trim(listu, "`n")
 
     listu := "SOLAR SEASONS:`n"
     friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
     szn := listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 1, 0)
     listu .= StrReplace(szn, "`n`n", "`n")
+    If InStr(listu, ". | ✝ ") 
+       listu := StrReplace(listu, ". | ✝ ", ".`n`n✝ ")
+    If InStr(extras, ". | ✝ ") 
+       extras := StrReplace(extras, ". | ✝ ", ".`n`n✝ ")
 
     rzz := (PrefsLargeFonts=1) ? 17 : 20
     txtWid2 := (PrefsLargeFonts=1) ? txtWid + 40 : txtWid + 25
@@ -12100,13 +12127,13 @@ GuiAddDropDownList(options, listu, labelu:="", tipu:="", guiu:="SettingsGUIA") {
 }
 
 SetImgButtonStyle(hwnd, newLabel:="", checkMode:=0) {
-   Static dopt1 := [0, "0xFF454545","0xFF454545", "0xFFffFFff"] ; normal
-   , dopt2 := [0, "0xFF757575","0xFF757575", "0xFFffFFff",,,"0xffaaAAaa", 2] ; hover
+   Static dopt1 := [0, "0xFF373737","0xFF373737", "0xFFffFFff",,,"0xff778877", 2] ; normal
+   , dopt2 := [0, "0xFF656565","0xFF656565", "0xFFffFFff",,,"0xffaaAAaa", 2] ; hover
    , dopt3 := [0, "0xFF000000","0xFF000000", "0xFFeeEEee",,,"0xFF454545", 4] ; clicked
    , doptc := [0, "0xFF1E98A6","0xFF1E98A6", "0xFFeeEEee",,,"0xFF454545", 4] ; clicked
    , dopt4 := [0, "0xFF212121","0xFF212121", "0xFF999999",,,"0xFF454545", 4] ; disabled
    , dopt5 := [0, "0xFF606060","0xFF606060", "0xFFffFFff",,,"0xffaaAAaa", 3] ; active/focused
-   , lopt1 := [0, "0xFFeeEEee","0xFFeeEEee", "0xFF111111"] ; normal
+   , lopt1 := [0, "0xFFddDDdd","0xFFddDDdd", "0xFF111111",,,"0xffbbBBbb", 2] ; normal
    , lopt2 := [0, "0xFFC1DCE6","0xFFC1DCE6", "0xFF000000",,,"0xff8899EE", 2] ; hover
    , lopt3 := [0, "0xFFffffff","0xFFffffff", "0xFF000000",,,"0xFF0099ff", 4] ; clicked
    , loptc := [0, "0xFF83D2F1","0xFF83D2F1", "0xFF000000",,,"0xFF0099ff", 4] ; clicked
