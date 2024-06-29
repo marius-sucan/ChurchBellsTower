@@ -1961,7 +1961,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         setu := setu ? setu : "--:--"
         riseu := riseu ? riseu : "--:--"
         datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
-        FormatTime, datu, % datu, LongDate
+        FormatTime, datu, % datu, dd/MM/yyyy
         t := datu ". Sunlight length: " duru " (" bumpu  "). Twilight length: " twdur "."
         t .= "`nDawn: " dawn ". Sunrise: " riseu ". Noon: " noonu " (" elevu "). Sunset: " setu ". Dusk: " dusk "."
         GuiControl, SettingsGUIA:, GraphInfoLine, % t
@@ -1992,7 +1992,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         setu := setu ? setu : "--:--"
         riseu := riseu ? riseu : "--:--"
         datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
-        FormatTime, datu, % datu, LongDate
+        FormatTime, datu, % datu,  dd/MM/yyyy
         t := datu ". Moonlight duration: " duru " (" bumpu  ")."
         t .= "`nMoon rise: " riseu ". Culminant: " noonu " (" elevu "). Moon set: " setu "."
         GuiControl, SettingsGUIA:, GraphInfoLine, % t
@@ -5258,13 +5258,28 @@ PanelCalendarWindow() {
     Gui, Add, Text, xs y+10 w%kw% h%kh% +0x200 Center +hwndhTemp ginvokeCalendarMonthsMenu, #
     ColorPickerHandles .= hTemp ","
     ToolTip2ctrl(hTemp, "Week number")
-    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Mon
-    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Tue
-    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Wed
-    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Thu
-    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Fri
-    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Sat
-    Gui, Add, Text, x+2 wp hp +0x200 Center +Border, Sun
+    kwdLEng := {1:"Monday", 2:"Tuesday", 3:"Wednesday", 4:"Thursday", 5:"Friday", 6:"Saturday", 7:"Sunday"}
+    kwdEng := {1:"Mon", 2:"Tue", 3:"Wed", 4:"Thu", 5:"Fri", 6:"Sat", 7:"Sun"}
+    KwdLocal := []
+    Loop, 21
+    {
+       mon := (A_Index<10) ? 0 . A_Index : A_Index
+       datum := "202501" mon "010101"
+       FormatTime, OutputVar, % datum, dddd
+       FormatTime, dkw, % datum, WDay
+       If (dkw - 1 = 0)
+          KwdLocal[7] := OutputVar
+       Else
+          KwdLocal[dkw - 1] := OutputVar
+    }
+
+    Loop, 7
+    {
+        pp := kwdEng[A_Index]
+        Gui, Add, Text, x+2 wp hp +0x200 Center +Border +hwndhTemp +gdummy, % pp
+        tti := (kwdLEng[A_Index]!=KwdLocal[A_Index]) ? kwdLEng[A_Index] "`n" KwdLocal[A_Index] : kwdLEng[A_Index]
+        ToolTip2ctrl(hTemp, tti)
+    }
 
     Loop, 6
     {
@@ -5424,18 +5439,19 @@ BtnChangeDateCalendar(a, b, c) {
 
 invokeCalendarMonthsMenu() {
      Try Menu, monthsMenu, Delete
-     Menu, monthsMenu, Add,  01 January, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  02 February, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  03 March, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  04 April, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  05 May, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  06 June, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  07 July, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  08 August, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  09 September, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  10 October, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  11 November, MenuSetCalendarMonth
-     Menu, monthsMenu, Add,  12 December, MenuSetCalendarMonth
+     pp := []
+     datum := 20250120010101
+     thisMon := SubStr(uiUserFullDateUTC, 5, 2)
+     Loop, 12
+     {
+        mon := (A_Index<10) ? 0 . A_Index : A_Index
+        datum := "2025" . mon . "20010101"
+        FormatTime, OutputVar, % datum, MMMM
+        Menu, monthsMenu, Add,  % mon ". " OutputVar, MenuSetCalendarMonth
+        If (mon=thisMon)
+           Menu, monthsMenu, Check,  % mon ". " OutputVar
+     }
+
      Menu, monthsMenu, Show
 }
 
