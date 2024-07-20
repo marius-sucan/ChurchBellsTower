@@ -5,6 +5,11 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.5.3 - 2024 / 07 / 20
+  - [new] option to display the digital time within the analog clock widget
+  - added «Our Lady of the Pillar» in the Catholic calendar 
+  - minor fixes and improvements 
+
 v3.5.2 - 2024 / 06 / 25
   - minor improvements
 

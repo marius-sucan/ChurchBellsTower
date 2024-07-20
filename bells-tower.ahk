@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2024)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.5.2
+;@Ahk2Exe-SetVersion 3.5.3
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -97,7 +97,7 @@ Global IniFile         := "bells-tower.ini"
 , showTimeWhenIdle     := 0
 , showTimeIdleAfter    := 5 ; [in minutes]
 , markFullMoonHowls    := 0
-, allowDSTchanges       := 1
+, allowDSTchanges      := 1
 , allowAltitudeSolarChanges := 1
 
 ; OSD settings
@@ -105,9 +105,6 @@ Global displayTimeFormat := 1
 , DisplayTimeUser        := 3     ; in seconds
 , displayClock           := 1
 , showMoonPhaseOSD       := 0
-, analogDisplay          := 0
-, analogDisplayScale     := 0.3
-, analogMoonPhases       := 1
 , constantAnalogClock    := 0
 , showOSDprogressBar     := 2
 , GuiX                   := 40
@@ -165,11 +162,14 @@ Global displayTimeFormat := 1
 , ClockCenter   := Round(ClockWinSize/2)
 , roundedCsize  := Round(ClockDiameter/4)
 , showAnalogHourLabels := 1
+, analogDisplay        := 0
+, analogDisplayScale   := 0.3
+, analogMoonPhases     := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.5.2"
-, ReleaseDate            := "2024 / 06 / 25"
+, Version                := "3.5.3"
+, ReleaseDate            := "2024 / 07 / 20"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -2402,7 +2402,12 @@ ToggleTickTock() {
 }
 
 toggleMoonPhasesAnalog() {
-    analogMoonPhases := !analogMoonPhases
+    analogMoonPhases := (analogMoonPhases=1) ? 0 : 1
+    INIaction(1, "analogMoonPhases", "SavedSettings")
+}
+
+toggleDigitalTimeAnalog() {
+    analogMoonPhases := (analogMoonPhases=2) ? 0 : 2
     INIaction(1, "analogMoonPhases", "SavedSettings")
 }
 
@@ -3779,6 +3784,8 @@ coreTestCelebrations(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
         q := "The Protection of Our Most Holy Lady (Virgin Mary) - a celebration of the protection offered by Saint Mary to mankind"
      Else If (testFeast="10.04" && UserReligion=1)
         q := "Saint Francis of Assisi - an Italian friar, deacon, preacher and founder of the Friar Minors (OFM) within the Catholic church who lived between 1182 and 1226"
+     Else If (testFeast="10.12" && UserReligion=1)
+        q := "Our Lady of the Pillar - Virgin Mary appeared to the Apostle James the Greater in AD 40, in Spain, while being alive in Jerusalem. It is considered the first Marian apparition and the only recorded instance of Mary exhibiting the mystical phenomenon of bilocation"
      Else If (testFeast="10.14" && UserReligion=2)
         q := "Saint Paraskeva of the Balkans - an ascetic female saint of the 10th century of half Serbian and half Greek origins"
      Else If (testFeast="10.31" && UserReligion=1)
@@ -4141,6 +4148,7 @@ updateHolidaysLVs() {
   , ExaltationHolyCross := "09.14"
   , ProtectSaintMary := "10.01"
   , SaintFrancisAssisi := "10.04"
+  , LadyPilar := "10.12"
   , SaintParaskeva := "10.14"
   , HalloweenDay := "10.31"
   , Allsaintsday := "11.01"
@@ -4209,6 +4217,7 @@ updateHolidaysLVs() {
         . "Birth of the Blessed Virgin Mary|" BirthVirginMary "`n"
         . "Exaltation of the Holy Cross|" ExaltationHolyCross "`n"
         . "Saint Francis of Assisi|" SaintFrancisAssisi "`n"
+        . "Our Lady of the Pillar|" LadyPilar "`n"
         . "All Hallows' Eve [Hallowe'en]|" HalloweenDay "`n"
         . "All Saints' day|" Allsaintsday "`n"
         . "All souls' day|" Allsoulsday "`n"
@@ -10969,7 +10978,6 @@ CheckSettings() {
     BinaryVar(userMustDoTimer, 0)
     BinaryVar(orderedBibleQuotes, 0)
     BinaryVar(AlarmersDarkScreen, 1)
-    BinaryVar(analogMoonPhases, 1)
     BinaryVar(showAnalogHourLabels, 1)
 
 ; verify numeric values: min, max and default values
@@ -11014,6 +11022,7 @@ CheckSettings() {
     MinMaxVar(userAlarmFreq, 1, 99, 4)
     MinMaxVar(showOSDprogressBar, 1, 6, 2)
     MinMaxVar(OSDastralMode, 1, 4, 1)
+    MinMaxVar(analogMoonPhases, 0, 2, 0)
 
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
@@ -13199,7 +13208,8 @@ FolderExist(filePath) {
     Return 
 
     Space::
-      toggleMoonPhasesAnalog()
+      analogMoonPhases := clampInRange(analogMoonPhases + 1, 0, 2, 1)
+      INIaction(1, "analogMoonPhases", "SavedSettings")
     Return
 
     Tab::

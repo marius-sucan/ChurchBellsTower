@@ -184,7 +184,26 @@ UpdateEverySecond() {
    Gdip_SetSmoothingMode(globalG, 4)   ; turn on antialiasing
 ; draw moon phase
    If (analogMoonPhases=1)
+   {
       coreMoonPhaseDraw(clockBgrColor, clockFgrColor, CenterX, CenterY, ClockDiameter, lastUsedGeoLocation, globalG)
+   } Else If (analogMoonPhases=2)
+   {
+      pBrush := Gdip_BrushCreateSolid("0xDD" clockFgrColor)
+      Gdip_FillRoundedRectangle(globalG, pBrush, CenterX - (ClockDiameter*0.175), CenterY*1.145, ClockDiameter/2.58, ClockDiameter*0.12, 4*analogDisplayScale)
+      Gdip_DeleteBrush(pBrush)
+      ppo := " x" CenterX - (ClockDiameter*0.185) " y" CenterY*1.155
+      txtOptions := ppo " Center vCenter cFF" clockBgrColor " Bold nowrap s" Round(CenterY*0.11)
+      If (displayTimeFormat=1)
+      {
+         FormatTime, CurrentTime,, HH:mm:ss
+      } Else
+      {
+         timeSuffix := (A_Hour<12) ? " AM" : " PM"
+         FormatTime, CurrentTime,, h:mm
+      }
+
+      Gdip_TextToGraphics(globalG, CurrentTime timeSuffix, txtOptions, "Arial", ClockDiameter/2.49, ClockDiameter*0.12)
+   }
 
 ; Draw HoursPointer
    t := (A_Hour*360//12) + ((A_Min//15*15)*360//60)//12 + 90
@@ -460,12 +479,15 @@ showContextMenuAnalogClock() {
     Menu, ContextMenu, Add, Rounded &widget, toggleRoundedWidget
     If (roundedClock=1)
        Menu, ContextMenu, Check, Rounded &widget
-    Menu, ContextMenu, Add, Show &moon phases, toggleMoonPhasesAnalog
     Menu, ContextMenu, Add, Show &hour labels, toggleHourLabelsAnalog
+    Menu, ContextMenu, Add, Show digital cloc&k, toggleDigitalTimeAnalog
+    Menu, ContextMenu, Add, Show &moon phases, toggleMoonPhasesAnalog
     Try Menu, ContextMenu, Add, % pk[1], dummy
     Try Menu, ContextMenu, Disable, % pk[1]
     If (analogMoonPhases=1)
        Menu, ContextMenu, Check, Show &moon phases
+    If (analogMoonPhases=2)
+       Menu, ContextMenu, Check, Show digital cloc&k
     If (showAnalogHourLabels=1)
        Menu, ContextMenu, Check, Show &hour labels
 
