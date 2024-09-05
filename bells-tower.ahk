@@ -250,7 +250,7 @@ Global CSthin := "░"   ; light gray
 , SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
 , hFaceClock, lastShowTime := 1, pToken, scriptStartZeit := A_TickCount
 , globalG, globalhbm, globalhdc, globalobm, uiUserFullDateUTC
-, moduleAnalogClockInit := 0, darkWindowColor := 0x202020, darkControlColor := 0xEDedED
+, moduleAnalogClockInit := 0, darkWindowColor := "0x202020", darkControlColor := "0xEDedED"
 , debugMode := !A_IsCompiled, lastCalendarClickedDate := 0
 
 ; initDLLhack()
@@ -891,6 +891,7 @@ RandomNumberCalc(minVariation:=100,maxVariation:=250) {
 }
 
 strikeQuarters(beats, delayu:=0) {
+  Critical, on
   quartersTotalTime := 0
   Loop, %beats%
   {
@@ -898,22 +899,44 @@ strikeQuarters(beats, delayu:=0) {
       fn := Func("MCXI_Play").Bind(SNDmedia_quarters%A_Index%)
       thisDelay := strikeInterval * (A_Index - 1) + randomDelay//2 + delayu
       quartersTotalTime := thisDelay + 2500
-      SetTimer, % fn, % -thisDelay
+      SetTimer, % fn, % -thisDelay, 500
+      Sleep, 2
   }
 }
 
-strikeHours(beats, delayu:=0) {
+futureStriker() {
+; maybe to-do todo
+  Static prevBeatsNumber, prevZeit
+  If (prevBeatsNumber>0 && prevZeit && beats=-1)
+  {
+      prevBeatsNumber--
+      thisIndex := prevZeit - prevBeatsNumber
+      randomDelay := RandomNumberCalc()
+      fn := Func("MCXI_Play").Bind(SNDmedia_hours%A_Index%)
+      thisDelay := strikeInterval * (A_Index - 1) + randomDelay//2 + delayu
+      hoursTotalTime := thisDelay + 5500
+      SetTimer, % fn, % -thisDelay
+      Return
+  }
+
+  if (beats>0 && thisZeit>0)
+  {
+     prevBeatsNumber := beats
+     prevZeit := beats
+  }
+}
+
+strikeHours(beats, delayu:=0, thisZeit:=0) {
+  Critical, on
   hoursTotalTime := 0
   Loop, %beats%
   {
       randomDelay := RandomNumberCalc()
       fn := Func("MCXI_Play").Bind(SNDmedia_hours%A_Index%)
       thisDelay := strikeInterval * (A_Index - 1) + randomDelay//2 + delayu
-      ; If (A_Index>1)
-      ;    thisDelay += 4000
-
       hoursTotalTime := thisDelay + 5500
-      SetTimer, % fn, % -thisDelay
+      SetTimer, % fn, % -thisDelay, 900
+      Sleep, 2
   }
 }
 
@@ -1068,10 +1091,12 @@ PlayTimerBell() {
 }
 
 MCXI_Play(hSND) {
+    Critical, on
     If (stopAdditionalStrikes=1 || stopStrikesNow=1 || userMuteAllSounds=1 || BeepsVolume<1)
        Return
 
     MCI_SendString("seek " hSND " to 1 wait")
+    Sleep, -1
     MCI_Play(hSND)
 }
 
@@ -1927,7 +1952,6 @@ btnCopySolarData() {
 }
 
 WM_MouseMove(wP, lP, msg, hwnd) {
-; Function by Drugwash
   Global
   Static lastInvoked := 1
   MouseGetPos, xu, yu, OutputVarWin, OutputVarControl, 2
@@ -1937,8 +1961,12 @@ WM_MouseMove(wP, lP, msg, hwnd) {
      GetPhysicalCursorPos(xu, yu)
      GetWinClientSize(w, h, hSolarGraphPic, 0)
      JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
-     p := nx/w
+     p := nx/w, hh := ny/h
      zp := Round(p*365)
+     hh := clampInRange(Round(hh*24, 1), 0, 24)
+     If (hh<10)
+        hh := "0" hh
+
      Gui, SettingsGUIA: ListView, LViewSunCombined
      LV_GetText(datu, zp, 2)
      If (!datu || datu="date")
@@ -1962,7 +1990,8 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         riseu := riseu ? riseu : "--:--"
         datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
         FormatTime, datu, % datu, dd/MM/yyyy
-        t := datu ". Sunlight length: " duru " (" bumpu  "). Twilight length: " twdur "."
+        hh := (SolarYearGraphMode!=1) ? "" : " @ " hh " h"
+        t := datu hh ". Sunlight length: " duru " (" bumpu  "). Twilight length: " twdur "."
         t .= "`nDawn: " dawn ". Sunrise: " riseu ". Noon: " noonu " (" elevu "). Sunset: " setu ". Dusk: " dusk "."
         GuiControl, SettingsGUIA:, GraphInfoLine, % t
      }
@@ -1973,7 +2002,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
      GetPhysicalCursorPos(xu, yu)
      GetWinClientSize(w, h, hSolarGraphPic, 0)
      JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
-     p := nx/w
+     p := nx/w, hh = ny/h
      zp := Round(p*365)
      Gui, SettingsGUIA: ListView, LViewSunCombined
      LV_GetText(datu, zp, 2)
@@ -1982,6 +2011,11 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
      } Else
      {
+        hh := clampInRange(Round(hh*24, 1), 0, 24)
+        If (hh<10)
+           hh := "0" hh
+
+        hh := (SolarYearGraphMode!=1) ? "" : " @ " hh " h"
         LV_GetText(riseu, zp, 3)
         LV_GetText(noonu, zp, 4)
         LV_GetText(elevu, zp, 5)
@@ -1993,7 +2027,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         riseu := riseu ? riseu : "--:--"
         datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
         FormatTime, datu, % datu,  dd/MM/yyyy
-        t := datu ". Moonlight duration: " duru " (" bumpu  ")."
+        t := datu hh ". Moonlight duration: " duru " (" bumpu  ")."
         t .= "`nMoon rise: " riseu ". Culminant: " noonu " (" elevu "). Moon set: " setu "."
         GuiControl, SettingsGUIA:, GraphInfoLine, % t
      }
@@ -11738,7 +11772,7 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
   IDphase++
   phaseName := phaseNames[IDphase]
   ; ToolTip, % fraction "|" IDphase "|" age , , , 2
-  If (fraction<98.1 && IDphase=5 && age>15.2)
+  If (fraction<98.0 && IDphase=5 && age>15.5)
   {
      IDphase := 6
      phaseName := phaseNames[IDphase]
@@ -11749,6 +11783,18 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
   } Else If (fraction<30.5 && IDphase=7 && age>23.7)
   {
      IDphase := 8
+     phaseName := phaseNames[IDphase]
+  } Else If (fraction<20 && IDphase=8 && age>27.6)
+  {
+     IDphase := 1
+     phaseName := phaseNames[IDphase]
+  } Else If (fraction>2 && IDphase=1 && age>1.1 && age<2)
+  {
+     IDphase := 2
+     phaseName := phaseNames[IDphase]
+  } Else If (fraction>96 && IDphase=5 && age>12 && age<13.3)
+  {
+     IDphase := 4
      phaseName := phaseNames[IDphase]
   }
 
