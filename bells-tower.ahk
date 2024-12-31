@@ -20,10 +20,10 @@
 ; =========================================================================
 ;
 ;@Ahk2Exe-SetName Church Bells Tower
-;@Ahk2Exe-SetCopyright Marius Şucan (2017-2024)
+;@Ahk2Exe-SetCopyright Marius Şucan (2017-2025)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.5.3
+;@Ahk2Exe-SetVersion 3.5.4
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -168,8 +168,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.5.3"
-, ReleaseDate            := "2024 / 07 / 20"
+, Version                := "3.5.4"
+, ReleaseDate            := "2024 / 12 / 31"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -9896,9 +9896,22 @@ UIcityChooser() {
   percentileYear := clampInRange(Round(((brrYD*24)*60 + minsPassed)/ylength*100, 1), 0, 99.9) "%"
   FormatTime, isoYWeek, % timi, YWeek
   weeksPassed := LTrim(SubStr(isoYWeek, 5), "0") ; clampInRange(Round(w, 1), 0, 52.2)
+  If (percentileYear>97.5 && weeksPassed=1)
+  {
+     Loop, 300
+     {
+         weeksPassed := Floor((A_YDay - A_Index)/7)
+         If (weeksPassed!=1)
+            Break
+     }
+  } Else If (percentileYear<2.5 && weeksPassed>51)
+  {
+     weeksPassed := 1
+  }
+
   weeksPlural := (weeksPassed>1) ? "weeks" : "week"
   weeksPlural2 := (weeksPassed>1) ? "have" : "has"
-  If (weeksPassed<1)
+  If (brrYD<7)
   {
      weeksPassed := brrYD
      weeksPlural := (weeksPassed>1) ? "days" : "day"
@@ -10402,8 +10415,8 @@ coreJumpSolarEventsToday() {
 }
 
 UItodayInfosYear() {
-  Static islamicMonths := {1:"Muharram", 2:"Safar", 3:"Rabi`al-Awwal", 4:"Rabi`ath-Thani", 5:"Jumada l-Ula", 6:"Jumada t-Tania", 7:"Rajab", 8:"Sha`ban", 9:"Ramadan", 10:"Shawwal", 11:"Dhu l-Qa`da", 12:"Dhu l-Hijja"}
-  Static persianMonths := {1:"Farvardin", 2:"Ordibehesht", 3:"Khordad", 4:"Tir", 5:"Mordad", 6:"Shahrivar", 7:"Mehr", 8:"Aban", 9:"Azar", 10:"Dey", 11:"Bahman", 12:"Esfand"}
+  Static islamicMonths := {1:"Al-Muḥarram", 2:"Ṣafar", 3:"Rabī' al-'Awwal", 4:"Rabī' ath-Thānī", 5:"Jumādā al-'Ūlā", 6:"Jumādā ath-Thāniyah", 7:"Rajab", 8:"Sha'bān", 9:"Ramaḍān", 10:"Shawwāl", 11:"Ḏū al-Qa'dah", 12:"Ḏū al-Ḥijjah"}
+  Static persianMonths := {1:"Farvardīn", 2:"Ordībehešt", 3:"Khordād", 4:"Tīr", 5:"Amordād", 6:"Shahrīvar", 7:"Mehr", 8:"Ābān", 9:"Āzar", 10:"Dey", 11:"Bahman", 12:"Esfand"}
   Static HebrewMonths := {1:"Nissan", 10:"Tevet", 11:"Shevat", 12:"Adar", 13:"Veadar", 2:"Iyar", 3:"Sivan", 4:"Tammuz", 5:"Av", 6:"Elul", 7:"Tishrei", 8:"Cheshvan", 9:"Kislev"}
 
   p := geoData[uiUserCountry "|" uiUserCity]
@@ -10665,21 +10678,8 @@ PanelTodayInfos() {
     }
 
     weeksPassed := Floor(A_YDay/7)
-    weeksPlural := (weeksPassed>1) ? "weeks" : "week"
-    weeksPlural2 := (weeksPassed>1) ? "have" : "has"
-    If (weeksPassed<1)
-    {
-       weeksPassed := A_YDay - 1
-       weeksPlural := (weeksPassed>1) ? "days" : "day"
-       weeksPlural2 := (weeksPassed>1) ? "have" : "has"
-       If (weeksPassed=0)
-       {
-          weeksPassed := "No"
-          weeksPlural := "day"
-          weeksPlural2 := "has"
-       }
-    }
-
+    weeksPlural := "weeks"
+    weeksPlural2 := "have"
     graphW := (PrefsLargeFonts=1) ? 220 : 135
     graphH := (PrefsLargeFonts=1) ? 110 : 75
     Gui, Add, Text, xm+15 y+20 Section w1 h2 -wrap, .
