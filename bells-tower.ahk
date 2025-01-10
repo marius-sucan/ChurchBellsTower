@@ -9894,45 +9894,16 @@ UIcityChooser() {
   w := brrYD/7
   ylength := isLeapYear(CurrentYear) ? 529240 : 527825
   percentileYear := clampInRange(Round(((brrYD*24)*60 + minsPassed)/ylength*100, 1), 0, 99.9) "%"
-  FormatTime, isoYWeek, % timi, YWeek
-  weeksPassed := LTrim(SubStr(isoYWeek, 5), "0") ; clampInRange(Round(w, 1), 0, 52.2)
-  If (percentileYear>97.5 && weeksPassed=1)
-  {
-     Loop, 300
-     {
-         weeksPassed := Floor((A_YDay - A_Index)/7)
-         If (weeksPassed!=1)
-            Break
-     }
-  } Else If (percentileYear<2.5 && weeksPassed>51)
-  {
-     weeksPassed := 1
-  }
-
-  weeksPlural := (weeksPassed>1) ? "weeks" : "week"
-  weeksPlural2 := (weeksPassed>1) ? "have" : "has"
-  If (brrYD<7)
-  {
-     weeksPassed := brrYD
-     weeksPlural := (weeksPassed>1) ? "days" : "day"
-     weeksPlural2 := (weeksPassed>1) ? "have" : "has"
-     If (weeksPassed=0)
-     {
-        weeksPassed := "No"
-        weeksPlural := "day"
-        weeksPlural2 := "has"
-     }
-  }
-
+  daysPlural := (brrYD>1) ? "days" : "day"
   percentileDay := Round((minsPassed/1441) * 100, 1) "%"
-  GuiControl, SettingsGUIA:, UIastroInfoAnnum, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
-  GuiControl, SettingsGUIA:, UIastroInfoDayu, %minsPassed% minutes (%percentileDay%) of today have elapsed.
+  GuiControl, SettingsGUIA:, UIastroInfoAnnum, %brrYD% %daysPlural% (%percentileYear%) of %CurrentYear% ; %daysPlural2% elapsed.
+  GuiControl, SettingsGUIA:, UIastroInfoDayu, %minsPassed% minutes (%percentileDay%) of today ; have elapsed.
 
   GuiControl, SettingsGUIA:, UIastroInfoProgressAnnum, % CurrentYear " {" CalcTextHorizPrev(brrYD, 366) "} " NextYear
   GuiControl, SettingsGUIA:, UIastroInfoProgressDayu, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 24) "} 24h "
+  lastUsedGeoLocation := countriesArrayList[uiUserCountry] . ":" . strA
   INIaction(1, "uiUserCountry", "SavedSettings")
   INIaction(1, "uiUserCity", "SavedSettings")
-  lastUsedGeoLocation := countriesArrayList[uiUserCountry] . ":" . strA
   INIaction(1, "lastUsedGeoLocation", "SavedSettings")
   If (AnyWindowOpen=6)
      lastTodayPanelZeitUpdate := A_Mon A_Hour A_Min
@@ -10437,9 +10408,11 @@ UItodayInfosYear() {
   thisTime := testValid ? timi : uiUserFullDateUTC
   FormatTime, longu, % thisTime, LongDate
 
+  FormatTime, isoYWeek, % thisTime, YWeek
+  isoYWeek := SubStr(isoYWeek, 5)
   FormatTime, gyd, % thisTime, Yday
   d := isLeapYear(yearu) ? 366 : 365
-  f := isLeapYear(yearu) ? yearu " is a leap year" : yearu " is not a leap year"
+  f := isLeapYear(yearu) ? yearu " is a leap year." : yearu " is not a leap year."
   rd := d - gyd
   dayum := LTrim(SubStr(thisTime, 7, 2), 0)
   montum := LTrim(SubStr(thisTime, 5, 2), 0)
@@ -10463,7 +10436,7 @@ UItodayInfosYear() {
   ;    hebrewYear += 2
 
   ; hebrewYear := yearu + hebrewYear + 3760
-  msgu := longu "`nDays elapsed: " gyd " / " d "`nRemaining days: " rd "`n" f hebrewYear islamicYear persianYear 
+  msgu := longu "`nCurrent week: " isoYWeek " (ISO 8601)`nDays elapsed: " gyd " / " d "`nRemaining days: " rd "`n" f hebrewYear islamicYear persianYear 
   mouseCreateOSDinfoLine(msgu)
 }
 
