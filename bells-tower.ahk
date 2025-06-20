@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2025)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.5.4
+;@Ahk2Exe-SetVersion 3.5.5
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -168,8 +168,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.5.4"
-, ReleaseDate            := "2024 / 12 / 31"
+, Version                := "3.5.5"
+, ReleaseDate            := "2025 / 06 / 20"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -237,7 +237,7 @@ Global CSthin := "░"   ; light gray
 , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
 , hBibleTxt, hBibleOSD, hSetWinGui, ColorPickerHandles, hDatTime
-, CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gInvokeSeetNewColor"
+, CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gInvokeSetNewColor"
 , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
 , SNDmedia_ticktok, quartersTotalTime := 0, hoursTotalTime := 0
 , SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas, todaySunMoonGraphMode := 0
@@ -754,7 +754,7 @@ DestroyBibleGui(funcu:=0, forced:=0) {
      Return
   }
   ; SoundBeep
-  ; ToolTip, % funcu , , , 2
+  ; ToolTip, % "f=" funcu , , , 2
   GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
   Gui, BibleGui: Destroy
   GuiFader("ScreenShader","hide", 130)
@@ -1572,7 +1572,7 @@ CreateBibleGUI(msg2Display, isBibleQuote:=0, centerMsg:=0, noAdds:=0) {
     GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
     Sleep, 2
     Gui, BibleGui: Destroy
-    Sleep, 25
+    Sleep, 50
     Global BibleGuiTXT
     If (isBibleQuote=1)
        msg2Display := ST_wordWrap(msg2Display, maxBibleLength)
@@ -2136,7 +2136,7 @@ saveGuiPositions() {
 
   If (PrefOpen=0)
   {
-     Sleep, 300
+     Sleep, 100
      SetTimer, DestroyBibleGui, -1500
      INIaction(1, "GuiX", "OSDprefs")
      INIaction(1, "GuiY", "OSDprefs")
@@ -2807,7 +2807,7 @@ CloseSettings() {
    If (ApplySettingsBTN=0)
    {
       ShowPreview := 1
-      OSDpreview()
+      SetTimer, OSDpreview, -150
       Sleep, 25
       SuspendScript()
       ShowPreview := 0
@@ -3017,7 +3017,7 @@ Standard_Dlg_Color(Color,hwnd) {
   Return Color
 }
 
-InvokeSeetNewColor(hC, event, c, err=0) {
+InvokeSetNewColor(hC, event, c, err=0) {
 ; Function by Drugwash
 ; Critical MUST be disabled below! If that's not done, script will enter a deadlock !
   Static
@@ -3033,8 +3033,7 @@ InvokeSeetNewColor(hC, event, c, err=0) {
   ; GuiControl, %g%:+Background%r%, %ctrl%
   If (CurrentPrefWindow=5)
      GuiControl, %g%:Enable, ApplySettingsBTN
-  Sleep, 100
-  OSDpreview()
+  SetTimer, OSDpreview, -150
 }
 
 UpdateFntNow() {
@@ -3408,8 +3407,9 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
        If (A_TickCount - LastInvoked>9500)
           DoGuiFader := 1
        LastInvoked := A_TickCount
-       OSDpreview()
-    } Else SetTimer, OSDpreview, -350
+       ; OSDpreview()
+    } 
+    SetTimer, OSDpreview, -150
 }
 
 trimArray(arr) {
@@ -8652,9 +8652,12 @@ uiPopulateTableYearSolarData() {
       GuiControl, +Redraw, % A_LoopField
   }
 
+  diffSols := maxLichtu - minLichtu
+  diffSols := transformSecondsReadable(diffSols, 2)
+
   maxLichtu := transformSecondsReadable(maxLichtu)
   minLichtu := transformSecondsReadable(minLichtu)
-  infodeepnights := deepNights ? "Out of these, " deepNights " days have no civil twilight." : A_Space
+  infodeepnights := deepNights ? "From these, " deepNights " days have no civil twilight." : A_Space
   infoPolarDays := polarDays ? "Polar days: " polarDays ". " : "Longest daylight: " maxLichtu ". "
   infoPolarNight := polarNights ? "Polar nights: " polarNights ". " : "Shortest daylight: " minLichtu ". "
   FormatTime, gyd, % A_NowUTC, Yday
@@ -8666,6 +8669,8 @@ uiPopulateTableYearSolarData() {
   thisu .= " (" Round(w[2], 3) " / " Round(w[3], 3) "). GMT: " Round(gmtOffset, 1) " h."
   GuiControl, SettingsGUIA:, uiInfoGeoData, % thisu
   thisu :=  infoPolarDays infoPolarNight infodeepnights
+  If !InStr(thisu, "twilight")
+     thisu :=  InStr(thisu, "polar") ? thisu "Difference: 24:00." :  thisu "Difference: " diffSols "."
   GuiControl, SettingsGUIA:, UIastroInfoAnnum, % thisu
   GuiControl, SettingsGUIA:, uiInfoGeoYear, % yearu
   debugMode := !A_IsCompiled
@@ -10456,6 +10461,8 @@ UIpanelTodayLightDiffSolstices() {
   gmtOffset := isinRange(gyd, cobj.sday, cobj.eday - 1) ? cobj.dst : cobj.gmt
   dobj := wrapCalcSunInfos(kdec, cobj.latu, cobj.longu, gmtOffset, cobj.altitude)
 
+  diffSols := (jobj.durRaw >= dobj.durRaw) ? jobj.durRaw - dobj.durRaw : dobj.durRaw - jobj.durRaw
+  diffSols := transformSecondsReadable(diffSols, 2)
   durJune := jobj.durRaw - cobj.durRaw
   durDec := dobj.durRaw - cobj.durRaw
 
@@ -10474,7 +10481,7 @@ UIpanelTodayLightDiffSolstices() {
   Else
      GuiControlGet, OutputVar, , UIastroInfoLightDiff
 
-  mouseCreateOSDinfoLine("Today's sunlight duration:`nYesterday: " OutputVar "`nJune solstice: " diffuJ "`nDecember solstice: " diffuD)
+  mouseCreateOSDinfoLine("Today's sunlight duration:`nYesterday: " OutputVar "`nJune solstice: " diffuJ "`nDecember solstice: " diffuD "`nDifference between solstices: " diffSols)
 }
 
 PanelTodayInfos() {
@@ -12007,9 +12014,9 @@ GuiAddColor(options, colorReference, labelu:=0, guiu:="SettingsGUIA") {
     realColor := %colorReference%
     p := labelu ? labelu : "Color."
     If (isWinXP=1)
-       Gui, %guiu%: Add, Text, % options " v" colorReference A_Space " +hwndhTemp gInvokeSeetNewColor +TabStop +0xE", %p% Invoke color picker.
+       Gui, %guiu%: Add, Text, % options " v" colorReference A_Space " +hwndhTemp gInvokeSetNewColor +TabStop +0xE", %p% Invoke color picker.
     Else
-       Gui, %guiu%: Add, Button, % options " +0x8000 v" colorReference A_Space " +hwndhTemp gInvokeSeetNewColor", %p% Invoke color picker.
+       Gui, %guiu%: Add, Button, % options " +0x8000 v" colorReference A_Space " +hwndhTemp gInvokeSetNewColor", %p% Invoke color picker.
 
     updateColoredRectCtrl(realColor, colorReference, guiu, hTemp)
     p := labelu ? labelu : "Define color"

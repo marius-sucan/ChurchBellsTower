@@ -5,6 +5,9 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.5.5 - 2025 / 06 / 20
+  - minor bug fixes 
+
 v3.5.4 - 2024 / 12 / 31
   - minor bug fixes 
 
