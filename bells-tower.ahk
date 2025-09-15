@@ -23,7 +23,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2025)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.5.5
+;@Ahk2Exe-SetVersion 3.5.6
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -92,6 +92,7 @@ Global IniFile         := "bells-tower.ini"
 , userMuteAllSounds    := 0
 , PreferSecularDays    := 0
 , noTollingWhenMhidden := 0
+, noTollingWhenLocked  := 0
 , noTollingBgrSounds   := 0
 , NoWelcomePopupInfo   := 0
 , showTimeWhenIdle     := 0
@@ -168,8 +169,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.5.5"
-, ReleaseDate            := "2025 / 06 / 20"
+, Version                := "3.5.6"
+, ReleaseDate            := "2025 / 09 / 15"
 , storeSettingsREG := FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps") ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -286,6 +287,7 @@ OnMessage(0x20E, "WM_MouseWheel")  ; horizontal
 OnMessage(0x404, "AHK_NOTIFYICON")
 Sleep, 1
 theChimer()
+SetTimer, wrapChimerTimer, 3500, 950
 Sleep, 1
 testCelebrations()
 ScriptInitialized := 1      ; the end of the autoexec section and INIT
@@ -897,32 +899,10 @@ strikeQuarters(beats, delayu:=0) {
   {
       randomDelay := RandomNumberCalc()
       fn := Func("MCXI_Play").Bind(SNDmedia_quarters%A_Index%)
-      thisDelay := strikeInterval * (A_Index - 1) + randomDelay//2 + delayu
+      thisDelay := strikeInterval * (A_Index - 1) + randomDelay//3 + delayu
       quartersTotalTime := thisDelay + 2500
       SetTimer, % fn, % -thisDelay, 500
-      Sleep, 2
-  }
-}
-
-futureStriker() {
-; maybe to-do todo
-  Static prevBeatsNumber, prevZeit
-  If (prevBeatsNumber>0 && prevZeit && beats=-1)
-  {
-      prevBeatsNumber--
-      thisIndex := prevZeit - prevBeatsNumber
-      randomDelay := RandomNumberCalc()
-      fn := Func("MCXI_Play").Bind(SNDmedia_hours%A_Index%)
-      thisDelay := strikeInterval * (A_Index - 1) + randomDelay//2 + delayu
-      hoursTotalTime := thisDelay + 5500
-      SetTimer, % fn, % -thisDelay
-      Return
-  }
-
-  if (beats>0 && thisZeit>0)
-  {
-     prevBeatsNumber := beats
-     prevZeit := beats
+      Sleep, 10
   }
 }
 
@@ -933,10 +913,10 @@ strikeHours(beats, delayu:=0, thisZeit:=0) {
   {
       randomDelay := RandomNumberCalc()
       fn := Func("MCXI_Play").Bind(SNDmedia_hours%A_Index%)
-      thisDelay := strikeInterval * (A_Index - 1) + randomDelay//2 + delayu
+      thisDelay := strikeInterval * (A_Index - 1) + randomDelay//3 + delayu
       hoursTotalTime := thisDelay + 5500
       SetTimer, % fn, % -thisDelay, 900
-      Sleep, 2
+      Sleep, 10
   }
 }
 
@@ -1106,34 +1086,54 @@ readjustBibleTimer() {
   SetTimer, InvokeBibleQuoteNow, %bibleQuoteFreq%
 }
 
+wrapChimerTimer() {
+  Critical, on
+  Static lastInvoked := 1
+  If (A_IsSuspended || PrefOpen=1)
+     Return
+
+  lolz := A_Hour "|" A_Min "|" A_Sec//10
+  If (lastInvoked!=lolz)
+  {
+     lastInvoked := lolz
+     ; nq := calcNextQuarter()
+     theChimer()
+  } 
+  ; ToolTip, % lolz " YAAAAAY `n" lastInvoked "nq=" nq , , , 2
+}
+
 theChimer() {
   Critical, on
   Static lastChimed, todayTest, lastFullMoonZeitTest := -9000
        , lastCalcZeit := 1
 
+  FormatTime, exactTime,, HH:mm
   FormatTime, CurrentTime,, hh:mm
   If (lastChimed=CurrentTime || A_IsSuspended || PrefOpen=1)
      mustEndNow := 1
 
-  FormatTime, exactTime,, HH:mm
   FormatTime, HoursIntervalTest,, H ; 0-23 format
-  If (noTollingBgrSounds>=2)
+  If (noTollingWhenLocked=1 && mustEndNow!=1)
+     mustEndNow := wrapGetLockedState()
+
+  If (noTollingWhenMhidden=1 && mustEndNow!=1)
+     mustEndNow := wrapGetLockedState() ? 0 : checkMcursorState()
+
+  If (noTollingBgrSounds>=2 && mustEndNow!=1)
   { 
      testBgrNoise := isSoundPlayingNow()
      If (testBgrNoise=1 && noTollingBgrSounds=3)
         mustEndNow := stopAdditionalStrikes := 1
   }
 
-  If (noTollingWhenMhidden=1)
-     mouseHidden := checkMcursorState()
-
-  If (todayTest!=A_YDay && ScriptInitialized=1)
+  If (todayTest!=A_YDay && ScriptInitialized=1 && mustEndNow!=1)
   {
-     Sleep, 10
+     Sleep, 5
+     todayTest := A_YDay
      testCelebrations()
   }
 
-  If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && mouseHidden!=1 && mustEndNow!=1 && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest && (A_TickCount - lastCalcZeit>28501)) 
+  If (markFullMoonHowls=1 && hasHowledDay!=A_YDay && mustEndNow!=1 && userMuteAllSounds!=1 && lastFullMoonZeitTest!=HoursIntervalTest && (A_TickCount - lastCalcZeit>28501)) 
   {
      lastFullMoonZeitTest := HoursIntervalTest
      pk := oldMoonPhaseCalculator()
@@ -1147,16 +1147,16 @@ theChimer() {
      }
   }
 
-  todayTest := A_YDay
   If (isInRange(HoursIntervalTest, silentHoursA, silentHoursB) && silentHours=2)
      soundBells := 1
 
   If (isInRange(HoursIntervalTest, silentHoursA, silentHoursB) && silentHours=3)
-  || (soundBells!=1 && silentHours=2) || (mustEndNow=1) || (mouseHidden=1)
+  || (soundBells!=1 && silentHours=2) || (mustEndNow=1)
   {
      If (mustEndNow!=1)
         stopAdditionalStrikes := 1
-     SetTimer, theChimer, % calcNextQuarter()
+     ; SetTimer, theChimer, % calcNextQuarter()
+     lastChimed := CurrentTime
      Return
   }
 
@@ -1230,12 +1230,12 @@ theChimer() {
      {
         volumeAction := SetMyVolume()
         showTimeNow()
-        strikeHours(countHours2beat, delayRand//2 + quartersTotalTime)
+        strikeHours(countHours2beat, delayRand//3 + quartersTotalTime)
      } Else If (tollHours=1)
      {
         volumeAction := SetMyVolume()
         showTimeNow()
-        strikeHours(1, delayRand//2 + quartersTotalTime)
+        strikeHours(1, delayRand//3 + quartersTotalTime)
      }
 
      If (InStr(exactTime, "12:0") && tollNoon=1)
@@ -1296,7 +1296,7 @@ theChimer() {
 
   strikingBellsNow := 0
   lastChimed := CurrentTime
-  SetTimer, theChimer, % calcNextQuarter()
+  ; SetTimer, theChimer, % calcNextQuarter()
 }
 
 showTimeNow() {
@@ -2232,7 +2232,7 @@ SuspendScript(partially:=0) {
    {
       stopStrikesNow := 1
       DoGuiFader := 0
-      SetTimer, theChimer, Off
+      ; SetTimer, theChimer, Off
       Menu, Tray, Uncheck, &%appName% activated
       SoundLoop("")
       If (constantAnalogClock=1)
@@ -2243,7 +2243,7 @@ SuspendScript(partially:=0) {
          Gui, BibleGui: Destroy
       stopStrikesNow := 0
       Menu, Tray, Check, &%appName% activated
-      theChimer()
+      ; theChimer()
       DoGuiFader := 1
       If (tickTockNoise=1)
          SoundLoop(tickTockSound)
@@ -3229,8 +3229,9 @@ PanelShowSettings() {
     widu := (PrefsLargeFonts=1) ? 270 : 210
     Gui, Add, Text, x+15 y+15 Section, When other sounds are playing (e.g., music or movies)
     GuiAddDropDownList("xs+15 y+7 w" widu " gVerifyTheOptions AltSubmit Choose" noTollingBgrSounds " vnoTollingBgrSounds", "Ignore|Strike the bells at half the volume|Do not strike the bells")
-    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%noTollingWhenMhidden% vnoTollingWhenMhidden, Do not toll bells when mouse cursor is hidden`neven if no sounds are playing (e.g., when watching`na video or an image slideshow on full-screen)
-    GuiAddDropDownList("xs y+25 w" widu " gVerifyTheOptions AltSubmit Choose" silentHours " vsilentHours", "Toll through-out the end day|Toll only in the defined interval|Keep silence in the defined interval", "Bell tolling interval")
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%noTollingWhenMhidden% vnoTollingWhenMhidden, Do not toll bells when mouse cursor is hidden`,`neven if no sounds are playing
+    Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%noTollingWhenLocked% vnoTollingWhenLocked, Do not toll bells when the Windows session is locked
+     GuiAddDropDownList("xs y+25 w" widu " gVerifyTheOptions AltSubmit Choose" silentHours " vsilentHours", "Toll through-out the end day|Toll only in the defined interval|Keep silence in the defined interval", "Bell tolling interval")
     Gui, Add, Text, xp+15 y+6 hp +0x200 vtxt1, from
     GuiAddEdit("x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF35", silentHoursA, "Start hour")
     Gui, Add, UpDown, gVerifyTheOptions vsilentHoursA Range0-23, %silentHoursA%
@@ -6267,7 +6268,7 @@ PanelAboutWindow() {
     Gui, Add, Text, xs y+15 Section w%txtWid%, This application contains code and sounds from various entities. You can find more details in the source code.
     compiled := (A_IsCompiled=1) ? "Compiled. " : "Uncompiled. "
     compiled .= (A_PtrSize=8) ? "x64. " : "x32. "
-    Gui, Add, Text, xs y+15 w%txtWid%, Current version: v%version% from %ReleaseDate%. Internal AHK version: %A_AhkVersion%. %compiled%OS: %A_OSVersion%.
+    Gui, Add, Text, xs y+15 w%txtWid%, Current version: v%version% from %ReleaseDate%.`nInternal AHK version: %A_AhkVersion%. %compiled%`nOS: %A_OSVersion%. Elevated=%A_IsAdmin%.
     Gui, Add, Text, xs y+15 +Border gOpenChangeLog, >> View change log / version history.
     If (storeSettingsREG=1)
        Gui, Add, Link, xs y+10 w%txtWid% hwndhLink2, This application was downloaded through <a href="ms-windows-store://pdp/?productid=9PFQBHN18H4K">Windows Store</a>.
@@ -10869,6 +10870,7 @@ INIsettings(a) {
   INIaction(a, "PreferSecularDays", "SavedSettings")
   INIaction(a, "UserReligion", "SavedSettings")
   INIaction(a, "noTollingWhenMhidden", "SavedSettings")
+  INIaction(a, "noTollingWhenLocked", "SavedSettings")
   INIaction(a, "noTollingBgrSounds", "SavedSettings")
   INIaction(a, "NoWelcomePopupInfo", "SavedSettings")
   INIaction(a, "userMustDoAlarm", "SavedSettings")
@@ -10978,6 +10980,7 @@ CheckSettings() {
     BinaryVar(showBibleQuotes, 0)
     BinaryVar(makeScreenDark, 1)
     BinaryVar(noTollingWhenMhidden, 0)
+    BinaryVar(noTollingWhenLocked, 0)
     BinaryVar(noBibleQuoteMhidden, 1)
     BinaryVar(markFullMoonHowls, 0)
     BinaryVar(SemantronHoliday, 0)
@@ -11391,6 +11394,44 @@ sillySoundHack() {   ; this helps mitigate issues caused by apps like Team Viewe
      SoundBeep, 0, 1
      Result := DllCall("winmm\PlaySoundW", "Ptr", 0, "Ptr", 0, "Uint", 0x46) ; SND_PURGE|SND_MEMORY|SND_NODEFAULT
      Return Result
+}
+
+wrapGetLockedState() {
+   Static lastState := 0, lastInvoked := 1
+
+   if (A_TickCount - lastInvoked>9500)
+   {
+      lastInvoked := A_TickCount
+      lastState := isSystemLocked()
+      ; ToolTip, % "s=" lastState , , , 2
+   }
+
+   return lastState
+}
+
+isSystemLocked() {
+   hDesk := DllCall("User32\OpenInputDesktop","int",0,"int",0,"int",0x0001L)
+   if !hDesk
+      return 1 
+
+   VarSetCapacity(name, 2048, 0)
+   zk := DllCall("User32\GetUserObjectInformation","uptr", hDesk, "int", 2, "uptr", &name, "uint", 2048, "uint*", needed)
+   pn := StrGet(&name, "utf-16")
+   ck := DllCall("User32\CloseDesktop","uptr", hDesk)
+   If (pn!="default")
+      return 1
+
+   ; ToolTip, % hdesk "|" ck "|" zk "|" needed "|" pn , , , 2
+   name := ""
+   MouseGetPos, , , winu, OutputVarControl, 1
+   WinGetTitle, titlu, ahk_id %winu%
+   ; WinGet, procName, ProcessName, ahk_id %winu%
+   WinGet, procPath, ProcessPath, ahk_id %winu%
+   ; fnOutputDebug(A_ComputerName "|" A_UserName "|" WinActive("A") "|" winu "|" titlu "|" classu "|" procName "|" procPath)
+   If (InStr(procPath, "Microsoft.LockApp") || titlu="Backstop window")
+      return 1
+
+   return 0
 }
 
 checkMcursorState() {

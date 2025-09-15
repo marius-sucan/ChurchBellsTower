@@ -5,6 +5,10 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.5.6 - 2025 / 09 / 15
+  - [new] option to have Church Bells Tower not toll while the Microsoft Windows session is locked
+  - made the tolling timer run more frequently to ensure no tolling for quarters are missed
+
 v3.5.5 - 2025 / 06 / 20
   - minor bug fixes 
 
