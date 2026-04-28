@@ -5,6 +5,13 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.5.7 - 2026 / 04 / 29
+  - [new] option to set the Analog clock transparent
+  - added volume options to the system tray menu
+  - users can now easily jump from the Settings window to other panels
+  - better multi-monitor support
+  - various improvements and bug fixes
+
 v3.5.6 - 2025 / 09 / 15
   - [new] option to have Church Bells Tower not toll while the Microsoft Windows session is locked
   - made the tolling timer run more frequently to ensure no tolling for quarters are missed
