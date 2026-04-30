@@ -5,8 +5,16 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.5.8 - 2026 / 04 / 30
+  - [new] option to use Arab numerals instead of Roman numbers on the Analog clock display
+  - [new] option to set opacity of the Analog clock
+  - option to start predefined timers from the Analog clock
+  - timer progress is now highlighted in the Analog clock
+  - fixed setting up alarms and timers
+
 v3.5.7 - 2026 / 04 / 29
   - [new] option to set the Analog clock transparent
+  - [new] option to set the OSD always visible
   - added volume options to the system tray menu
   - users can now easily jump from the Settings window to other panels
   - better multi-monitor support

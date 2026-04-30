@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2026)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.5.7
+;@Ahk2Exe-SetVersion 3.5.8
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -41,7 +41,7 @@
 #Include, Lib\Maths.ahk
 #Include, Lib\hashtable.ahk
 #Include, Lib\Class_ImageButton.ahk
-#Include, Lib\direct-sound-wrapper.ahk
+; #Include, Lib\direct-sound-wrapper.ahk
 
 DetectHiddenWindows, On
 ComObjError(false)
@@ -162,17 +162,19 @@ Global displayTimeFormat := 1
 , ClockWinSize  := ClockDiameter + 2
 , ClockCenter   := Round(ClockWinSize/2)
 , roundedCsize  := Round(ClockDiameter/4)
+, analogClockOpacity     := 230
 , swapColorAnalogClock   := 0
 , transparentAnalogClock := 0
 , coloredAnalogClockBgr  := 1
 , showAnalogHourLabels   := 1
+, useArabNumeralsAnalogClock := 0
 , analogClockScale       := 0.3
 , analogMoonPhases       := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.5.7"
-, ReleaseDate            := "2026 / 04 / 29"
+, Version                := "3.5.8"
+, ReleaseDate            := "2026 / 04 / 30"
 , storeSettingsREG := (FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps")) ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -254,7 +256,7 @@ Global CSthin := "░"   ; light gray
 , SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
 , hFaceClock, lastShowTime := 1, pToken, scriptStartZeit := A_TickCount
 , globalG, globalhbm, globalhdc, globalobm, uiUserFullDateUTC
-, clockFgrClr, clockBgrClr
+, clockFgrClr, clockBgrClr, isAlarmTmrw := 0
 , moduleAnalogClockInit := 0, darkWindowColor := "0x202020", darkControlColor := "0xEDedED"
 , debugMode := !A_IsCompiled, lastCalendarClickedDate := 0
 
@@ -318,7 +320,6 @@ If (AdditionalStrikes=1)
    SetTimer, AdditionalStrikerPerformer, % -rr
 }
 
-startAlarmTimer()
 If (constantOSDvisible=1)
    SetTimer, TimerAlwaysShowOSD, 1500
 Else If (showTimeWhenIdle=1)
@@ -554,7 +555,10 @@ friendlyAlarmInfoz() {
 
           alarmInfos := canDo ? "`nRegular alarm set at: " timeu : "" ; "`nRegular alarm set: exception rule applies for today"
        } Else
-          alarmInfos := "`nAlarm set at: " timeu
+       {
+          tmr := (isAlarmTmrw=1) ? " (tomorrow)" : ""
+          alarmInfos := "`nAlarm set at: " timeu tmr
+       }
     }
 
     Return alarmInfos
@@ -1097,6 +1101,7 @@ TollExtraNoon() {
 }
 
 AdditionalStrikerPerformer() {
+  Static lastInvoked := 1
   If (noTollingBgrSounds>=2)
      isSoundPlayingNow()
 
@@ -1106,11 +1111,13 @@ AdditionalStrikerPerformer() {
   rr := (strikeEveryMin>59) ? AdditionalStrikeFreq : calcNextQuarter(strikeEveryMin)
   ; ToolTip, % strikeEveryMin "|" rr , , , 2
   SetTimer, AdditionalStrikerPerformer, % -rr
-  If (mouseHidden=1 || A_IsSuspended || strikingBellsNow=1)
+  If (A_TickCount - lastInvoked<9500)
+  || (mouseHidden=1 || A_IsSuspended || strikingBellsNow=1)
      Return
 
   SetMyVolume(1)
   MCXI_Play(SNDmedia_auxil_bell)
+  lastInvoked := A_TickCount
 }
 
 PlayAlarmedBell() {
@@ -1259,7 +1266,7 @@ theChimer() {
         mustEndNow := stopAdditionalStrikez := 1
   }
 
-
+  startAlarmTimer()
   If (isInRange(HoursIntervalTest, silentHoursA, silentHoursB) && silentHours=2)
      soundBells := 1
 
@@ -1306,7 +1313,6 @@ theChimer() {
   SoundGet, master_vol
   DoGuiFader := 1
   stopStrikesNow := stopAdditionalStrikez := 0
-  startAlarmTimer()
   strikingBellsNow := 1
   Random, delayRandNoon, 950, 5050
   NoonTollQuartersDelay := 0
@@ -1687,6 +1693,9 @@ OSDmoonColorBitmap(thisBgrColor) {
    r2 := Gdip_GraphicsClear(G3, "0xFF" thisBgrColor)
    brightColor := MixRGB(thisBgrColor, "EEeeEE", 0.75)
    darkColor := MixRGB(thisBgrColor, "222222", 0.25)
+   If (swapColorAnalogClock=1)
+      swapVars(brightColor, darkColor)
+
    elevation := coreMoonPhaseDraw(brightColor, darkColor, cX, cY, boxSize*4.95, lastUsedGeoLocation, G3)
    If (elevation<0)
    {
@@ -1856,7 +1865,7 @@ CreateOSDGUI(msg2Display, centerMsg:=0, noAdds:=0) {
        }
 
        coloru := (percu=25 || percu=49 || percu=50 || percu=51 || percu=75) ? OSDtextColor : decideFadeColor(thisBgrColor)
-       thisBgrColor := SubStr( MixARGB("0xFF" thisbgrColor, "0xFF001100", 0.25), 5)
+       thisBgrColor := SubStr( MixARGB("0xFF" thisbgrColor, "0xFF001100", 0.2), 5)
        Gui, osdGuia: Add, Progress, x0 y0 w%mainWid% h%heightProgressu% c%coloru% background%thisBgrColor%, % percu "%"
     }
 
@@ -1983,14 +1992,10 @@ CopyLastQuote() {
 }
 
 ResetAnalogClickPosition() {
-   If (constantAnalogClock!=1)
-      Return
-
    ClockPosX := ClockPosY := 1
-   Gui, ClockGui: Show, NoActivate x%ClockPosX% y%ClockPosY%
    saveAnalogClockPosition("no")
-   If (constantAnalogClock!=1)
-      Gui, ClockGui: Hide
+   If (constantAnalogClock=1)
+      reInitializeAnalogClock()
 }
 
 JEE_ScreenToClient(hWnd, vPosX, vPosY, ByRef vPosX2, ByRef vPosY2) {
@@ -3554,6 +3559,7 @@ PanelShowSettings() {
     hLV8 := GuiAddColor("xs+15 y+5 w55 h25", "clockBgrColor", "Background face color")
     hLV9 := GuiAddColor("x+10 wp hp", "clockFgrColor", "Hands and numbers color")
     hLV10 := GuiAddColor("x+10 wp hp", "clockOutColor", "Exterior color")
+    Gui, Add, Button, x+5 hp ghelpAnalogClock, &Info
  
     Gui, Tab
     Gui, Add, Button, xm+0 y+10 w75 h30 Default gApplySettings vApplySettingsBTN, A&pply
@@ -3568,6 +3574,11 @@ PanelShowSettings() {
 helpOSDastroColors() {
     Gui, SettingsGUIA: +OwnDialogs
     MsgBox, , % appName, The defined color will be used when the sun or moon is up in the sky (above the horizon line). Or`, if the user selects the Moon Phase option`, the OSD color will be mixed with the color defined here based on the illumination fraction of the moon. When new moon occurs`, the main OSD color will not be altered.`n`nDaylight and moonlight options rely on the location of the observer on the planet Earth. To define the location use the Astronomy/Today panel.`n`nThe Automatic Mode. In this mode`, the sun and moon altitudes`, and the moon phase`, are used to determine the color of the OSD. If it is night time`, the OSD colour will be based on the moon elevation and illumination fraction. If the moon is below the horizon or if it is a new moon`, the colour of the OSD will not be changed.
+}
+
+helpAnalogClock() {
+    Gui, SettingsGUIA: +OwnDialogs
+    MsgBox, , % appName, The Analog Clock widget can be toggled via the system tray menu of %appName%. To customize the widget`, right-click on the clock.
 }
 
 VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
@@ -4359,9 +4370,12 @@ PanelManageCelebrations(tabChoice:=1) {
   GuiAddDropDownList("x+2 w100 gupdateOptionsLVsGui AltSubmit Choose" UserReligion " vUserReligion", "Catholic|Orthodox", "Religion",,"CelebrationsGuia")
   btnWid := (PrefsLargeFonts=1) ? 71 : 48
   lstWid2 := lstWid - (btnWid)*3
-  Gui, Add, Button, x+10 gPanelAddNewCalendarEvent w%btnWid% hp, &Add
-  Gui, Add, Button, x+5 gBTNimportCalendarEvents wp hp, &Import
-  Gui, Add, Button, x+5 gBTNexportCalendarEvents wp hp, &Export
+  Gui, Add, Button, x+10 gPanelAddNewCalendarEvent w%btnWid% hp +hwndhTemp, &Add
+  ToolTip2ctrl(hTemp, "Define a new personal event or celebration.")
+  Gui, Add, Button, x+5 gBTNimportCalendarEvents wp hp +hwndhTemp, &Import
+  ToolTip2ctrl(hTemp, "Import personal events or celebrations.")
+  Gui, Add, Button, x+5 gBTNexportCalendarEvents wp hp +hwndhTemp, &Export
+  ToolTip2ctrl(hTemp, "Export personal events or celebrations.")
   Gui, Add, Tab3, xs y+10 AltSubmit Choose%tabChoice% vCurrentTabLV, Religious|Easter related|Secular|Personal
   rz := (PrefsLargeFonts=1) ? 9 : 11
   Gui, Tab, 1
@@ -5288,7 +5302,7 @@ reactWinOpened(funcu, idu) {
     ;    %funcu%()
 }
 
-SetPresetTimers(a, b, c) {
+BtnSetPresetTimers(a, b, c) {
    Static lastInvoked := 1, prevu := 0
    GuiControlGet, a, SettingsGUIA: hwnd, userUItimerQuickSet
    ControlGetText, info, , ahk_id %a%
@@ -5306,15 +5320,16 @@ SetPresetTimers(a, b, c) {
       info := 60
       hu := 1
    }
-   ; If (A_TickCount - lastInvoked<450) && (prevu=info)
-   ;    info := info*3
 
    Gui, SettingsGUIA: Default
    GuiControl, SettingsGUIA: , userMustDoTimer, 1
    GuiControl, SettingsGUIA: , userTimerHours, % hu
    GuiControl, SettingsGUIA: , userTimerMins, % info
-   prevu := info
    updateUIalarmsPanel()
+   If (A_TickCount - lastInvoked<300) && (prevu=info)
+      SetTimer, BtnApplyAlarms, -250
+
+   prevu := info
    lastInvoked := A_TickCount
    ; ToolTip, % a "=" b "=" c "=" info , , , 2
 }
@@ -5370,8 +5385,8 @@ PanelSetAlarm() {
     Gui, Tab, 1
     Gui, Add, Text, x+15 y+15 Section +hwndhTemp, Predefined timer (in minutes):
     ml := (PrefsLargeFonts=1) ? 60 : 50
-    GuiAddDropDownList("x+5 w" ml " Choose1 vuserUItimerQuickSet", "0|1|2|3|4|5|10|15|30|45|60|90|120", [hTemp])
-    Gui, Add, Button, x+5 wp hp gSetPresetTimers, Set
+    GuiAddDropDownList("x+5 w" ml " Choose5 vuserUItimerQuickSet", "1|2|3|4|5|10|15|30|45|60|90|120", [hTemp])
+    Gui, Add, Button, x+5 wp hp gBtnSetPresetTimers, Set
     Gui, Add, Checkbox, xs y+10 Section gupdateUIalarmsPanel Checked%userMustDoTimer% vuserMustDoTimer, Set timer duration (in hours`, mins):
     Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
     GuiAddEdit("xs+15 y+10 w" nW " h" nH " Center number -multi limit2 gupdateUIalarmsPanel veditF1", userTimerHours, "Hours")
@@ -5402,7 +5417,7 @@ PanelSetAlarm() {
     doResetGuiFont()
 
     GuiAddEdit("xs+15 y+10 w255 -multi limit512 vuserAlarmMsg", userAlarmMsg, "Alarm message")
-    Gui, Add, Checkbox, xs y+10 gupdateUIalarmsPanel Checked%userAlarmRepeated% vuserAlarmRepeated, &Repeat alarm on...
+    Gui, Add, Checkbox, xs y+10 gupdateUIalarmsPanel Checked%userAlarmRepeated% vuserAlarmRepeated, &Repeat alarm on every...
     Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 Checked%userAlarmWday1% vuserAlarmWday1, Sun
     Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday2% vuserAlarmWday2, Mon
     Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday3% vuserAlarmWday3, Tue
@@ -5419,6 +5434,8 @@ PanelSetAlarm() {
     GuiAddEdit("x+5 w" zl " hp Center number -multi limit2 veditF6 gupdateUIalarmsPanel", userAlarmFreq, "Alarm audio alert frequency in seconds")
     Gui, Add, UpDown, vuserAlarmFreq Range1-99 gupdateUIalarmsPanel, % userAlarmFreq
     Gui, Add, Button, x+5 wp hp gBtnTestAlarmAudio vBtn2, Test
+    p := friendlyAlarmInfoz()
+    Gui, Add, Text, xs+15 y+10 w255, % p
 
     Gui, Tab
     Gui, Add, Checkbox, xm y+10 Section gupdateUIalarmsPanel Checked%AlarmersDarkScreen% vAlarmersDarkScreen, Flash dark screen on alerts
@@ -5609,8 +5626,8 @@ PanelCalendarWindow() {
     Gui, Add, Button, xs y+2 w%kW% h%kH% gBTNcalendarSaveNewEntry +hwndhTemp, Set
     Gui, Add, Button, x+5 wp+10 hp gBTNcalendarClearEvent +hwndhTemp, Clear
     ToolTip2ctrl(hTemp, "Clear personal event for the selected date.")
-    Gui, Add, Checkbox, x+5 hp Checked1 vuiCalendarNewAllYears, Observe every year
-    ToolTip2ctrl(hTemp, "If this is checked, the newly defined event will be observed every year.")
+    Gui, Add, Checkbox, x+5 hp Checked1 vuiCalendarNewAllYears +hwndhTemp, Observe every year
+    ToolTip2ctrl(hTemp, "When this is checked, the newly defined event will be observed every year.")
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Calendar: %appName%
@@ -6289,14 +6306,7 @@ BtnApplyAlarms() {
   INIaction(1, "userTimerMsg", "SavedSettings")
   If (userMustDoTimer=1 && (userTimerHours || userTimerMins))
   {
-     delayu := MCI_ToMilliseconds(userTimerHours, userTimerMins, 0)
-     Timea := A_Now
-     Timea += userTimerHours, Hours
-     Timea += userTimerMins, Minutes
-     userTimerExpire := SubStr(timea, 9, 4)
-     userTimerExpire := ST_Insert(":", userTimerExpire, 3)
-     ; ToolTip, % userTimerExpire
-     SetTimer, doUserTimerAlert, % -delayu
+     coreInitUserTimer()
   } Else 
   {
      userTimerExpire := userMustDoTimer := 0
@@ -6308,6 +6318,7 @@ BtnApplyAlarms() {
      startAlarmTimer()
   } Else
   {
+     startAlarmTimer("rr")
      userAlarmIsSnoozed := userMustDoAlarm := 0
      INIaction(1, "userMustDoAlarm", "SavedSettings")
      SetTimer, doUserAlarmAlert, Off
@@ -6320,11 +6331,11 @@ BtnApplyAlarms() {
 doUserTimerAlert() {
   userMustDoTimer := 0
   stopStrikesNow := stopAdditionalStrikez := 0
-  thisMsg := Trim(userTimerMsg) ? "`n" Trim(userTimerMsg) : "NONE"
+  thisMsg := Trim(userTimerMsg) ? "`n" Trim(userTimerMsg) : ""
   If (AlarmersDarkScreen=1)
-     ScreenBlocker(0, 1, 0, 1)
+     ScreenBlocker(0, 1, 1, 1)
 
-  WinSet, AlwaysOnTop, Off, ScreenShader
+  ; WinSet, AlwaysOnTop, Off, ScreenShader
   PlayTimerBell()
   showTimeNow()
   If (userAlarmSound!=6)
@@ -6332,26 +6343,45 @@ doUserTimerAlert() {
 
   th := (userTimerHours<10) ? "0" . userTimerHours : userTimerHours
   tm := (userTimerMins<10) ? "0" . userTimerMins : userTimerMins
-  MsgBox, 4, Timer: %appName%, % "Timer message: " thisMsg "`n`nPress Yes to repeat this alert in " th ":" tm "."
-  IfMsgBox, Yes
+  If !thisMsg
   {
-     userMustDoTimer := 1
-     delayu := MCI_ToMilliseconds(userTimerHours, userTimerMins, 0)
+     userTimerExpire := 0
+     Sleep, 350
+  } Else
+  {
+     MsgBox, % 4096+4, Timer: %appName%, % "Timer message: " thisMsg "`n`nPress Yes to repeat this alert in " th ":" tm "."
+     IfMsgBox, Yes
+     {
+        userMustDoTimer := 1
+        coreInitUserTimer()
+     } Else userTimerExpire := 0
+  }
+
+  SetTimer, PlayTimerBell, Off
+  ScreenBlocker(1)
+}
+
+coreInitUserTimer(rz:=0) {
+     Static lk := []
+     If (rz="last")
+        Return lk
+
+     delayu := MCI_ToMilliseconds(userTimerHours, userTimerMins, 0) + 350
+     lmin := (userTimerMins + userTimerHours*60) * 60
+     lk := [A_Now, lmin]
      Timea := A_Now
      Timea += userTimerHours, Hours
      Timea += userTimerMins, Minutes
      userTimerExpire := SubStr(timea, 9, 4)
      userTimerExpire := ST_Insert(":", userTimerExpire, 3)
      SetTimer, doUserTimerAlert, % -delayu
-  } Else userTimerExpire := 0
-  SetTimer, PlayTimerBell, Off
 }
 
 doUserAlarmAlert() {
   stopStrikesNow := stopAdditionalStrikez := 0
   thisMsg := Trim(userAlarmMsg) ? "`n" Trim(userAlarmMsg) : "NONE"
   If (AlarmersDarkScreen=1)
-     ScreenBlocker(0, 1, 0, 1)
+     ScreenBlocker(0, 1, 1, 1)
 
   showTimeNow()
   PlayAlarmedBell()
@@ -6360,31 +6390,39 @@ doUserAlarmAlert() {
 
   friendly := (userAlarmIsSnoozed=1) ? " (snoozed)" : ""
   friendly2 := (userAlarmIsSnoozed=1) ? " again" : ""
-  MsgBox, 4, Alarm%friendly%: %appName%, % "Alarm message: " thisMsg "`n`nPress Yes to snooze" friendly2 " for " userAlarmSnooze " minutes."
+  MsgBox, % 4096+4, Alarm%friendly%: %appName%, % "Alarm message: " thisMsg "`n`nPress Yes to snooze" friendly2 " for " userAlarmSnooze " minutes."
   IfMsgBox, Yes
   {
+     startAlarmTimer("rr")
      userMustDoAlarm := 1
      userAlarmIsSnoozed := 1
      SetTimer, doUserAlarmAlert, % -(userAlarmSnooze * 60000)
   } Else If (userAlarmRepeated=1)
   {
+     startAlarmTimer("rr")
+     SetTimer, doUserAlarmAlert, Off
      userAlarmIsSnoozed := 0
      userMustDoAlarm := 1
      startAlarmTimer()
-     SetTimer, doUserAlarmAlert, Off
   } Else
   {
+     SetTimer, doUserAlarmAlert, Off
      userAlarmIsSnoozed := 0
      userMustDoAlarm := 0
-     SetTimer, doUserAlarmAlert, Off
+     startAlarmTimer("rr")
   }
   SetTimer, PlayAlarmedBell, Off
+  ScreenBlocker(1)
   INIaction(1, "userMustDoAlarm", "SavedSettings")
 }
 
-startAlarmTimer() {
-  If (userAlarmIsSnoozed=1)
+startAlarmTimer(kpl:=0) {
+  Static lastzz := 9871
+  If (userAlarmIsSnoozed=1 || kpl="rr")
+  {
+     lastzz := 9871
      Return
+  }
 
   canDo := (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours)) ? 1 : 0
   If (canDo && userAlarmRepeated=1)
@@ -6395,20 +6433,31 @@ startAlarmTimer() {
 
   If !canDo
   {
+     lastzz := 9871
      SetTimer, doUserAlarmAlert, Off
      Return
   }
 
-  nowu := SubStr(A_Now, 1, 12)
-  tH := StrLen(userAlarmHours)!=2 ? "0" . userAlarmHours : userAlarmHours
-  tM := StrLen(userAlarmMins)!=2 ? "0" . userAlarmMins : userAlarmMins
-  newu := A_Year A_Mon A_DD tH tM
+  nowu := A_Now
+  tH := (StrLen(userAlarmHours)!=2) ? "0" . userAlarmHours : userAlarmHours
+  tM := (StrLen(userAlarmMins)!=2) ? "0" . userAlarmMins : userAlarmMins
+  newu := A_Year A_Mon A_DD tH tM . "00"
   If (nowu>=newu)
+  {
      newu += 1, Days
+     isAlarmTmrw := (userAlarmRepeated=1) ? 0 : 1
+  } Else
+     isAlarmTmrw := 0
 
-  ; ToolTip, % nowu "`n" newu , , , 2
-  newu -= nowu, SS
-  SetTimer, doUserAlarmAlert, % -newu*1000
+  nss := newu
+  nss -= nowu, Seconds
+  If (lastzz<18)
+     Return
+
+  lastzz := nss
+  nsd := nss*1000
+  ; ToolTip, % nowu "`n" newu "`n" nss "`n" nsd , , , 2
+  SetTimer, doUserAlarmAlert, % -nsd
 }
 
 getPercentOfAstroSeason(z:=0) {
@@ -6679,11 +6728,11 @@ PanelMoonYearGraphTable() {
 }
 
 btnHelpYearSolarGraph() {
-  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Sunlight and civil twilight duration per day. The X axis represents the days of year, 1 to 365. The Y axis represents the hours of the day, from 00:01 to 23:59. The taller the yellow bars are, the longer the duration of sunlight is on that day. The civil twilight is represented by a darker yellow at the top of the bars. The bars are shaded based on the solar noon angle of that day. The higher the sun rises at noon the brighter the shade is.`n`n2. Sun rises and sun sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent rises and sets, while the darker ones, dawn and dusk. Between rises and sets, the solar noon is represented by bright blueish dots.")
+  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Sunlight and civil twilight duration per day. The X axis represents the days of year, 1 to 365. The Y axis represents the hours of the day, from 00:01 to 23:59. The taller the yellow bars are, the longer the duration of sunlight is on that day. The civil twilight is represented by a darker yellow at the top of the bars. The bars are shaded based on the solar noon angle of that day. The higher the sun rises at noon the brighter the shade is.`n`n2. Sun rises and sun sets. This mode highlights the time of day the sunsets and sunrises occur. The X axis represents the days of the year and the Y axis are the hours. At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent sun rises and sets, while the darker ones, dawn and dusk. Between rises and sets, the solar noon is represented by bright blueish dots.")
 }
 
 btnHelpYearMoonGraph() {
-  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Moonlight duration per day. The X axis represents the days of year, 1 to 365. The Y axis represents the hours of the day, from 00:01 to 23:59. The taller the yellow bars are, the longer the duration of moonlight is on that day. The bars are shaded based on the culminant angle of that day. The higher the moon rises the brighter it is.`n`n2. Moon rises and moon sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent rises, and the darker ones, the sets.`n`nThe entire background has a wave pattern. It is calculated based on the moon illumination fraction. The peak blueish bright areas represent full moon, while the darkest shades are for the new moon.")
+  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Moonlight duration per day. The X axis represents the days of year, 1 to 365. The Y axis represents the hours of the day, from 00:01 to 23:59. The taller the yellow bars are, the longer the duration of moonlight is on that day. The bars are shaded based on the culminant angle of that day. The higher the moon rises the brighter it is.`n`n2. Moon rises and moon sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. This mode highlights the time of day the moon sets and rises. The X axis represents the days of the year and the Y axis are the hours. At the top of the Y axis is 00:00 and at the bottom is 23:59.  The data is represented as dots. The brighter dots represent rises, and the darker ones, the sets.`n`nThe entire background has a wave pattern. It is calculated based on the moon illumination fraction. The peak blueish bright areas represent full moon, while the darkest shades are for the new moon.")
 }
 
 scorifyCompareWords(thisUserWord, siti) {
@@ -7134,7 +7183,8 @@ PanelEarthMap(modus:=0) {
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     thisu := StrReplace(countriesArrayList[uiUserCountry] ":" geoData[uiUserCountry "|" uiUserCity], "Custom locations:")
     GuiAddEdit("xm+0 y+10 w" ww " -wrap vnewGeoDataLocationUserEdit", thisu, "New custom location to be added")
-    Gui, Add, Button, x+5 hp vbtn4 gbtnUIaddNewGeoLocation, &Add to list
+    Gui, Add, Button, x+5 hp vbtn4 gbtnUIaddNewGeoLocation +hwndhTemp, &Add to list
+    ToolTip2ctrl(hTemp, "Add selected location to the list of custom user-defined locations.")
 
     Gui, Add, Button, xm+0 y+20 h%btnH% w%btnW% Default gPanelTodayInfos, &Back
     If !storeSettingsREG
@@ -10854,8 +10904,10 @@ PanelTodayInfos() {
     widu := (PrefsLargeFonts=1) ? 190 : 120
     GuiAddDropDownList("x+5 w" widu " AltSubmit gUIcountryChooser Choose" uiUserCountry " vuiUserCountry", countriesList, [hTemp, 0, "Country"])
     GuiAddDropDownList("x+5 wp AltSubmit gUIcityChooser Choose" uiUserCity " vuiUserCity", getCitiesList(uiUserCountry), "City")
-    Gui, Add, Button, x+5 hp gSearchOpenPanelEarthMap, &Search
-    Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
+    Gui, Add, Button, x+5 hp gSearchOpenPanelEarthMap +hwndhTemp, &Search
+    ToolTip2ctrl(hTemp, "Search locations on the planet")
+    Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc +hwndhTemp, &Remove
+    ToolTip2ctrl(hTemp, "Remove selected custom location")
     Gui, Add, Text, xs y+10 , Time and date to observe
     Gui, Add, DateTime, xs yp Choose%uiUserFullDateUTC% Right gUItodayDateCtrl vuiUserFullDateUTC +hwndhDatTime, dddd, d MMMM, yyyy; HH:mm (UTC)
     widu := (PrefsLargeFonts=1) ? 40 : 32
@@ -10863,7 +10915,8 @@ PanelTodayInfos() {
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate +hwndhTemp, &Now
     ToolTip2ctrl(hTemp, "Reset to current time and date (\)")
     hBtnTodayNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vUIbtnTodayNext", ">", "Next hour (.)")
-    Gui, Add, Button, x+5 hp gPanelEarthMap, &Map
+    Gui, Add, Button, x+5 hp gPanelEarthMap +hwndhTemp, &Map
+    ToolTip2ctrl(hTemp, "Find a location on Earth's map.")
     sml := (PrefsLargeFonts=1) ? 500 : 370
     Gui, Add, Text, xs y+5 w%sml% Section hp +0x200 vuiInfoGeoData -wrap, Geo data.
     sml := (PrefsLargeFonts=1) ? 100 : 60
@@ -11176,7 +11229,9 @@ INIsettings(a) {
   INIaction(a, "clockOutColor", "OSDprefs")
   INIaction(a, "transparentAnalogClock", "OSDprefs")
   INIaction(a, "coloredAnalogClockBgr", "OSDprefs")
+  INIaction(a, "useArabNumeralsAnalogClock", "OSDprefs")
   INIaction(a, "swapColorAnalogClock", "OSDprefs")
+  INIaction(a, "analogClockOpacity", "OSDprefs")
 
   If (a=0) ; a=0 means to load from INI
      CheckSettings()
@@ -11257,6 +11312,7 @@ CheckSettings() {
     BinaryVar(swapColorAnalogClock, 0)
     BinaryVar(transparentAnalogClock, 0)
     BinaryVar(coloredAnalogClockBgr, 1)
+    BinaryVar(useArabNumeralsAnalogClock, 0)
 
 ; verify numeric values: min, max and default values
     If (!analogClockScale || !isNumber(analogClockScale))
@@ -11289,7 +11345,7 @@ CheckSettings() {
     MinMaxVar(BibleQuotesInterval, 1, 12, 5)
     MinMaxVar(maxBibleLength, 20, 130, 55)
     MinMaxVar(noTollingBgrSounds, 1, 3, 1)
-    MinMaxVar(OSDalpha, 75, 252, 230)
+    MinMaxVar(OSDalpha, 75, 254, 230)
     MinMaxVar(userAlarmSnooze, 1, 59, 5)
     MinMaxVar(userAlarmSound, 1, 6, 5)
     MinMaxVar(userTimerSound, 1, 6, 5)
@@ -11301,7 +11357,7 @@ CheckSettings() {
     MinMaxVar(showOSDprogressBar, 1, 6, 2)
     MinMaxVar(OSDastralMode, 1, 4, 1)
     MinMaxVar(analogMoonPhases, 0, 2, 0)
-
+    MinMaxVar(analogClockOpacity, 70, 254, 230)
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
     If (ObserveHolidays=0)

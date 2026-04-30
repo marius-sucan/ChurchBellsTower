@@ -138,7 +138,7 @@ animateAnalogClockAppeareance() {
    Loop,
    {
       alphaLevel := A_Index*15
-      If (alphaLevel>mainOSDopacity)
+      If (alphaLevel>analogClockOpacity)
          Break
 
       z := GetWindowPlacement(hFaceClock)
@@ -150,8 +150,8 @@ animateAnalogClockAppeareance() {
 animateAnalogClockHiding() {
    Loop,
    {
-      alphaLevel := mainOSDopacity - A_Index*15
-      If (alphaLevel<5)
+      alphaLevel := analogClockOpacity - A_Index*15
+      If (alphaLevel<2)
          Break
 
       z := GetWindowPlacement(hFaceClock)
@@ -187,6 +187,29 @@ UpdateEverySecond() {
       Gdip_FillEllipse(globalG, pBrush, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter)
    Gdip_DeleteBrush(pBrush)
 
+; draw timer progress
+   Static laz := 1
+   Diameter := Round(ClockDiameter - ClockDiameter*0.05, 4)
+   If (userTimerExpire && userMustDoTimer=1)
+   {
+      opaz := (laz=1) ? "0xFFff4411" : "0xFFff1100"
+      lk := coreInitUserTimer("last")
+      an := A_Now
+      an -= lk[1],Seconds
+      za := ( an / lk[2] ) * 360
+   }
+
+   Gdip_SetSmoothingMode(globalG, 4)   ; turn on antialiasing
+   thisClr := (swapColorAnalogClock=1 || transparentAnalogClock=1) ? clockFgrClr : clockBgrClr
+   sweep := (userTimerExpire && userMustDoTimer=1) ? clampInRange(za, 2, 361) : 360
+   If (userTimerExpire && userMustDoTimer=1)
+      sPen := Gdip_CreatePen(opaz, (ClockDiameter/70)*1.25)
+   Else
+      sPen := Gdip_CreatePen("0xFF" thisClr, (ClockDiameter/70)*1.25)
+   Gdip_DrawArc(globalG, sPen, CenterX-(Diameter/2), CenterY-(Diameter/2),Diameter, Diameter, -90, sweep)
+   Gdip_DeletePen(sPen)
+   laz := !laz
+
 ; draw hour labels
    sDiameter := Round(ClockDiameter - ClockDiameter*0.08, 4)  ; inner circle is 8 % smaller than clock's Diameter
    R1 := sDiameter/2-1                        ; outer position
@@ -195,7 +218,6 @@ UpdateEverySecond() {
    If (showAnalogHourLabels=1)
       DrawHoursLabels(R1, R2b, globalG, clockFgrClr)
 
-   Gdip_SetSmoothingMode(globalG, 4)   ; turn on antialiasing
 ; draw moon phase
    If (analogMoonPhases=1)
    {
@@ -276,7 +298,7 @@ UpdateEverySecond() {
    Gdip_DeleteBrush(pBrush)
 
    z := GetWindowPlacement(hFaceClock)
-   UpdateLayeredWindow(hFaceClock, globalhdc, , , z.w, z.h, mainOSDopacity)
+   UpdateLayeredWindow(hFaceClock, globalhdc, , , z.w, z.h, analogClockOpacity)
    Return
 }
 
@@ -390,8 +412,10 @@ DrawHoursLabels(rR1, R2, G, clockFgrClr) {
    Static zr := {1:"I", 2:"II", 3:"III", 4:"IV", 5:"V", 6:"VI", 7:"VII", 8:"VIII", 9:"IX", 10:"X", 11:"XI", 12:"XII"}
         , zo := {1:9,2:10,3:11,4:12,5:1,6:2,7:3,8:4,9:5,10:6,11:7,12:8}
         , zf := {1:0.17,2:0.2,3:0.25,4:0.3,5:0.21,6:0.3,7:0.24,8:0.29,9:0.25,10:0.2,11:0.15,12:0.15}
-        , zx := {1:1,2:0.99,3:1.01,4:1.05,5:1,6:1,7:1,8:0.95,9:0.97,10:1.04,11:1.05,12:1}
-        , zy := {1:0.94,2:0.9,3:0.92,4:0.97,5:0.95,6:1,7:0.95,8:0.96,9:0.92,10:0.91,11:1,12:1.03}
+        , zx := {1:1.00, 2:0.99, 3:1.01, 4:1.05, 5:1.00, 6:1, 7:1.00, 8:0.95, 9:0.97, 10:1.04, 11:1.05, 12:1.00}
+        , zy := {1:0.94, 2:0.90, 3:0.92, 4:0.97, 5:0.95, 6:1, 7:0.95, 8:0.96, 9:0.92, 10:0.91, 11:1.00, 12:1.03}
+        , zax := {1:0.99, 2:1.01, 3:1.02, 4:1.00, 6:1.00, 7:0.97, 8:0.92, 9:0.92, 10:1.02, 12:1.00}
+        , zay := {1:1.01, 2:1.01, 3:1.01, 4:1.01, 6:1.01, 7:1.01, 8:1.01, 9:1.01, 10:1.02, 12:0.98}
 
    CenterX := CenterY := ClockCenter
    sr := Round(R2*0.22)
@@ -402,8 +426,13 @@ DrawHoursLabels(rR1, R2, G, clockFgrClr) {
       y1 := CenterY - Round(R1 * Sin(((A_Index - 1)*360/12) * Atan(1) * 4 / 180), 6)
       x1 := Round( x1 * zx[ zo[A_Index] ], 2 )
       y1 := Round( y1 * zy[ zo[A_Index] ], 2 )
+      If (useArabNumeralsAnalogClock=1 && zax[ zo[A_Index] ])
+      {
+         x1 := Round( x1 * zax[ zo[A_Index] ], 2 )
+         y1 := Round( y1 * zay[ zo[A_Index] ], 2 )
+      }
 
-      txt := zr[ zo[A_Index] ]
+      txt := (useArabNumeralsAnalogClock=1) ? zo[A_Index] : zr[ zo[A_Index] ]
       txtOptions := "x" x1 " y" y1 " Center vCenter cEE" clockFgrClr " Bold nowrap s" sr
       Gdip_TextToGraphics(G, txt, txtOptions, "Arial")
    }
@@ -491,6 +520,14 @@ createCustomClockOptionsMenu() {
     }
 
     Menu, customClockMenu, Add, Show &hour labels, toggleHourLabelsAnalog
+    If (showAnalogHourLabels=1)
+    {
+       Menu, customClockMenu, Check, Show &hour labels
+       Menu, customClockMenu, Add, Use Arabic numerals, MenuToggleArabNumeralz
+       If (useArabNumeralsAnalogClock=1)
+          Menu, customClockMenu, Check, Use Arabic numerals
+    }
+
     Menu, customClockMenu, Add, Transparent clock face, MenuToggleTransparentClock
     If (transparentAnalogClock=1)
        Menu, customClockMenu, Check, Transparent clock face
@@ -503,32 +540,66 @@ createCustomClockOptionsMenu() {
        Menu, customClockMenu, Check, Show &moon phases
     If (analogMoonPhases=2)
        Menu, customClockMenu, Check, Show digital cloc&k
-    If (showAnalogHourLabels=1)
-       Menu, customClockMenu, Check, Show &hour labels
+}
+
+MenuSetQuickTimer(aa:=0) {
+  If InStr(aa, "custom")
+  {
+     PanelSetAlarm()
+     Return
+  } Else If InStr(aa, "turn off")
+  {
+     userMustDoTimer := userTimerExpire := 0
+     SetTimer, doUserTimerAlert, Off
+     Return
+  }
+
+  userTimerMsg := ""
+  userTimerHours := (aa>59) ? 1 : 0
+  userTimerMins := (aa>60) ? aa - 60 : aa
+  INIaction(1, "userTimerMins", "SavedSettings")
+  INIaction(1, "userTimerHours", "SavedSettings")
+  ; INIaction(1, "userTimerMsg", "SavedSettings")
+  userMustDoTimer := 1
+  coreInitUserTimer()
+  ; ToolTip, % aa , , , 2
 }
 
 showContextMenuAnalogClock() {
     Static menuGenerated
     Menu, ContextMenu, UseErrorLevel
     Menu, ContextMenu, DeleteAll
+    Menu, ClockOpacityMenu, DeleteAll
+    Menu, ClockSizesMenu, DeleteAll
+    Menu, ClockTimersMenu, DeleteAll
     Sleep, 5
-    If (menuGenerated!=1)
-    {
-       Menu, ClockSizesMenu, Add, 0.25x, ChangeMenuClockSize
-       Menu, ClockSizesMenu, Add, 0.50x, ChangeMenuClockSize
-       Menu, ClockSizesMenu, Add, 1.00x, ChangeMenuClockSize
-       Menu, ClockSizesMenu, Add, 1.50x, ChangeMenuClockSize
-       Menu, ClockSizesMenu, Add, 2.00x, ChangeMenuClockSize
-       Menu, ClockSizesMenu, Add, 3.00x, ChangeMenuClockSize
-       Menu, ClockSizesMenu, Add, 4.00x, ChangeMenuClockSize
-       menuGenerated := 1
-    }
+    Loop, Parse, % "0.12|0.25|0.50|0.75|1.00|1.50|2.00|3.00|4.00|5.00", |
+        Menu, ClockSizesMenu, Add, % A_LoopField "x", ChangeMenuClockSize
+
+    Loop, Parse, % "1|2|3|4|5|10|15|30|60|90", |
+        Menu, ClockTimersMenu, Add, % A_LoopField, MenuSetQuickTimer
+    Menu, ClockTimersMenu, Add
+    If (userTimerExpire && userMustDoTimer=1)
+       Menu, ClockTimersMenu, Add, Turn off timer, MenuSetQuickTimer
+    Menu, ClockTimersMenu, Add, Custom interval, MenuSetQuickTimer
 
     Menu, ClockSizesMenu, Check, %analogClockScale%x
+    Loop, 9
+        Menu, ClockOpacityMenu, Add, % (A_Index + 1) * 10 "%", ChangeMenuClockOpacity
+    pop := Round(analogClockOpacity/255 * 100) "%"
+    ; Menu, ClockOpacityMenu, Add
+    ; Menu, ClockOpacityMenu, Add, % pop, dummy
+    ; Menu, ClockOpacityMenu, Disable, % pop
+    Try Menu, ClockOpacityMenu, Check, % pop
     createCustomClockOptionsMenu()
     Menu, ContextMenu, Add, Sc&ale, :ClockSizesMenu
-    Menu, ContextMenu, Add, C&ustomize, :customClockMenu
+    Menu, ContextMenu, Add, &Opacity, :ClockOpacityMenu
+    If (PrefOpen=0)
+       Menu, ContextMenu, Add, C&ustomize, :customClockMenu
+
     Menu, ContextMenu, Add
+    If (PrefOpen=0)
+       Menu, ContextMenu, Add, &Set timer, :ClockTimersMenu
     Menu, ContextMenu, Add, &Hide the clock, toggleAnalogClock
 
     Menu, ContextMenu, Add
@@ -564,6 +635,21 @@ ChangeMenuClockSize() {
   Menu, ClockSizesMenu, Uncheck, %analogClockScale%x
   StringLeft, newSize, A_ThisMenuItem, 4
   MenuChangeClockSizeScale(newSize)
+}
+
+ChangeMenuClockOpacity() {
+   If (A_IsSuspended || PrefOpen=1)
+   {
+      SoundBeep, 300, 900
+      If (PrefOpen=1)
+         WinActivate, ahk_id %hSetWinGui%
+      Return
+   }
+
+   newSize := ( StrReplace(A_ThisMenuItem, "%") /100 ) * 255
+   analogClockOpacity := Round(newSize)
+   INIaction(1, "analogClockOpacity", "OSDprefs")
+   reInitializeAnalogClock()
 }
 
 MenuChangeClockSizeScale(newSize) {
@@ -620,5 +706,19 @@ MenuToggleTransparentClock() {
    transparentAnalogClock := !transparentAnalogClock
    INIaction(1, "transparentAnalogClock", "OSDprefs")
    reInitializeAnalogClock()
+}
+
+MenuToggleArabNumeralz() {
+   If (A_IsSuspended || PrefOpen=1)
+   {
+      SoundBeep, 300, 900
+      If (PrefOpen=1)
+         WinActivate, ahk_id %hSetWinGui%
+      Return
+   }
+
+   useArabNumeralsAnalogClock := !useArabNumeralsAnalogClock
+   INIaction(1, "useArabNumeralsAnalogClock", "OSDprefs")
+   ; reInitializeAnalogClock()
 }
 
