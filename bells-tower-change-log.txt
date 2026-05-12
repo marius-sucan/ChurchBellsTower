@@ -5,12 +5,19 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.5.9 - 2026 / 05 / 13
+  - [new] ability to right click on the OSD when it is set to be always visible
+  - more customization options for the OSD
+  - improved the layout for the calendar and astronomy panels
+  - the About panel is now more informative; it now has tabs with additional information: features and the change-log
+  - bug fixes
+
 v3.5.8 - 2026 / 04 / 30
   - [new] option to use Arab numerals instead of Roman numbers on the Analog clock display
   - [new] option to set opacity of the Analog clock
   - option to start predefined timers from the Analog clock
   - timer progress is now highlighted in the Analog clock
-  - fixed setting up alarms and timers
+  - fixed setting up alarms and timers, broken in release v3.5.6
 
 v3.5.7 - 2026 / 04 / 29
   - [new] option to set the Analog clock transparent

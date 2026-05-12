@@ -532,14 +532,18 @@ createCustomClockOptionsMenu() {
     If (transparentAnalogClock=1)
        Menu, customClockMenu, Check, Transparent clock face
     Menu, customClockMenu, Add, Show digital cloc&k, toggleDigitalTimeAnalog
+    If (analogMoonPhases=2)
+       Menu, customClockMenu, Check, Show digital cloc&k
     Menu, customClockMenu, Add
     Menu, customClockMenu, Add, Show &moon phases, toggleMoonPhasesAnalog
     Try Menu, customClockMenu, Add, % pk[1], dummy
     Try Menu, customClockMenu, Disable, % pk[1]
     If (analogMoonPhases=1)
        Menu, customClockMenu, Check, Show &moon phases
-    If (analogMoonPhases=2)
-       Menu, customClockMenu, Check, Show digital cloc&k
+    Menu, customClockMenu, Add
+    Menu, customClockMenu, Add, Lock clock &position, MenuToggleLockClockAnalogPosition
+    If (lockAnalogClockPosition=1)
+       Menu, customClockMenu, Check, Lock clock &position
 }
 
 MenuSetQuickTimer(aa:=0) {
@@ -569,9 +573,9 @@ showContextMenuAnalogClock() {
     Static menuGenerated
     Menu, ContextMenu, UseErrorLevel
     Menu, ContextMenu, DeleteAll
-    Menu, ClockOpacityMenu, DeleteAll
-    Menu, ClockSizesMenu, DeleteAll
-    Menu, ClockTimersMenu, DeleteAll
+    Try Menu, ClockOpacityMenu, DeleteAll
+    Try Menu, ClockSizesMenu, DeleteAll
+    Try Menu, ClockTimersMenu, DeleteAll
     Sleep, 5
     Loop, Parse, % "0.12|0.25|0.50|0.75|1.00|1.50|2.00|3.00|4.00|5.00", |
         Menu, ClockSizesMenu, Add, % A_LoopField "x", ChangeMenuClockSize
@@ -580,7 +584,12 @@ showContextMenuAnalogClock() {
         Menu, ClockTimersMenu, Add, % A_LoopField, MenuSetQuickTimer
     Menu, ClockTimersMenu, Add
     If (userTimerExpire && userMustDoTimer=1)
+    {
        Menu, ClockTimersMenu, Add, Turn off timer, MenuSetQuickTimer
+       Menu, ClockTimersMenu, Add, % "Expires at: " userTimerExpire, dummy
+       Menu, ClockTimersMenu, Disable, % "Expires at: " userTimerExpire
+       Menu, ClockTimersMenu, Add
+    }
     Menu, ClockTimersMenu, Add, Custom interval, MenuSetQuickTimer
 
     Menu, ClockSizesMenu, Check, %analogClockScale%x
@@ -595,7 +604,11 @@ showContextMenuAnalogClock() {
     Menu, ContextMenu, Add, Sc&ale, :ClockSizesMenu
     Menu, ContextMenu, Add, &Opacity, :ClockOpacityMenu
     If (PrefOpen=0)
+    {
        Menu, ContextMenu, Add, C&ustomize, :customClockMenu
+       createMenuOSDprefs()
+       Menu, ContextMenu, Add, OSD &settings, :MenuOSDprefs
+    }
 
     Menu, ContextMenu, Add
     If (PrefOpen=0)
@@ -605,6 +618,10 @@ showContextMenuAnalogClock() {
     Menu, ContextMenu, Add
     If (PrefOpen=0)
     {
+       Menu, ContextMenu, Add, &Mute all sounds, ToggleAllMuteSounds
+       If (userMuteAllSounds=1)
+          Menu, ContextMenu, Check, &Mute all sounds
+
        Menu, ContextMenu, Add, &Tick/tock sounds, ToggleTickTock
        If (tickTockNoise=1)
           Menu, ContextMenu, Check, &Tick/tock sounds
@@ -719,6 +736,21 @@ MenuToggleArabNumeralz() {
 
    useArabNumeralsAnalogClock := !useArabNumeralsAnalogClock
    INIaction(1, "useArabNumeralsAnalogClock", "OSDprefs")
+   ; reInitializeAnalogClock()
+}
+
+
+MenuToggleLockClockAnalogPosition() {
+   If (A_IsSuspended || PrefOpen=1)
+   {
+      SoundBeep, 300, 900
+      If (PrefOpen=1)
+         WinActivate, ahk_id %hSetWinGui%
+      Return
+   }
+
+   lockAnalogClockPosition := !lockAnalogClockPosition
+   INIaction(1, "lockAnalogClockPosition", "OSDprefs")
    ; reInitializeAnalogClock()
 }
 
