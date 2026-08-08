@@ -7343,6 +7343,82 @@ btnUIaddNewGeoLocation() {
    }
 }
 
+nameGeoLocation2add(countryIndex, geoDataEntry) {
+; builds the name a location gets when added to the custom locations list
+; it matches the naming scheme used by PanelEarthMap(), that is: Country:City
+
+   z := InStr(geoDataEntry, "|")
+   If (z<2 || countryIndex=1)
+      Return ""
+
+   Return countriesArrayList[countryIndex] ":" SubStr(geoDataEntry, 1, z - 1)
+}
+
+geoLocationAlreadyInUserList(nameu) {
+; verifies in memory (no file access) if a location name is already part of the custom locations list
+
+   cities := geoData["1|-1"]
+   If (StrLen(nameu)<2 || !cities)
+      Return 0
+
+   Loop, % cities
+   {
+       p := geoData["1|" A_Index]
+       z := InStr(p, "|")
+       If (z>1 && SubStr(p, 1, z - 1)=nameu)
+          Return A_Index
+   }
+
+   Return 0
+}
+
+btnUIaddTodayGeoLocation() {
+; the PanelTodayInfos() counterpart of btnUIaddNewGeoLocation()
+; it adds the location currently selected in the uiUserCountry / uiUserCity lists to the custom locations list
+
+   Gui, SettingsGUIA: Default
+   GuiControlGet, uiUserCountry
+   GuiControlGet, uiUserCity
+   If (uiUserCountry=1) ; already a custom location, nothing to add
+      Return
+
+   p := geoData[uiUserCountry "|" uiUserCity]
+   k := StrSplit(countriesArrayList[uiUserCountry] ":" p, "|") ; the very same format used by PanelEarthMap()
+   If (k.Count()<6 || StrLen(k[1])<4
+      || !isNumber(k[2]) || !isInRange(k[2], -90, 90)
+      || !isNumber(k[3]) || !isInRange(k[3], -180, 180)
+      || !isNumber(k[4]) || !isInRange(k[4], -13, 13)
+      || !isNumber(k[5]) || !isInRange(k[5], -13, 13)
+      || !isNumber(k[6]) || !isInRange(k[6], -5000, 13000))
+   {
+      simpleMsgBoxWrapper(appName, "The selected location does not provide all the data required by a custom location entry:`n`nLocation name|Latitude|Longitude|GMT offset|DST offset|Altitude (in meters)", 0, 1, 48)
+      Return
+   }
+
+   strA := k[1] "|" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6]
+   str := "Custom locations|" strA
+   FileRead, userlist, %WinStorePath%\resources\geo-locations-userlist.txt
+   If (geoLocationAlreadyInUserList(k[1]) || InStr(userlist, "`nCustom locations|" k[1] "|"))
+   {
+      GuiControl, SettingsGUIA: Disable, UIbtnAddGeoLoc
+      simpleMsgBoxWrapper(appName, "The custom locations list already contains " k[1] ".", 0, 1, 64)
+      Return
+   }
+
+   FileAppend, % "`n" str "`n", %WinStorePath%\resources\geo-locations-userlist.txt, UTF-8
+   If ErrorLevel
+   {
+      simpleMsgBoxWrapper(appName, "The custom locations list could not be updated. Failed to write to:`n`n" WinStorePath "\resources\geo-locations-userlist.txt", 0, 1, 16)
+      Return
+   }
+
+   cities := geoData["1|-1"] + 1
+   geoData["1|" cities] := strA
+   geoData["1|-1"] := cities
+   GuiControl, SettingsGUIA: Disable, UIbtnAddGeoLoc ; prevents adding the very same location twice
+   SoundBeep 900, 100
+}
+
 UiLVgeoSearch() {
    Gui, SettingsGUIA: Default
    Gui, SettingsGUIA: ListView, LViewOthers
@@ -10196,9 +10272,19 @@ UIcityChooser() {
   ; ToolTip, % uiUserCountry "|" uiUserCity , , , 2
   p := geoData[uiUserCountry "|" uiUserCity]
   If (uiUserCountry=1)
+  {
+     GuiControl, SettingsGUIA: Hide, UIbtnAddGeoLoc
      GuiControl, SettingsGUIA: Enable, UIbtnRemGeoLoc
-  Else
-     GuiControl, SettingsGUIA: Disable, UIbtnRemGeoLoc
+     GuiControl, SettingsGUIA: Show, UIbtnRemGeoLoc
+  } Else
+  {
+     GuiControl, SettingsGUIA: Hide, UIbtnRemGeoLoc
+     If (!p || geoLocationAlreadyInUserList(nameGeoLocation2add(uiUserCountry, p)))
+        GuiControl, SettingsGUIA: Disable, UIbtnAddGeoLoc
+     Else
+        GuiControl, SettingsGUIA: Enable, UIbtnAddGeoLoc
+     GuiControl, SettingsGUIA: Show, UIbtnAddGeoLoc
+  }
 
   w := extractGeoLocationInfos(p)
   timeus := uiUserFullDateUTC
@@ -10995,7 +11081,7 @@ UItodayInfosYear() {
   mouseCreateOSDinfoLine(msgu)
 }
 
-UItodayInfosLocations() {
+btnUItodayInfosLocations() {
 ; lists the custom user locations (country index 1) with their local date and time,
 ; the GMT offset in use, the solar time of the day and the current Sun altitude
 
@@ -11020,7 +11106,7 @@ UItodayInfosLocations() {
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
   FormatTime, utcu, % timeus, dd/MM/yyyy, HH:mm
-  msgu := "CUSTOM LOCATIONS`nUTC: " utcu "`n`n"
+  msgu := ""
   Loop, % cities
   {
       p := geoData["1|" A_Index]
@@ -11048,7 +11134,7 @@ UItodayInfosLocations() {
       jiji := decideJijiReadable(timeus, elevu, w[2], w[3], noonu)
       j := (gmtOffset>=0) ? "+" : ""
       eleva := (elevu!="") ? Round(elevu, 1) "°" : "--"
-      marker := (uiUserCountry=1 && uiUserCity=A_Index) ? "» " : "  "
+      marker := (uiUserCountry=1 && uiUserCity=A_Index) ? "»" : ""
       msgu .= marker w[1] " - " brr " (GMT " j Round(gmtOffset, 1) "h) - " jiji ", alt " eleva "`n"
   }
 
@@ -11103,7 +11189,7 @@ PanelTodayInfos() {
     Global UIastroInfoDaylight, UIastroInfoDawn, UIastroInfoRise, UIastroInfoNoon, UIastroInfoSet, UIastroInfoDusk, UIastroInfoMphase, UIastroInfoMoon
          , UIastroInfoProgressAnnum, UIastroInfoAnnum, UIastroInfoProgressDayu, UIastroInfoDayu, UIastroInfoProgressMoon, UIastroInfoMoonlight
          , uiastroinfoLightMode, UIastroInfoLtimeGMT, UIastroInfoObjElev, UIastroInfoLtimeus, UIastroInfoObjInfo, UIastroInfoObjVisibility, UItodayEventsEditu
-         , UIastroInfoTotalLight, UIastroInfoElevNoon, UIastroInfoLabelDawn, UIastroInfoLabelDusk, UIastroInfoLightDiff, UIbtnRemGeoLoc, UIastroInfoTotalDiffLight
+         , UIastroInfoTotalLight, UIastroInfoElevNoon, UIastroInfoLabelDawn, UIastroInfoLabelDusk, UIastroInfoLightDiff, UIbtnRemGeoLoc, UIbtnAddGeoLoc, UIastroInfoTotalDiffLight
          , BtnAstroModa, UIastroInfoLabelTotalLight, UIastroInfoLtimeDate, UIbtnTodayPrev, UIbtnTodayNext, UIastroInfoLabelRise, UIastroInfoLabelSetu
 
     GenericPanelGUI(0)
@@ -11219,8 +11305,13 @@ PanelTodayInfos() {
     ToolTip2ctrl(hTemp, "Search location")
     Gui, Add, Button, x+5 hp gPanelEarthMap +hwndhTemp, &Map
     ToolTip2ctrl(hTemp, "Find a location on Earth's map.")
-    Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc +hwndhTemp, &Remove
+    ; the Remove and the Add buttons share the same spot; only one of them is visible at any given time
+    thisu := (uiUserCountry=1) ? "" : " Hidden"
+    Gui, Add, Button, % "x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc +hwndhTemp" thisu, &Remove
     ToolTip2ctrl(hTemp, "Remove selected custom location")
+    thisu := (uiUserCountry=1) ? " Hidden" : ""
+    Gui, Add, Button, % "xp yp wp hp gbtnUIaddTodayGeoLocation vUIbtnAddGeoLoc +hwndhTemp" thisu, Ad&d
+    ToolTip2ctrl(hTemp, "Add to custom locations list")
     Gui, Add, Text, xs y+10 , Time and date to observe
     Gui, Add, DateTime, xs yp Choose%uiUserFullDateUTC% Right gUItodayDateCtrl vuiUserFullDateUTC +hwndhDatTime, dddd, d MMMM, yyyy; HH:mm (UTC)
     widu := (PrefsLargeFonts=1) ? 40 : 32
@@ -11286,7 +11377,7 @@ PanelTodayInfos() {
     Gui, Add, Text, y+5 wp vUIastroInfoAnnum gUItodayInfosYear +hwndhCL14, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
     ; Gui, Add, Text, xp+15 y+10 wp vUIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
     ; Gui, Add, Text, y+10 wp vUIastroInfoMoon, %moonPhaseC%`% of the cycle, %moonPhaseL%`% illuminated.`n-
-    Gui, Add, Text, y+10 wp vUIastroInfoProgressDayu gUItodayInfosLocations +hwndhTemp, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 25) "} 24h "
+    Gui, Add, Text, y+10 wp vUIastroInfoProgressDayu gbtnUItodayInfosLocations +hwndhTemp, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 25) "} 24h "
     ToolTip2ctrl(hTemp, "Local times and Sun altitudes for your custom locations.")
     Gui, Add, Text, y+5 wp vUIastroInfoDayu +hwndhTemp gdummy, %minsPassed% minutes (%percentileDay%) of today have elapsed.
     ToolTip2ctrl(hTemp, "Total minutes in 24 hours: 1440.")
