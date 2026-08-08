@@ -5357,7 +5357,7 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
        startDate += -2, Days
     }
 
-    friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
+    friendlyInitDating(ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
     ; yesterday := 20241230
     ; tudayDate := 20241231
     ; tmrwDate := 20250101
@@ -5386,7 +5386,7 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
            {
               wasItem := 1
               prefixu := (obju[1]=1) ? "✝ " : ""
-              datum := friendlyDating(thisYear "/" thisMon "/" thisMDay, startDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+              datum := friendlyDating(thisYear "/" thisMon "/" thisMDay, startDate, ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
               listu .= Format("{:U}", datum) ". " prefixu obju[2] ".`n`n"
            }
         }
@@ -5401,46 +5401,49 @@ coreUpcomingEvents(doToday, dayzCheck, limitList) {
     Return listu
 }
 
-friendlyDating(datum, startDate, yesterday, tudayDate, tmrwDate, mtmrwDate) {
-  If (SubStr(startDate, 1, 8)=yesterday)
+friendlyDating(datum, startDate, ereday, yesterday, tudayDate, tmrwDate, mtmrwDate) {
+  pp :=  SubStr(startDate, 1, 8)
+  If (pp=ereday)
+     datum := "Ereyesterday"
+  Else If (pp=yesterday)
      datum := "Yesterday"
-  Else If (SubStr(startDate, 1, 8)=tudayDate)
+  Else If (pp=tudayDate)
      datum := "Today"
-  Else If (SubStr(startDate, 1, 8)=tmrwDate)
+  Else If (pp=tmrwDate)
      datum := "Tomorrow"
-  Else If (SubStr(startDate, 1, 8)=mtmrwDate)
+  Else If (pp=mtmrwDate)
      datum := "Overmorrow"
 
   Return datum
 }
 
-listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, showAll, dayz) {
+listSolarSeasons(ereday, yesterday, tudayDate, tmrwDate, mtmrwDate, showAll, dayz) {
     listu := ""
     FormatTime, OutputVar, % mEquiDate, yyyy/MM/dd
-    OutputVar := friendlyDating(OutputVar, mEquiDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+    OutputVar := friendlyDating(OutputVar, mEquiDate, ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
     If (isinRange(mEquiDay, A_YDay, A_YDay + dayz) || showAll=1)
        listu .= OutputVar ". ▀ March Equinox`n`n"
  
     FormatTime, OutputVar, % jSolsDate, yyyy/MM/dd
-    OutputVar := friendlyDating(OutputVar, jSolsDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+    OutputVar := friendlyDating(OutputVar, jSolsDate, ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
     If (isinRange(jSolsDay, A_YDay, A_YDay + dayz) || showAll=1)
        listu .= OutputVar ". ⬤ June Solstice`n`n"
   
     FormatTime, OutputVar, % sEquiDate, yyyy/MM/dd
-    OutputVar := friendlyDating(OutputVar, sEquiDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+    OutputVar := friendlyDating(OutputVar, sEquiDate, ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
     If (isinRange(sEquiDay, A_YDay, A_YDay + dayz) || showAll=1)
        listu .= OutputVar ". ▃ September Equinox`n`n"
   
     FormatTime, OutputVar, % dSolsDate, yyyy/MM/dd
-    OutputVar := friendlyDating(OutputVar, dSolsDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+    OutputVar := friendlyDating(OutputVar, dSolsDate, ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
     If (isinRange(dSolsDay, A_YDay, A_YDay + dayz) || showAll=1)
        listu .= OutputVar ". ◯ December Solstice`n`n"
 
     Return listu
 }
 
-friendlyInitDating(ByRef yesterday, ByRef tudayDate, ByRef tmrwDate, ByRef mtmrwDate) {
-    yesterday := tmrwDate := mtmrwDate := ""
+friendlyInitDating(ByRef ereday, ByRef yesterday, ByRef tudayDate, ByRef tmrwDate, ByRef mtmrwDate) {
+    ereday := yesterday := tmrwDate := mtmrwDate := ""
     tmrwDate += 1, Days
     tmrwDate := SubStr(tmrwDate, 1, 8)
     mtmrwDate += 2, Days
@@ -5450,16 +5453,18 @@ friendlyInitDating(ByRef yesterday, ByRef tudayDate, ByRef tmrwDate, ByRef mtmrw
     tudayDate += 1, Days
     tudayDate := SubStr(tudayDate, 1, 8)
     yesterday := SubStr(yesterday, 1, 8)
+    ereday += -2, Days
+    ereday := SubStr(ereday, 1, 8)
 }
 
 PopulateIncomingCelebs() {
-    friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
+    friendlyInitDating(ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
     If (ObserveHolidays=1)
        listu := coreUpcomingEvents(2, 32, 0)
     If !Trim(listu)
        listu := "No religious or secular events are observed for the next 30 days.`n`n"
     listu .= "Astronomic events:`n`n"
-    listu .= listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 0, 30)
+    listu .= listSolarSeasons(ereday, yesterday, tudayDate, tmrwDate, mtmrwDate, 0, 30)
 
     prevu := startDate := A_Year A_Mon A_MDay 010101
     ; startDate := 2022 01 01 010101
@@ -5473,7 +5478,7 @@ PopulateIncomingCelebs() {
         {
            prevu := xu
            FormatTime, OutputVar, % startDate, yyyy/MM/dd
-           OutputVar := friendlyDating(OutputVar, startDate, yesterday, tudayDate, tmrwDate, mtmrwDate)
+           OutputVar := friendlyDating(OutputVar, startDate, ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
            listu .= Format("{:U}", OutputVar) ". " pk[1] "`n`n"
            ; listu .= OutputVar " = " pk[1] "`n p=" pk[3] "; f=" pk[4] "; a=" pk[5] " `n"
         }
@@ -10342,6 +10347,7 @@ UIcityChooser() {
       mobj := wrapCalcMoonRiseSet(timeus, w[2], w[3], gmtOffset, w[6])
       duration := coreCalculateLightDuration(coolminant, mobj.r, mobj.s, mobj.RawR, mobj.RawS, mobj.yref, mobj.ref, mobj.tref, mobj.trz, "Moon")
 
+      moonPhaseC := Round(moonPhase[3] * 100, 1)
       au := SubStr(mobj.r, 6) ? SubStr(mobj.r, 6) : "--:--"
       sau := SubStr(mobj.s, 6) ? SubStr(mobj.s, 6) : "--:--"
       mduru := duration[1] ? duration[1] : "--:--"
@@ -10349,7 +10355,6 @@ UIcityChooser() {
       ; oldmoonPhase := oldMoonPhaseCalculator(timeus)
       ; fnOutputDebug("o=" Round(oldmoonPhase[4],3) " | n=" Round(moonPhase[4],3))
       moonPhaseN := moonPhase[1]
-      moonPhaseC := Round(moonPhase[3] * 100, 1)
       moonPhaseL := Round(moonPhase[4] * 100, 1)
       moonPhaseA := Round(moonPhase[5], 1)
       noonLabel := SubStr(coolminant.n, 6) ? "Peak: " Round(coolminant.maxu, 1) "°" : "Peak:"
@@ -10384,8 +10389,8 @@ UIcityChooser() {
          GuiControl, SettingsGUIA:, UIastroInfoSet, % sau
       }
       GuiControl, SettingsGUIA:, UIastroInfoLabelTotalLight, Next phase:
-      GuiControl, SettingsGUIA:, UIastroInfoObjInfo, %moonPhaseN% (%moonPhaseC%`%)
-      GuiControl, SettingsGUIA:, UIastroInfoLabelDusk, Age:
+      GuiControl, SettingsGUIA:, UIastroInfoObjInfo, %moonPhaseN%
+      GuiControl, SettingsGUIA:, UIastroInfoLabelDusk, Age: %moonPhaseC%`%
       GuiControl, SettingsGUIA:, UIastroInfoDusk, %moonPhaseA%d
       GuiControl, SettingsGUIA:, UIastroInfoLabelDawn, Fraction:
       GuiControl, SettingsGUIA:, UIastroInfoDawn, %moonPhaseL%`%
@@ -10986,8 +10991,70 @@ UItodayInfosYear() {
   ;    hebrewYear += 2
 
   ; hebrewYear := yearu + hebrewYear + 3760
-  msgu := longu "`nCurrent week: " isoYWeek " (ISO 8601)`nDays elapsed: " gyd " / " d " ( " dx "% )`nRemaining days: " rd "`n" f hebrewYear islamicYear persianYear 
+  msgu := longu "`nCurrent week: " isoYWeek " (ISO 8601)`nDays elapsed: " gyd " / " d " ( " dx "% )`nRemaining days: " rd "`n" f hebrewYear islamicYear persianYear
   mouseCreateOSDinfoLine(msgu)
+}
+
+UItodayInfosLocations() {
+; lists the custom user locations (country index 1) with their local date and time,
+; the GMT offset in use, the solar time of the day and the current Sun altitude
+
+  mouseTurnOFFtooltip()
+  If (A_PtrSize!=8)
+     Return
+
+  cities := geoData["1|-1"]
+  If (cities<1)
+     Return
+
+  Gui, SettingsGUIA: Default
+  GuiControlGet, uiUserCountry
+  GuiControlGet, uiUserCity
+  GuiControlGet, uiUserFullDateUTC
+  timeus := uiUserFullDateUTC
+  FormatTime, testValid, % timeus, yyyy/MM/dd
+  If !testValid
+     Return
+
+  yearu := SubStr(timeus, 1, 4)
+  FormatTime, gyd, % timeus, Yday
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  FormatTime, utcu, % timeus, dd/MM/yyyy, HH:mm
+  msgu := "CUSTOM LOCATIONS`nUTC: " utcu "`n`n"
+  Loop, % cities
+  {
+      p := geoData["1|" A_Index]
+      If !p
+         Continue
+
+      w := extractGeoLocationInfos(p)
+      If (w[1]="" || w[2]="" || w[3]="")
+         Continue
+
+      gmtOffset := isInRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      timi := timeus
+      timi += gmtOffset, Hours
+      FormatTime, brr, % timi, dd/MM/yyyy, HH:mm
+      getSunAzimuthElevation(timeus, w[2], w[3], 0, azii, elevu)
+      noonu := "a"
+      nobj := SolarCalculator(timeus, w[2], w[3])
+      If nobj.RawN
+      {
+         getSunAzimuthElevation(nobj.RawN, w[2], w[3], 0, nazii, nelev)
+         If (nelev!="")
+            noonu := Round(nelev, 2)
+      }
+
+      jiji := decideJijiReadable(timeus, elevu, w[2], w[3], noonu)
+      j := (gmtOffset>=0) ? "+" : ""
+      eleva := (elevu!="") ? Round(elevu, 1) "°" : "--"
+      marker := (uiUserCountry=1 && uiUserCity=A_Index) ? "» " : "  "
+      msgu .= marker w[1] " - " brr " (GMT " j Round(gmtOffset, 1) "h) - " jiji ", alt " eleva "`n"
+  }
+
+  mouseCreateOSDinfoLine(Trim(msgu, "`n"))
+  If (StrLen(msgu)>270)
+     SetTimer, mouseTurnOFFtooltip, -20000
 }
 
 UIpanelTodayLightDiffSolstices() {
@@ -11128,8 +11195,8 @@ PanelTodayInfos() {
        extras .= "`n`nCALENDAR EVENTS: `n" Trim(listu, "`n")
 
     listu := "SOLAR SEASONS:`n"
-    friendlyInitDating(yesterday, tudayDate, tmrwDate, mtmrwDate)
-    szn := listSolarSeasons(yesterday, tudayDate, tmrwDate, mtmrwDate, 1, 0)
+    friendlyInitDating(ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
+    szn := listSolarSeasons(ereday, yesterday, tudayDate, tmrwDate, mtmrwDate, 1, 0)
     listu .= StrReplace(szn, "`n`n", "`n")
     If InStr(listu, ". | ✝ ") 
        listu := StrReplace(listu, ". | ✝ ", ".`n`n✝ ")
@@ -11219,7 +11286,8 @@ PanelTodayInfos() {
     Gui, Add, Text, y+5 wp vUIastroInfoAnnum gUItodayInfosYear +hwndhCL14, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
     ; Gui, Add, Text, xp+15 y+10 wp vUIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
     ; Gui, Add, Text, y+10 wp vUIastroInfoMoon, %moonPhaseC%`% of the cycle, %moonPhaseL%`% illuminated.`n-
-    Gui, Add, Text, y+10 wp vUIastroInfoProgressDayu, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 25) "} 24h "
+    Gui, Add, Text, y+10 wp vUIastroInfoProgressDayu gUItodayInfosLocations +hwndhTemp, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 25) "} 24h "
+    ToolTip2ctrl(hTemp, "Local times and Sun altitudes for your custom locations.")
     Gui, Add, Text, y+5 wp vUIastroInfoDayu +hwndhTemp gdummy, %minsPassed% minutes (%percentileDay%) of today have elapsed.
     ToolTip2ctrl(hTemp, "Total minutes in 24 hours: 1440.")
     If (A_OSVersion="WIN_XP")
