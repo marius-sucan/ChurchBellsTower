@@ -560,7 +560,7 @@ MenuSetQuickTimer(aa:=0) {
 
   userTimerMsg := ""
   userTimerHours := (aa>59) ? 1 : 0
-  userTimerMins := (aa>60) ? aa - 60 : aa
+  userTimerMins := (aa>=60) ? aa - 60 : aa
   INIaction(1, "userTimerMins", "SavedSettings")
   INIaction(1, "userTimerHours", "SavedSettings")
   ; INIaction(1, "userTimerMsg", "SavedSettings")

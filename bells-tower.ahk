@@ -172,7 +172,7 @@ Global displayTimeFormat := 1
 , showAnalogHourLabels   := 1
 , useArabNumeralsAnalogClock := 0
 , analogClockScale       := 0.3
-, analogMoonPhases       := 1
+, analogMoonPhases       := 0
 , lockAnalogClockPosition := 0
 
 ; Release info
@@ -737,7 +737,10 @@ InvokeBibleQuoteNow() {
 
   If (orderedBibleQuotes=1)
   {
-     Line2Read := (userBibleStartPoint + 1, 1, countLines, 1)
+     If !countLines
+        countLines := ST_Count(bibleQuotesFile, "`n") + 1
+
+     Line2Read := clampInRange(userBibleStartPoint + 1, 1, countLines, 1)
      userBibleStartPoint := Line2Read
      INIaction(1, "userBibleStartPoint", "SavedSettings")
      If (PrefOpen=1)
@@ -784,7 +787,7 @@ InvokeBibleQuoteNow() {
   {
      LastBibleMsg := bibleQuote
      QuotesAlreadySeen .= "a" Line2Read "a"
-     QuotesAlreadySeen := :=  StrReplace(QuotesAlreadySeen, "aa", "a")
+     QuotesAlreadySeen := StrReplace(QuotesAlreadySeen, "aa", "a")
      StringRight, QuotesAlreadySeen, QuotesAlreadySeen, 91550
      LastBibleQuoteDisplay := LastBibleQuoteDisplay2 := A_TickCount
      Sleep, 2
@@ -876,7 +879,7 @@ SetMyVolume(noRestore:=0) {
   If (DynamicVolume=0)
   {
      actualVolume := (cutVolumeHalf=1) ? Floor(BeepsVolume/2.5) : BeepsVolume
-     SetVolume(BeepsVolume)
+     SetVolume(actualVolume)
      Return
   }
 
@@ -950,7 +953,7 @@ menuSetAudioVolume(a, b, c) {
    Else If (tollHours=1 || tollHoursAmount=1)
       strikeHours(1)
    ; ToolTip, % a "|" b "|" c , , , 2
-   Menu, menuSoundOptionz, Rename, % oldu, %BeepsVolume%`%
+   Menu, menuSoundOptionz, Rename, % "VOL: " oldu, % "VOL: " BeepsVolume "%"
    INIaction(1, "BeepsVolume", "SavedSettings")
    If (userMuteAllSounds=1)
       ToggleAllMuteSounds()
@@ -2160,10 +2163,10 @@ createMenuOSDprefs() {
     Menu, MenuOSDprefs, Add, &Constantly display the OSD, toggleOSDconstDisplay
     If (constantOSDvisible=0)
     {
-       min := (showTimeIdleAfter>60) ? Round(showTimeIdleAfter/60, !) " hours" : showTimeIdleAfter  " minutes"
-       Menu, MenuOSDprefs, Add, &Show OSD when idle for %min%, toggleOSDidleDisplay
+       minu := (showTimeIdleAfter>60) ? Round(showTimeIdleAfter/60, 1) " hours" : showTimeIdleAfter " minutes"
+       Menu, MenuOSDprefs, Add, &Show OSD when idle for %minu%, toggleOSDidleDisplay
        If (showTimeWhenIdle=1)
-          Menu, MenuOSDprefs, Check, &Show OSD when idle for %min%
+          Menu, MenuOSDprefs, Check, &Show OSD when idle for %minu%
     } Else
        Menu, MenuOSDprefs, Check, &Constantly display the OSD
 
@@ -2963,7 +2966,7 @@ applyDarkMode2guiPre(hThisWin) {
    If (uiDarkMode=1)
    {
       Gui, Color, % darkWindowColor, % darkWindowColor
-      Gui, Font, cd%arkControlColor%
+      Gui, Font, c%darkControlColor%
       AboutTitleColor := "eebb22"
       setDarkWinAttribs(hThisWin)
    } Else AboutTitleColor := "1166AA"
@@ -3045,7 +3048,7 @@ applyDarkMode2winPost(whichGui, hwndGUI) {
 
        setDarkWinAttribs(hwndGUI)
        WinGet,strControlList, ControlList, ahk_id %hwndGUI%
-       Gui, %whichGUI%: Color, %intWindowColor%, %intControlColor%
+       ; Gui, %whichGUI%: Color, %darkWindowColor%, %darkControlColor%
        for strKey, strControl in StrSplit(strControlList,"`n","`r`n")
        {
          ControlGet, strControlHwnd, HWND, , %strControl%, ahk_id %hwndGUI%
@@ -3666,7 +3669,7 @@ PanelShowSettings() {
     GuiAddDropDownList("xs+15 y+7 w" widu " gVerifyTheOptions AltSubmit Choose" noTollingBgrSounds " vnoTollingBgrSounds", "Ignore|Strike the bells at half the volume|Do not strike the bells")
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%noTollingWhenMhidden% vnoTollingWhenMhidden, Do not toll bells when mouse cursor is hidden`,`neven if no sounds are playing
     Gui, Add, Checkbox, xs y+10 gVerifyTheOptions Checked%noTollingWhenLocked% vnoTollingWhenLocked, Do not toll bells when the Windows session is locked
-     GuiAddDropDownList("xs y+25 w" widu " gVerifyTheOptions AltSubmit Choose" silentHours " vsilentHours", "Toll through-out the end day|Toll only in the defined interval|Keep silence in the defined interval", "Bell tolling interval")
+     GuiAddDropDownList("xs y+25 w" widu " gVerifyTheOptions AltSubmit Choose" silentHours " vsilentHours", "Toll through the entire day and night|Toll only in the defined interval|Keep silence in the defined interval", "Bell tolling interval")
     Gui, Add, Text, xp+15 y+6 hp +0x200 vtxt1, from
     GuiAddEdit("x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF35", silentHoursA, "Start hour")
     Gui, Add, UpDown, gVerifyTheOptions vsilentHoursA Range0-23, %silentHoursA%
@@ -3708,7 +3711,7 @@ PanelShowSettings() {
     hLV1 := GuiAddColor("xp+0 yp+30 w65 h25", "OSDtextColor", "OSD text color")
     hLV2 := GuiAddColor("x+5 wp hp", "OSDbgrColor", "OSD background color")
     GuiAddEdit("x+5 yp+0 w65 hp geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF10", OSDalpha, "OSD opacity")
-    Gui, Add, UpDown, vOSDalpha gVerifyTheOptions Range75-250, %OSDalpha%
+    Gui, Add, UpDown, vOSDalpha gVerifyTheOptions Range75-255, %OSDalpha%
     GuiAddEdit("xp-140 yp+30 w65 geditsOSDwin r1 limit3 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF5", FontSize, "OSD font size")
     Gui, Add, UpDown, gVerifyTheOptions vFontSize Range12-295, %FontSize%
     GuiAddEdit("xs yp+30 w65 hp geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF6", DisplayTimeUser, "OSD display duration in seconds")
@@ -4274,7 +4277,7 @@ coreTestCelebrationz(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
      Else If (testFeast="06.29")
         q := "Solemnity of the Apostles Peter and Paul - a feast in honour of the martyrdom in Rome of the apostles Saint Peter and Saint Paul"
      Else If (testFeast="08.06")
-        aisHolidayToday := "Feast of the Transfiguration of the Lord Jesus Christ - when He becomes radiant in glory upon Mount Tabor"
+        q := "Feast of the Transfiguration of the Lord Jesus Christ - when He becomes radiant in glory upon Mount Tabor"
      Else If (testFeast="08.15")
         q := (UserReligion=1) ? "Assumption of the Blessed Virgin Mary - her body and soul are assumed into heavenly glory after her death" : "Dormition of the Blessed Virgin Mary - her body and soul are assumed into heavenly glory after her death"
      Else If (testFeast="08.29")
@@ -4371,7 +4374,7 @@ coreTestCelebrationz(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
   }
 
   NoSecDay := INIactionNonGlobal(0, testFeast ".s", 0, "Celebrations")
-  If StrLen(NoSecDay)>2
+  If (StrLen(NoSecDay)>2 && aTypeHolidayOccured=2)
      aisHolidayToday := aTypeHolidayOccured := ""
 
   If (testWhat=2)
@@ -5002,7 +5005,7 @@ ActionListViewKBDs() {
            questionMsg := "Do you want to no longer observe " eventusName " ?"
         }
 
-        questionMsg .= " | " dateSelected
+        ; questionMsg .= " | " dateSelected
         If (A_TickCount - lastAsked>4000)
         {
            answerPositive := 0
@@ -5887,8 +5890,8 @@ BTNcalendarSaveNewEntry() {
   {
      If (ObserveHolidays!=1)
      {
-        ObserveSecularDays := ObserveReligiousDays := 0
         ObserveHolidays := 1
+        ObserveSecularDays := ObserveReligiousDays := 0
         INIaction(1, "ObserveHolidays", "SavedSettings")
         INIaction(1, "ObserveSecularDays", "SavedSettings")
         INIaction(1, "ObserveReligiousDays", "SavedSettings")
@@ -5995,7 +5998,7 @@ MenuSetCalendarMonth(a, b, c) {
     thisMon := SubStr(a, 1, 2)
     thisMDay := SubStr(lastCalendarClickedDate, 7, 2)
     thisYear := SubStr(lastCalendarClickedDate, 1, 4)
-    If (thisMDay>30 || thisMon="02")
+    If (thisMDay>30 || thisMon="02" && thisMDay>=28)
        thisMDay := (thisMon="02") ? 28 : 30
 
     uiUserFullDateUTC := lastCalendarClickedDate := thisYear thisMon thisMDay 010101
@@ -6203,7 +6206,7 @@ RecordStopWatchInterval() {
      LV_Add(1, countu, HrzB "." SecC, Hrz "." SecB, HrzA, sysTime)
      If (countu=1)
      {
-        Loop, 4
+        Loop, 5
            LV_ModifyCol(A_Index, "AutoHdr Center")
      }
 
@@ -6562,7 +6565,7 @@ doUserTimerAlert() {
   ; WinSet, AlwaysOnTop, Off, ScreenShader
   PlayTimerBell()
   showTimeNow()
-  If (userAlarmSound!=6)
+  If (userTimerSound!=6)
      SetTimer, PlayTimerBell, % userTimerFreq * 1000
 
   th := (userTimerHours<10) ? "0" . userTimerHours : userTimerHours
@@ -11551,9 +11554,6 @@ INIsettings(a) {
   INIaction(a, "userAstroInfodMode", "SavedSettings")
   INIaction(a, "silentHoursB", "SavedSettings")
   INIaction(a, "showTimeIdleAfter", "SavedSettings")
-  INIaction(a, "showTimeWhenIdle", "SavedSettings")
-  INIaction(a, "displayTimeFormat", "SavedSettings")
-  INIaction(a, "markFullMoonHowls", "SavedSettings")
   INIaction(a, "BeepsVolume", "SavedSettings")
   INIaction(a, "DynamicVolume", "SavedSettings")
   INIaction(a, "AutoUnmute", "SavedSettings")
@@ -11640,7 +11640,9 @@ INIsettings(a) {
   INIaction(a, "analogClockOpacity", "OSDprefs")
   INIaction(a, "OSDalwaysDateShow", "OSDprefs")
   INIaction(a, "OSDlongDateFormat", "OSDprefs")
-
+  INIaction(a, "showTimeWhenIdle", "OSDprefs")
+  INIaction(a, "displayTimeFormat", "OSDprefs")
+  INIaction(a, "markFullMoonHowls", "OSDprefs")
   If (a=0) ; a=0 means to load from INI
      CheckSettings()
 }
@@ -11757,7 +11759,7 @@ CheckSettings() {
     MinMaxVar(BibleQuotesInterval, 1, 12, 5)
     MinMaxVar(maxBibleLength, 20, 130, 55)
     MinMaxVar(noTollingBgrSounds, 1, 3, 1)
-    MinMaxVar(OSDalpha, 75, 254, 230)
+    MinMaxVar(OSDalpha, 75, 255, 230)
     MinMaxVar(userAlarmSnooze, 1, 59, 5)
     MinMaxVar(userAlarmSound, 1, 6, 5)
     MinMaxVar(userTimerSound, 1, 6, 5)
@@ -11770,6 +11772,14 @@ CheckSettings() {
     MinMaxVar(OSDastralMode, 1, 4, 1)
     MinMaxVar(analogMoonPhases, 0, 2, 0)
     MinMaxVar(analogClockOpacity, 70, 254, 230)
+    If (silentHoursB<silentHoursA && silentHours=3)
+    {
+       silentHours := 2
+       swapVars(silentHoursA, silentHoursB)
+       silentHoursA++
+       silentHoursB--
+    }
+
     If (silentHoursB<silentHoursA)
        silentHoursB := silentHoursA
     If (ObserveHolidays=0)
