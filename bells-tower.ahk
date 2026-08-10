@@ -5723,11 +5723,11 @@ PanelStopWatch() {
     doResetGuiFont()
     Gui, Add, Text, x+5 hp +0x200 gstartStopWatchCounter, (laps total time)
     Gui, Font, s18
-    Gui, Add, Text, xs y+5 vUIstopWatchInterval gRecordStopWatchInterval, 00:00:00.00
+    Gui, Add, Text, xs y+5 vUIstopWatchInterval gBtnRecordStopWatchInterval, 00:00:00.00
     doResetGuiFont()
-    Gui, Add, Text, x+5 hp +0x200 vUIstopWatchDetailsInterval gRecordStopWatchInterval, (current lap details)
-    Gui, Add, Text, xs y+5 vUIstopWatchAvgInterval gRecordStopWatchInterval, 00:00:00.00
-    Gui, Add, Text, x+5 gRecordStopWatchInterval, (average time per lap)
+    Gui, Add, Text, x+5 hp +0x200 vUIstopWatchDetailsInterval gBtnRecordStopWatchInterval, (current lap details)
+    Gui, Add, Text, xs y+5 vUIstopWatchAvgInterval gBtnRecordStopWatchInterval, 00:00:00.00
+    Gui, Add, Text, x+5 gBtnRecordStopWatchInterval, (average time per lap)
     Gui, Add, Checkbox, xs y+15 Checked%stopWatchDoBeeps% vstopWatchDoBeeps, Beep when the current lap`nis the longest
     ; Gui, Add, ComboBox, xs y+10 w250 vUserStopWatchListZeits, No records||
     
@@ -5739,7 +5739,7 @@ PanelStopWatch() {
     Global UIbtnRecordInterval, UIbtnStartStopWatch
     Gui, Add, Checkbox, xm+0 y+15 gToggleAlwaysOnTopSettingsWindow  Checked%setAlwaysOnTop% vsetAlwaysOnTop, Always on top
     Gui, Add, Button, xm+0 y+5 h30 wp Section Default gstartStopWatchCounter vUIbtnStartStopWatch, &Start / Pause
-    Gui, Add, Button, x+5 h30 wp gRecordStopWatchInterval vUIbtnRecordInterval, &Record interval
+    Gui, Add, Button, x+5 h30 wp gBtnRecordStopWatchInterval vUIbtnRecordInterval, &Record interval
     Gui, Add, Button, xs+0 y+5 hp wp gResetStopWatchCounter, &Reset all
     Gui, Add, Button, x+5 hp wp gCloseWindow, &Cancel
 
@@ -6179,7 +6179,7 @@ ToggleAlwaysOnTopSettingsWindow() {
      WinSet, AlwaysOnTop, Off, ahk_id %hSetWinGui%
 }
 
-RecordStopWatchInterval() {
+BtnRecordStopWatchInterval() {
   If (AnyWindowOpen=5 && stopWatchBeginZeit && stopWatchPauseZeit)
   {
      Gui, SettingsGUIA: Default
@@ -6221,6 +6221,13 @@ RecordStopWatchInterval() {
      Gui, SettingsGUIA: Default
      Gui, ListView, LViewStopWatch
      total := LV_GetCount()
+     If !total
+     {
+        ToolTip, There are no recorded lap intervals.
+        SetTimer, removeTooltip, -1500
+        Return
+     }
+
      listu := "#|Lap duration|Laps total|Total|System time`n"
      Loop, % total
      {
