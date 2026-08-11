@@ -2315,7 +2315,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
      GetPhysicalCursorPos(xu, yu)
      GetWinClientSize(w, h, hSolarGraphPic, 0)
      JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
-     p := nx/w, hh = ny/h
+     p := nx/w, hh := ny/h
      zp := Round(p*365)
      Gui, SettingsGUIA: ListView, LViewSunCombined
      LV_GetText(datu, zp, 2)
@@ -2473,22 +2473,14 @@ saveGuiPositions() {
 
 saveAnalogClockPosition(dummy:=0) {
 ; function called after dragging the OSD to a new position
-  defAnalogClockPosChanged := 1
-  If (dummy!="no")
-     WinGetPos, ClockPosX, ClockPosY, , , ahk_id %hFaceClock%
+   defAnalogClockPosChanged := 1
+   If (dummy!="no")
+      WinGetPos, ClockPosX, ClockPosY, , , ahk_id %hFaceClock%
 
-  ClockGuiY := ClockPosY, ClockGuiX := ClockPosX
-  If (PrefOpen=1)
-  {
-     GuiX := ClockPosX, GuiY := ClockPosY
-     GuiControl, SettingsGUIA:, GuiX, %GuiX%
-     GuiControl, SettingsGUIA:, GuiY, %GuiY%
-  } Else
-  {
-    INIaction(1, "ClockGuiX", "OSDprefs")
-    INIaction(1, "ClockGuiY", "OSDprefs")
-    Sleep, 10
-   }
+   ClockGuiY := ClockPosY, ClockGuiX := ClockPosX
+   INIaction(1, "ClockGuiX", "OSDprefs")
+   INIaction(1, "ClockGuiY", "OSDprefs")
+   Sleep, 10
    If GetKeyState("LButton", "P")
       SetTimer, saveAnalogClockPosition, -150
 }
@@ -2501,8 +2493,7 @@ GetWindowRectum(hwnd) {
    r.x2 := NumGet(rect, 8, "Int"), r.y2 := NumGet(rect, 12, "Int")
    r.w := Abs(max(r.x1, r.x2) - min(r.x1, r.x2))
    r.h := Abs(max(r.y1, r.y2) - min(r.y1, r.y2))
-
-  Return r
+   Return r
 }
 
 SetStartUp() {
@@ -2764,7 +2755,11 @@ ToggleDynamicVolSound() {
     INIaction(1, "dynamicVolume", "SavedSettings")
     Menu, menuSoundOptionz, % (dynamicVolume=0 ? "Uncheck" : "Check"), &Dynamic volume
     If (tickTockNoise=1)
+    {
        ToggleTickTock()
+       Sleep, 1
+       ToggleTickTock()
+    }
 }
 
 ToggleTickTock() {
@@ -4449,10 +4444,10 @@ BTNimportCalendarEvents() {
   If ErrorLevel
      Return
 
-  FileRead, content, % filu
   ll := 0
+  FileRead, content, % filu
   ; chr := SubStr(content, 1, 1)
-  Loop, Parse, content, `n,`r
+  Loop, Parse, content, `n`r
   {
       pp := StrSplit(A_LoopField, CSmid)
       zz := StrSplit(pp[1], ".")
@@ -5311,7 +5306,7 @@ PanelIncomingCelebrations() {
        txtWid := txtWid + 105
     }
 
-    If (tickTockNoise!=1)
+    If (tickTockNoise!=1 && userMuteAllSounds!=1)
        SoundLoop(tickTockSound)
 
     btnW1 := (PrefsLargeFonts=1) ? 90 : 65
@@ -10817,8 +10812,8 @@ NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0) {
    If (luping=1)
       lastLooped := A_TickCount
 
-   If (luping=1 && f>2)
-      f := 2
+   If (luping=1 && Abs(f)>2)
+      f := (f<0) ? -2 : 2
 
    If (kbdMode=1)
    {
@@ -10964,7 +10959,7 @@ UItodayPanelJumpRise() {
 UItodayPanelJumpNoon() {
   cobj := coreJumpSolarEventsToday()
   t := cobj.timeus
-  t += cobj.lmgt, Hours
+  t += cobj.lgmt, Hours
   If (userAstroInfodMode=1)
   {
      p := cobj.RawN
@@ -13535,7 +13530,6 @@ ToolTip2ctrl(hwnd, msg) {
     Return AddTooltip2Ctrl(hwnd, msg,, uiDarkMode, PrefsLargeFonts)
 }
 
-
 parseBibleXML() {
    pp := "E:\Sucan twins\_small-apps\AutoHotkey\my scripts\bells-tower\v3\resources\bible-quotes-eng.txt"
    FileRead, contentu, % pp
@@ -13904,14 +13898,14 @@ jd_to_hebrew(jd) {
 }
 
 FolderExist(filePath) {
-   If StrLen(filePath)<4
+   If (StrLen(filePath)<3)
       Return
    Else
       Return InStr(FileExist(filePath), "D")
 }
 
 
-#If, ((WinActive( "ahk_id " hSetWinGui) && isInRange(AnyWindowOpen, 1, 6)) || (WinActive( "ahk_id " hCelebsMan) && windowManageCeleb=1))
+#If, ((WinActive( "ahk_id " hSetWinGui) && isInRange(AnyWindowOpen, 1, 10)) || (WinActive( "ahk_id " hCelebsMan) && windowManageCeleb=1))
     AppsKey::
       coreSettingsContextMenu()
     Return 
