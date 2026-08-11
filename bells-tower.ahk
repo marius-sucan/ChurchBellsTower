@@ -11341,7 +11341,7 @@ PanelTodayInfos() {
     Gui, Add, Text, x+5 hp wp -wrap vUIastroInfoTotalLight ghelpPanelTodayTotalLight +hwndhCL13, --:--
     Gui, Add, Text, x+5 hp w%zml% Center vUIastroInfoObjInfo, ---
     Gui, Add, Text, xs y+7 w%sml% -wrap vUIastroInfoLightDiff gUIpanelTodayLightDiffSolstices +hwndhCL11, --:--
-    Gui, Add, Text, x+5 hp wp -wrap vUIastroInfoTotalDiffLight ghelpPanelTodayTotalLight +hwndhCL14, --:--
+    Gui, Add, Text, x+5 hp wp -wrap vUIastroInfoTotalDiffLight ghelpPanelTodayTotalLight +hwndhCL18, --:--
     plm := (PrefsLargeFonts=1) ? 450 : 280
     Gui, Add, Text, xs+%plm% ys Section hp wp -wrap vUIastroInfoLabelDawn ghelpPanelTodayMoonFrac +hwndhCL3, Dawn:
     Gui, Add, Text, x+5 yp hp wp -wrap vUIastroInfoDawn gUItodayPanelJumpDawn +hwndhCL6, --:--
@@ -11377,7 +11377,7 @@ PanelTodayInfos() {
     ; Gui, Add, Text, xp+15 y+10 wp vUIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
     ; Gui, Add, Text, y+10 wp vUIastroInfoMoon, %moonPhaseC%`% of the cycle, %moonPhaseL%`% illuminated.`n-
     Gui, Add, Text, y+10 wp vUIastroInfoProgressDayu gbtnUItodayInfosLocations +hwndhCL17, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 25) "} 24h "
-    ToolTip2ctrl(hTemp, "Local times for the custom locations")
+    ToolTip2ctrl(hCL17, "Local times for the custom locations")
     Gui, Add, Text, y+5 wp vUIastroInfoDayu +hwndhTemp gdummy, %minsPassed% minutes (%percentileDay%) of today have elapsed.
     ToolTip2ctrl(hTemp, "Total minutes in 24 hours: 1440.")
     If (A_OSVersion="WIN_XP")
@@ -11401,7 +11401,7 @@ PanelTodayInfos() {
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     ColorPickerHandles := ""
-    Loop, 17
+    Loop, 18
         ColorPickerHandles .= hCL%A_Index% ","
 
     Gui, Show, AutoSize, About today: %appName%
