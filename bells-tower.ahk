@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2026)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.5.9
+;@Ahk2Exe-SetVersion 3.6.0
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -178,8 +178,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.5.9"
-, ReleaseDate            := "2026 / 05 / 13"
+, Version                := "3.6.0"
+, ReleaseDate            := "2026 / 08 / 12"
 , storeSettingsREG := (FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps")) ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -301,7 +301,7 @@ theChimer()
 SetTimer, wrapChimerTimer, 3500, 950
 Sleep, 1
 ScriptInitialized := 1      ; the end of the autoexec section and INIT
-If (tickTockNoise=1)
+If (tickTockNoise=1 && userMuteAllSounds!=1)
    SoundLoop(tickTockSound)
 
 If (StrLen(isHolidayToday)<3)
@@ -2774,7 +2774,11 @@ ToggleAllMuteSounds() {
     INIaction(1, "userMuteAllSounds", "SavedSettings")
     Menu, menuSoundOptionz, % (userMuteAllSounds=0 ? "Uncheck" : "Check"), &Mute all sounds
     If (tickTockNoise=1)
+    {
        ToggleTickTock()
+       Sleep, 1
+       ToggleTickTock()
+    }
 }
 
 ToggleDynamicVolSound() {
@@ -2809,19 +2813,18 @@ ToggleTickTock() {
     tickTockNoise := !tickTockNoise
     INIaction(1, "tickTockNoise", "SavedSettings")
     Menu, moreOpts, % (tickTockNoise=0 ? "Uncheck" : "Check"), Tick/Toc&k sound
-
-    If (tickTockNoise=1)
+    If (tickTockNoise=1 && userMuteAllSounds!=1)
+    {
        SoundLoop(tickTockSound)
-    Else
+       If (constantAnalogClock=1)
+          SynchSecTimer()
+ 
+       If (noTollingBgrSounds>=2)
+          isSoundPlayingNow()
+ 
+       SetMyVolume(1)
+    } Else
        SoundLoop("")
-
-    If (constantAnalogClock=1)
-       SynchSecTimer()
-
-    If (noTollingBgrSounds>=2)
-       isSoundPlayingNow()
-
-    SetMyVolume(1)
 }
 
 toggleMoonPhasesAnalog() {
@@ -3794,7 +3797,7 @@ PanelShowSettings() {
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Customize: %appName%
     VerifyTheOptions(0)
-    ColorPickerHandles := hLV1 "," hLV2 "," hLV3 "," hLV5 "," hLV6 "," hLV7 "," hLV8 "," hLV9 "," hLV10 "," hTXT
+    ColorPickerHandles := hLV1 "," hLV2 "," hLV6 "," hLV7 "," hLV8 "," hLV9 "," hLV10
 }
 
 helpOSDastroColors() {
@@ -8995,6 +8998,7 @@ UIlistSunRiseSets(modus:=0, cr:=0, i:=0, o:=0) {
 
   w := extractGeoLocationInfos(p)
   timeus := yearu "0101020102"
+  FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
   listu := yearu " for " cr w[1] " at " w[2] ", " w[3] "`n"
   allYearLight := 0
@@ -9101,7 +9105,6 @@ uiPopulateTableYearSolarData() {
 
   yearu := SubStr(uiUserFullDateUTC, 1, 4)
   timeus := yearu "0101020102"
-  k := TZI_GetTimeZoneInformation(yearu, gyd)
   listu := yearu " for " cr w[1] " at " w[2] ", " w[3] "`n"
   deepNights := polarDays := polarNights := allYearLight := 0
   loopsu := isLeapYear(yearu) ? 366 : 365
@@ -9114,6 +9117,7 @@ uiPopulateTableYearSolarData() {
   graphArrayElev := []
   maxLichtu := 0, minLichtu := 86400
   FormatTime, gyd, % timeus, Yday
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
   gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
   simplifiedMode := testCircumpolarDays(yearu, w[2], w[3], gmtOffset, w[6])
   arrayUcivilrise := []
@@ -9308,7 +9312,7 @@ uiPopulateTableYearMoonData() {
   If (A_PtrSize!=8)
      Return
 
-  ToolTip, % "Please wait..."
+  ToolTip, Please wait...
   startoperation := A_TickCount
   p := geoData[uiUserCountry "|" uiUserCity]
   w := extractGeoLocationInfos(p)
@@ -9328,7 +9332,6 @@ uiPopulateTableYearMoonData() {
 
   yearu := SubStr(uiUserFullDateUTC, 1, 4)
   timeus := yearu "0101020102"
-  k := TZI_GetTimeZoneInformation(yearu, gyd)
   listu := yearu " for " cr w[1] " at " w[2] ", " w[3] "`n"
   deepNights := polarDays := polarNights := allYearLight := 0
   loopsu := isLeapYear(yearu) ? 366 : 365
@@ -9341,6 +9344,7 @@ uiPopulateTableYearMoonData() {
   graphArrayElev := []
   maxLichtu := 0, minLichtu := 86400
   FormatTime, gyd, % timeus, Yday
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
   gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
   arrayUsunriseu := []
   arrayUnoonu := []
@@ -11337,7 +11341,7 @@ PanelTodayInfos() {
     Gui, Add, Text, x+5 hp wp -wrap vUIastroInfoTotalLight ghelpPanelTodayTotalLight +hwndhCL13, --:--
     Gui, Add, Text, x+5 hp w%zml% Center vUIastroInfoObjInfo, ---
     Gui, Add, Text, xs y+7 w%sml% -wrap vUIastroInfoLightDiff gUIpanelTodayLightDiffSolstices +hwndhCL11, --:--
-    Gui, Add, Text, x+5 hp wp -wrap vUIastroInfoTotalDiffLight ghelpPanelTodayTotalLight +hwndhCL13, --:--
+    Gui, Add, Text, x+5 hp wp -wrap vUIastroInfoTotalDiffLight ghelpPanelTodayTotalLight +hwndhCL14, --:--
     plm := (PrefsLargeFonts=1) ? 450 : 280
     Gui, Add, Text, xs+%plm% ys Section hp wp -wrap vUIastroInfoLabelDawn ghelpPanelTodayMoonFrac +hwndhCL3, Dawn:
     Gui, Add, Text, x+5 yp hp wp -wrap vUIastroInfoDawn gUItodayPanelJumpDawn +hwndhCL6, --:--
@@ -11372,8 +11376,8 @@ PanelTodayInfos() {
     Gui, Add, Text, y+5 wp vUIastroInfoAnnum gUItodayInfosYear +hwndhCL14, %weeksPassed% %weeksPlural% (%percentileYear%) of %CurrentYear% %weeksPlural2% elapsed.
     ; Gui, Add, Text, xp+15 y+10 wp vUIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
     ; Gui, Add, Text, y+10 wp vUIastroInfoMoon, %moonPhaseC%`% of the cycle, %moonPhaseL%`% illuminated.`n-
-    Gui, Add, Text, y+10 wp vUIastroInfoProgressDayu gbtnUItodayInfosLocations +hwndhTemp, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 25) "} 24h "
-    ToolTip2ctrl(hTemp, "Local times and Sun altitudes for your custom locations.")
+    Gui, Add, Text, y+10 wp vUIastroInfoProgressDayu gbtnUItodayInfosLocations +hwndhCL17, % "0h {" CalcTextHorizPrev(minsPassed, 1442, 0, 25) "} 24h "
+    ToolTip2ctrl(hTemp, "Local times for the custom locations")
     Gui, Add, Text, y+5 wp vUIastroInfoDayu +hwndhTemp gdummy, %minsPassed% minutes (%percentileDay%) of today have elapsed.
     ToolTip2ctrl(hTemp, "Total minutes in 24 hours: 1440.")
     If (A_OSVersion="WIN_XP")
@@ -11397,7 +11401,7 @@ PanelTodayInfos() {
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     ColorPickerHandles := ""
-    Loop, 16
+    Loop, 17
         ColorPickerHandles .= hCL%A_Index% ","
 
     Gui, Show, AutoSize, About today: %appName%
@@ -11818,7 +11822,7 @@ CheckSettings() {
     MinMaxVar(OSDastralMode, 1, 4, 1)
     MinMaxVar(analogMoonPhases, 0, 2, 0)
     MinMaxVar(analogClockOpacity, 70, 254, 230)
-    If (silentHoursB<silentHoursA && silentHours=3)
+    If (silentHoursB<silentHoursA && silentHours=3 && (silentHoursA - silentHoursB)>1)
     {
        silentHours := 2
        swapVars(silentHoursA, silentHoursB)
@@ -12287,7 +12291,7 @@ isSoundPlayingNow(looped:=0) {
   Else If (c>1 && noTollingBgrSounds=3)
      stopAdditionalStrikez := 1
   
-  If (tickTockNoise=1)
+  If (tickTockNoise=1 && userMuteAllSounds!=1)
      SoundLoop(tickTockSound)
   ; ToolTip, %b% - %c%
   If (c>1)

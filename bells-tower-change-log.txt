@@ -5,6 +5,9 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.6.0 - 2026 / 08 / 12
+  - bug fixes and minor improvements
+
 v3.5.9 - 2026 / 05 / 13
   - [new] ability to right click on the OSD when it is set to be always visible
   - more customization options for the OSD
