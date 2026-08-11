@@ -171,7 +171,8 @@ Global displayTimeFormat := 1
 , coloredAnalogClockBgr  := 1
 , showAnalogHourLabels   := 1
 , useArabNumeralsAnalogClock := 0
-, analogClockScale       := 0.3
+, analogClockScalesList  := "0.12|0.25|0.50|0.75|1.00|1.50|2.00|3.00|4.00|5.00"
+, analogClockScale       := "0.50"
 , analogMoonPhases       := 0
 , lockAnalogClockPosition := 0
 
@@ -1076,6 +1077,40 @@ clampInRange(value, min, max, reverse:=0) {
    }
 
    Return value
+}
+
+isInDSTperiod(yd, dStartYday, dEndYday) {
+; Tests if a given day of year falls within a daylight saving time period.
+; dEndYday is exclusive. In the southern hemisphere the DST period wraps around
+; the end of the year (it starts in October and ends in April), so a plain
+; min/max range test - like isInRange() does - would return the exact opposite there.
+
+   If (!dStartYday || !dEndYday || !yd)
+      Return 0
+
+   Return (dStartYday<=dEndYday) ? (yd>=dStartYday && yd<dEndYday) : (yd>=dStartYday || yd<dEndYday)
+}
+
+nearestAnalogClockScale(givenScale) {
+; The analog clock scale can only be set from a menu built out of analogClockScalesList.
+; Any other value - like a default shipped in a previous release - would leave the menu
+; unable to mark the entry in use, so stored values are snapped to the closest preset.
+
+   bestDiff := 99999
+   If !isNumber(givenScale)
+      givenScale := 1
+
+   Loop, Parse, analogClockScalesList, |
+   {
+      thisDiff := Abs(A_LoopField - givenScale)
+      If (thisDiff<bestDiff)
+      {
+         bestDiff := thisDiff
+         bestScale := A_LoopField
+      }
+   }
+
+   Return bestScale ? bestScale : "1.00"
 }
 
 TollExtraNoon() {
@@ -4471,60 +4506,9 @@ BTNimportCalendarEvents() {
 
 BTNexportCalendarEvents() {
   ; to-do todo use FileSelectFile, not the special function
-  CheckDay := 0
-  CheckMonth := "01"
-  listum := ""
-  ll := 0
-  ToolTip, Please wait - preparing list
-  lastMsg := A_TickCount
-  Loop, 400
-  {
-     CheckDay++
-     If (CheckDay>31)
-     {
-        CheckDay := "01"
-        CheckMonth++
-        If (CheckMonth<10)
-           CheckMonth := "0" CheckMonth
-     } Else If (CheckDay<10)
-        CheckDay := "0" CheckDay
-
-     testFeast := CheckMonth "." CheckDay
-     PersonalDate := celebYear CheckMonth CheckDay 010101
-     FormatTime, PersonalDate, %PersonalDate%, LongDate
-     If (StrLen(PersonalDate)<3)
-        Continue
-
-     PersonalDay := INIactionNonGlobal(0, testFeast ".a", 0, "Celebrations")
-     If (StrLen(PersonalDay)>2)
-     {
-        ll++
-        listum .= testFeast ".a" CSmid PersonalDay "`n"
-     }
-
-     startYear := A_Year - 10
-     Loop, 150
-     {
-        dayum := INIactionNonGlobal(0, testFeast "." startYear, 0, "Celebrations")
-        If (StrLen(dayum)>2)
-        {
-           listum .= testFeast "." startYear CSmid dayum "`n"
-           ll++
-        }
-
-        startYear++
-     }
-
-     If (A_TickCount -lastMsg>400)
-     {
-        lastMsg := A_TickCount
-        xx := Round(A_Index/4)
-        ToolTip, Please wait - preparing list: %xx% `%
-     }
-
-  }
-
-  ToolTip
+  obju := listUserDefinedCelebrations()
+  listum := obju[1]
+  ll := obju[2]
   Gui, CelebrationsGuia: +OwnDialogs
   If (!ll)
   {
@@ -5161,7 +5145,7 @@ wrapCalculateEquiSolsDates(givenDay) {
      {
          k := calculateEquiSols(A_Index, A_Year, 0)
          FormatTime, OutputVar, % k, Yday
-         thisBias := isinRange(OutputVar, TZI.DaylightDateYday, TZI.StandardDateYday) ? TZI.Bias + TZI.DaylightBias + TZI.StandardBias : TZI.Bias + TZI.StandardBias
+         thisBias := isInDSTperiod(OutputVar, TZI.DaylightDateYday, TZI.StandardDateYday) ? TZI.Bias + TZI.DaylightBias + TZI.StandardBias : TZI.Bias + TZI.StandardBias
          thisBias := -1*thisBias
          k += thisBias, M
          FormatTime, OutputVar, % k, Yday
@@ -5723,7 +5707,7 @@ PanelStopWatch() {
     Gui, Add, Text, x+5 hp +0x200 vUIstopWatchDetailsInterval gBtnRecordStopWatchInterval, (current lap details)
     Gui, Add, Text, xs y+5 vUIstopWatchAvgInterval gBtnRecordStopWatchInterval, 00:00:00.00
     Gui, Add, Text, x+5 gBtnRecordStopWatchInterval, (average time per lap)
-    Gui, Add, Checkbox, xs y+15 Checked%stopWatchDoBeeps% vstopWatchDoBeeps, Beep when the current lap`nis the longest
+    Gui, Add, Checkbox, xs y+15 gToggleStopWatchBeeps Checked%stopWatchDoBeeps% vstopWatchDoBeeps, Beep when the current lap`nis the longest
     ; Gui, Add, ComboBox, xs y+10 w250 vUserStopWatchListZeits, No records||
     
     Gui, Tab, 2
@@ -6172,6 +6156,12 @@ ToggleAlwaysOnTopSettingsWindow() {
      WinSet, AlwaysOnTop, On, ahk_id %hSetWinGui%
   Else
      WinSet, AlwaysOnTop, Off, ahk_id %hSetWinGui%
+}
+
+ToggleStopWatchBeeps() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, stopWatchDoBeeps
+  INIaction(1, "stopWatchDoBeeps", "SavedSettings")
 }
 
 BtnRecordStopWatchInterval() {
@@ -6838,7 +6828,7 @@ PanelAboutWindow() {
 }
 
 PanelSunYearGraphTable() {
-    If reactWinOpened(A_ThisFunc, 1)
+    If reactWinOpened(A_ThisFunc, 7)
        Return
 
     GenericPanelGUI(0)
@@ -6906,7 +6896,7 @@ PanelSunYearGraphTable() {
 }
 
 PanelMoonYearGraphTable() {
-    If reactWinOpened(A_ThisFunc, 1)
+    If reactWinOpened(A_ThisFunc, 9)
        Return
 
     GenericPanelGUI(0)
@@ -7449,7 +7439,7 @@ SearchOpenPanelEarthMap() {
 }
 
 PanelEarthMap(modus:=0) {
-    If reactWinOpened(A_ThisFunc, 1)
+    If reactWinOpened(A_ThisFunc, 8)
        Return
 
     GenericPanelGUI(0)
@@ -9011,7 +9001,7 @@ UIlistSunRiseSets(modus:=0, cr:=0, i:=0, o:=0) {
   Loop, 365
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
       obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
       FormatTime, f, % timeus, MM/dd
       licht := obj.durRaw + obj.cdurRaw
@@ -9124,7 +9114,7 @@ uiPopulateTableYearSolarData() {
   graphArrayElev := []
   maxLichtu := 0, minLichtu := 86400
   FormatTime, gyd, % timeus, Yday
-  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
   simplifiedMode := testCircumpolarDays(yearu, w[2], w[3], gmtOffset, w[6])
   arrayUcivilrise := []
   arrayUsunriseu := []
@@ -9135,7 +9125,7 @@ uiPopulateTableYearSolarData() {
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
       obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], simplifiedMode)
       FormatTime, f, % timeus, MM/dd
       timis := timeus
@@ -9236,7 +9226,7 @@ uiPopulateTableYearSolarData() {
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
       timis := timeus
       timis += gmtOffset, Hours
       FormatTime, testToday, % timis, MM/dd
@@ -9351,7 +9341,7 @@ uiPopulateTableYearMoonData() {
   graphArrayElev := []
   maxLichtu := 0, minLichtu := 86400
   FormatTime, gyd, % timeus, Yday
-  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
   arrayUsunriseu := []
   arrayUnoonu := []
   arrayUsunsetu := []
@@ -9359,7 +9349,7 @@ uiPopulateTableYearMoonData() {
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
       FormatTime, f, % timeus, MM/dd
       timis := timeus
       timis += gmtOffset, Hours
@@ -9443,7 +9433,7 @@ uiPopulateTableYearMoonData() {
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
       timis := timeus
       timis += gmtOffset, Hours
       FormatTime, testToday, % timis, MM/dd
@@ -10296,7 +10286,7 @@ UIcityChooser() {
   yearu := SubStr(uiUserFullDateUTC, 1, 4)
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
   timi := timeus
   timi += gmtOffset, Hours
   FormatTime, brr, % timi, yyyy/MM/dd HH:mm
@@ -10341,7 +10331,7 @@ UIcityChooser() {
          prevtimi := timeus
          prevtimi += -1, Days
          FormatTime, gyud, % prevtimi, Yday
-         prevgmtOffset := isinRange(gyud, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+         prevgmtOffset := isInDSTperiod(gyud, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
          prevobj := wrapCalcSunInfos(prevtimi, w[2], w[3], prevgmtOffset, w[6])
          prevTduru := Round(prevobj.cdurRaw + prevobj.durRaw)
          thisTduru := Round(obj.cdurRaw + obj.durRaw)
@@ -10427,7 +10417,7 @@ UIcityChooser() {
       prevtimi := timeus
       prevtimi += -1, Days
       FormatTime, gyud, % prevtimi, Yday
-      prevgmtOffset := isinRange(gyud, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      prevgmtOffset := isInDSTperiod(gyud, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
       prevobj := wrapCalcMoonRiseSet(prevtimi, w[2], w[3], prevgmtOffset, w[6])
       prevtimi := timi
       prevtimi += -1, Days
@@ -10678,7 +10668,7 @@ toggleTodayGraphMODE(modus:=0) {
   yearu := SubStr(timeus, 1, 4)
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
   timi := timeus
   timi += gmtOffset, Hours
   If (todaySunMoonGraphMode=1)
@@ -11013,7 +11003,7 @@ coreJumpSolarEventsToday() {
   yearu := SubStr(timeus, 1, 4)
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
   timi := timeus
   timi += gmtOffset, Hours
   cobj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
@@ -11041,7 +11031,7 @@ UItodayInfosYear() {
   yearu := SubStr(uiUserFullDateUTC, 1, 4)
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isinRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
 
   timi := uiUserFullDateUTC
   timi += gmtOffset, Hours
@@ -11122,7 +11112,7 @@ btnUItodayInfosLocations() {
       If (w[1]="" || w[2]="" || w[3]="")
          Continue
 
-      gmtOffset := isInRange(gyd, k.DaylightDateYday, k.StandardDateYday - 1) ? w[5] : w[4]
+      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
       timi := timeus
       timi += gmtOffset, Hours
       FormatTime, brr, % timi, dd/MM/yyyy, HH:mm
@@ -11527,6 +11517,63 @@ INIactionNonGlobal(act, var, varValue:=0, section:=0) {
   Return varOutput
 }
 
+INIdumpSection(section) {
+; Returns an entire settings section as a list of key=value lines.
+; Reading the section in one go avoids thousands of individual IniRead / RegRead
+; calls when the whole set of stored keys has to be walked.
+
+  listu := ""
+  If (storeSettingsREG=0)
+  {
+     IniRead, listu, %IniFile%, %section%
+     Return listu
+  }
+
+  Loop, Reg, % APPregEntry "\" section, V
+  {
+     RegRead, thisValue
+     listu .= A_LoopRegName "=" thisValue "`n"
+  }
+
+  Return Trim(listu, "`n`r")
+}
+
+listUserDefinedCelebrations() {
+; Extracts the user defined events out of the Celebrations section.
+; Keys look like MM.DD.a (observed every year) or MM.DD.YYYY (a single year);
+; MM.DD.r and MM.DD.s mark disabled built-in celebrations and are not user events.
+
+  listum := ""
+  countu := 0
+  Loop, Parse, % INIdumpSection("Celebrations"), `n, `r
+  {
+      thisLine := Trim(A_LoopField)
+      p := InStr(thisLine, "=")
+      If (p<2)
+         Continue
+
+      thisKey := SubStr(thisLine, 1, p - 1)
+      thisValue := SubStr(thisLine, p + 1)
+      If (StrLen(thisValue)<3)
+         Continue
+
+      zz := StrSplit(thisKey, ".")
+      If (zz.Count()!=3) || (StrLen(zz[1])!=2 || StrLen(zz[2])!=2)
+         Continue
+
+      If (zz[3]!="a" && StrLen(zz[3])!=4)   ; skips the .r and .s disabling markers
+         Continue
+
+      If (zz[3]!="a" && !isNumber(zz[3]))
+         Continue
+
+      listum .= thisKey CSmid thisValue "`n"
+      countu++
+  }
+
+  Return [listum, countu]
+}
+
 INIsettings(a) {
   FirstRun := 0
   If (a=1) ; a=1 means save into INI
@@ -11564,6 +11611,7 @@ INIsettings(a) {
   INIaction(a, "userTimerSound", "SavedSettings")
   INIaction(a, "userMuteAllSounds", "SavedSettings")
   INIaction(a, "tickTockNoise", "SavedSettings")
+  INIaction(a, "stopWatchDoBeeps", "SavedSettings")
   INIaction(a, "strikeInterval", "SavedSettings")
   INIaction(a, "LastNoonAudio", "SavedSettings")
   INIaction(a, "AdditionalStrikes", "SavedSettings")
@@ -11717,6 +11765,7 @@ CheckSettings() {
     BinaryVar(userMuteAllSounds, 0)
     BinaryVar(userMustDoAlarm, 0)
     BinaryVar(userMustDoTimer, 0)
+    BinaryVar(stopWatchDoBeeps, 0)
     BinaryVar(orderedBibleQuotes, 0)
     BinaryVar(AlarmersDarkScreen, 1)
     BinaryVar(showAnalogHourLabels, 1)
@@ -11731,12 +11780,7 @@ CheckSettings() {
     BinaryVar(OSDlongDateFormat, 1)
 
 ; verify numeric values: min, max and default values
-    If (!analogClockScale || !isNumber(analogClockScale))
-       analogClockScale := 1
-    Else If (analogClockScale<0.3)
-       analogClockScale := 0.25
-    Else If (analogClockScale>4)
-       analogClockScale := 4
+    analogClockScale := nearestAnalogClockScale(analogClockScale)
 
     MinMaxVar(DisplayTimeUser, 1, 99, 3)
     MinMaxVar(FontSize, 12, 300, 26)
@@ -12458,7 +12502,7 @@ TZI_GetTimeZoneInformation(y:=0, gyd:=0) {
    UTCDate := R.DaylightDate
    UTCDate += UTCBias, M
    R.DaylightDateUTC := UTCDate
-   R.isDST := isinRange(gyd, R.DaylightDateYday, R.StandardDateYday - 1) ? 1 : 0
+   R.isDST := isInDSTperiod(gyd, R.DaylightDateYday, R.StandardDateYday) ? 1 : 0
    R.TotalCurrentBias := (R.isDST) ? R.Bias + R.DaylightBias + R.StandardBias : R.Bias + R.StandardBias
    ; ToolTip, % R.TotalCurrentBias "`n" R.StandardDateYday "==" R.StandardDate "`n" R.DaylightDateYday "==" R.DaylightDateUTC "`n" R.StandardName "=" NumGet(TZI, 84, "Int") "==" NumGet(TZI, 168, "Int") , , , 2
    Return R

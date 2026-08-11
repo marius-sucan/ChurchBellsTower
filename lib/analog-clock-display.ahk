@@ -577,7 +577,8 @@ showContextMenuAnalogClock() {
     Try Menu, ClockSizesMenu, DeleteAll
     Try Menu, ClockTimersMenu, DeleteAll
     Sleep, 5
-    Loop, Parse, % "0.12|0.25|0.50|0.75|1.00|1.50|2.00|3.00|4.00|5.00", |
+    Menu, ClockSizesMenu, UseErrorLevel
+    Loop, Parse, analogClockScalesList, |
         Menu, ClockSizesMenu, Add, % A_LoopField "x", ChangeMenuClockSize
 
     Loop, Parse, % "1|2|3|4|5|10|15|30|60|90", |
@@ -592,7 +593,7 @@ showContextMenuAnalogClock() {
     }
     Menu, ClockTimersMenu, Add, Custom interval, MenuSetQuickTimer
 
-    Menu, ClockSizesMenu, Check, %analogClockScale%x
+    Try Menu, ClockSizesMenu, Check, % nearestAnalogClockScale(analogClockScale) "x"
     Loop, 9
         Menu, ClockOpacityMenu, Add, % (A_Index + 1) * 10 "%", ChangeMenuClockOpacity
     pop := Round(analogClockOpacity/255 * 100) "%"
@@ -649,7 +650,7 @@ SynchSecTimer() {
 
 ChangeMenuClockSize() {
   saveAnalogClockPosition()
-  Menu, ClockSizesMenu, Uncheck, %analogClockScale%x
+  Try Menu, ClockSizesMenu, Uncheck, % nearestAnalogClockScale(analogClockScale) "x"
   StringLeft, newSize, A_ThisMenuItem, 4
   MenuChangeClockSizeScale(newSize)
 }
