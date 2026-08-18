@@ -1,0 +1,75 @@
+﻿
+Custom locations|Canada:Inuvik [polar night]|68.361|-133.729|-7.0|-6.0|15
+Custom locations|Canada:Naujaat [Kivalliq] [polar day]|66.522|-86.235|-6.0|-5.0|25
+Custom locations|Canada:Qikiqtarjuaq (Nunavut) [polar day; check 05/29]|67.554|-64.028|-5.0|-4.0|19
+Custom locations|Greenland:Sisimiut [polar day; check 06/02]|66.939|-53.672|-3.0|-2.0|21
+Custom locations|Russia:Severnyy ostrov (Arkhangelsk) [polar deep night]|76.421|67.304|3.0|3.0|234
+Custom locations|Norway:(Svalbard-Jan Mayen) Longyearbyen [deep night]|78.223|15.647|1.0|2.0|1
+Custom locations|Sweden:Luleå|65.584|22.155|1.0|2.0|17
+Custom locations|Iceland:Akureyri [no DST]|65.684|-18.088|0.0|0.0|6
+Custom locations|USA:Fairbanks|64.843|-147.723|-9.0|-8.0|132
+Custom locations|USA:Anchorage [no civil twilight; check 06/06]|61.218|-149.900|-9.0|-8.0|31
+Custom locations|Finland:Kemi [polar day]|65.736|24.564|2.0|3.0|16
+Custom locations|Finland:Kuusamo [polar day]|65.964|29.189|2.0|3.0|261
+Custom locations|Finland:Rovaniemi [polar day]|66.500|25.717|2.0|3.0|92
+Custom locations|Finland:Sevettijärvi [polar night]|69.505|28.591|2.0|3.0|95
+Custom locations|Norway:Bardufoss [polar night]|69.064|18.515|1.0|2.0|70
+Custom locations|Norway:Bodø [polar day]|67.280|14.405|1.0|2.0|22
+Custom locations|Norway:Harstad [polar night]|68.798|16.542|1.0|2.0|1
+Custom locations|Norway:Lakselv [polar night]|70.051|24.971|1.0|2.0|12
+Custom locations|Norway:Kiberg [polar night]|70.285|30.998|1.0|2.0|7
+Custom locations|Norway:Tromsø [polar night]|69.649|18.955|1.0|2.0|10
+Custom locations|Russia:Murmansk [polar night]|68.979|33.093|3.0|3.0|96
+Custom locations|Russia:Norilsk [polar night]|69.354|88.203|7.0|7.0|76
+Custom locations|Sweden:Boden [polar day]|65.825|21.689|1.0|2.0|10
+Custom locations|Sweden:Kiruna [polar night]|67.856|20.225|1.0|2.0|579
+
+Custom locations|Samoa:Apia [GMT+13 at 172W]|-13.833|-171.767|13.0|13.0|9
+Custom locations|Kiribati:London (Kiritimati) [GMT+14, largest on Earth]|1.985|-157.475|14.0|14.0|3
+Custom locations|Kiribati:Tarawa [GMT+12 at 173E]|1.328|172.977|12.0|12.0|6
+Custom locations|Tonga:Nuku‘alofa [GMT+13 at 175W]|-21.139|-175.202|13.0|13.0|5
+Custom locations|USA:Adak (Aleutian Is.) [GMT-10/-9 at 177W]|51.880|-176.658|-10.0|-9.0|5
+Custom locations|Russia:Anadyr [GMT+12 at 178E, 64N]|64.734|177.510|12.0|12.0|35
+Custom locations|China:Lhasa [single China zone, GMT+8 at 91E]|29.650|91.100|8.0|8.0|3571
+Custom locations|Spain:Vigo [CET at 9W, west edge of its zone]|42.233|-8.723|1.0|2.0|86
+
+Custom locations|Nepal:Kathmandu [GMT+5:45]|27.702|85.321|5.75|5.75|1317
+Custom locations|Canada:St. John's [GMT-3:30 / -2:30]|47.565|-52.709|-3.5|-2.5|35
+Custom locations|Iran:Tehran [GMT+3:30 / +4:30]|35.694|51.422|3.5|4.5|1178
+Custom locations|Australia:Adelaide [GMT+10:30 / +9:30, southern DST]|-34.929|138.599|10.5|9.5|59
+Custom locations|Australia:Eucla [GMT+8:45; shipped list says 11.5]|-31.675|128.883|8.75|8.75|204
+Custom locations|New Zealand:Waitangi (Chatham Is.) [GMT+13:45 / +12:45]|-43.953|-176.560|13.75|12.75|5
+Custom locations|French Polynesia:Taiohae (Marquesas) [GMT-9:30]|-8.911|-140.098|-9.5|-9.5|3
+
+Custom locations|Argentina:Ushuaia [southernmost shipped entry]|-54.811|-68.316|-3.0|-3.0|6
+Custom locations|Chile:Puerto Williams [southernmost town, no DST]|-54.934|-67.616|-3.0|-3.0|13
+Custom locations|Chile:Punta Arenas [no DST]|-53.155|-70.911|-3.0|-3.0|30
+Custom locations|Chile:Santiago [southern DST]|-33.457|-70.648|-3.0|-4.0|556
+Custom locations|New Zealand:Invercargill [southern DST, 46S]|-46.400|168.350|13.0|12.0|6
+Custom locations|Australia:Hobart [southern DST]|-42.879|147.329|11.0|10.0|19
+Custom locations|Falkland Islands:Stanley [no DST]|-51.700|-57.852|-3.0|-3.0|23
+Custom locations|United Kingdom:(South Georgia) Grytviken|-54.281|-36.509|-2.0|-2.0|4
+
+Custom locations|Antarctica:Esperanza Base [just north of the circle]|-63.396|-56.996|-3.0|-3.0|13
+Custom locations|Antarctica:Casey Station [on the Antarctic Circle]|-66.282|110.528|11.0|11.0|30
+Custom locations|Antarctica:Rothera Station [inside the circle]|-67.568|-68.128|-3.0|-3.0|16
+Custom locations|Antarctica:Troll Station [GMT+0 / +2, DST follows north]|-72.012|2.535|0.0|2.0|1275
+Custom locations|Antarctica:Concordia (Dome C) [3233 m, deep polar]|-75.100|123.333|8.0|8.0|3233
+Custom locations|Antarctica:McMurdo Station [NZ clock, GMT+13 / +12]|-77.842|166.686|13.0|12.0|10
+Custom locations|Antarctica:Vostok Station [longest polar night]|-78.464|106.837|5.0|5.0|3488
+Custom locations|Antarctica:Amundsen-Scott (South Pole) [latitude -90]|-90.000|0.000|13.0|12.0|2835
+
+Custom locations|Canada:Alert (Nunavut) [82.5N, northernmost settlement]|82.501|-62.348|-5.0|-4.0|30
+Custom locations|Greenland:Qaanaaq (Thule) [77.5N]|77.484|-69.363|-4.0|-3.0|13
+Custom locations|USA:Utqiagvik (Barrow) [71.3N]|71.291|-156.789|-9.0|-8.0|3
+Custom locations|Russia:Dikson [73.5N, no DST]|73.507|80.546|7.0|7.0|10
+Custom locations|Russia:Tiksi [71.7N, no DST]|71.687|128.869|9.0|9.0|13
+
+Custom locations|Indonesia:Pontianak [3 km south of the equator]|-0.032|109.325|7.0|7.0|2
+Custom locations|Brazil:Macapá [4 km north of the equator]|0.039|-51.066|-3.0|-3.0|17
+Custom locations|Equator:Null Island (0N 0E) [latitude exactly 0]|0.000|0.000|0.0|0.0|0
+
+Custom locations|Peru:La Rinconada (Puno) [5052 m, highest shipped]|-14.631|-69.446|-5.0|-5.0|5052
+Custom locations|Bolivia:El Alto [4101 m]|-16.516|-68.166|-4.0|-4.0|4101
+Custom locations|Israel:Beït Shéan [-131 m, lowest shipped]|32.497|35.496|2.0|3.0|-131
+Custom locations|Israel:Neve Zohar (Dead Sea) [-395 m]|31.146|35.365|2.0|3.0|-395

@@ -1091,6 +1091,34 @@ isInDSTperiod(yd, dStartYday, dEndYday) {
    Return (dStartYday<=dEndYday) ? (yd>=dStartYday && yd<dEndYday) : (yd>=dStartYday || yd<dEndYday)
 }
 
+buildDSTinfo(tziObj, standardOffset, daylightOffset) {
+; Bundles everything wrapCalcSunInfos() needs to resolve the GMT offset of the days that
+; surround the reference day. Returns 0 when there is no time zone information to work
+; with, which simply keeps the single offset the caller supplied.
+
+   If !IsObject(tziObj)
+      Return 0
+
+   Return {dstStartYday: tziObj.DaylightDateYday, dstEndYday: tziObj.StandardDateYday, stdOffset: standardOffset, dstOffset: daylightOffset}
+}
+
+resolveGmtOffset(timeStampu, dstInfo, gmtOffset) {
+; Returns the GMT offset in effect on the local day of timeStampu.
+; The sun wrappers are handed a single offset, the one valid for the reference day, yet they
+; also compute the day before and the two days after it. Around a daylight saving switch
+; those neighbours belong to the other offset and would otherwise come out an hour off.
+; Without a DST descriptor the offset of the reference day is kept, as before.
+
+   If (!IsObject(dstInfo) || !timeStampu)
+      Return gmtOffset
+
+   FormatTime, ydu, % timeStampu, Yday
+   If !ydu
+      Return gmtOffset
+
+   Return isInDSTperiod(ydu, dstInfo.dstStartYday, dstInfo.dstEndYday) ? dstInfo.dstOffset : dstInfo.stdOffset
+}
+
 nearestAnalogClockScale(givenScale) {
 ; The analog clock scale can only be set from a menu built out of analogClockScalesList.
 ; Any other value - like a default shipped in a previous release - would leave the menu
@@ -7158,7 +7186,7 @@ btnUIremoveUserGeoLocation() {
    Sleep, 50
    FileDelete, %WinStorePath%\resources\geo-locations-userlist.txt
    Sleep, 50
-   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %WinStorePath%\resources\geo-locations-userlist.txt
+   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %WinStorePath%\resources\geo-locations-userlist.txt, UTF-8
    p := clampInRange(uiUserCity - 1, 1, cities)
    If (AnyWindowOpen=7)
       UIcountryGraphChooser()
@@ -7193,7 +7221,7 @@ btnUIupdateUserGeoLocation(idu, strA, str) {
    Sleep, 50
    FileDelete, %WinStorePath%\resources\geo-locations-userlist.txt
    Sleep, 50
-   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %WinStorePath%\resources\geo-locations-userlist.txt
+   FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %WinStorePath%\resources\geo-locations-userlist.txt, UTF-8
    SoundBeep , 900, 100
 }
 
@@ -7295,15 +7323,15 @@ btnUIaddNewGeoLocation() {
       Return
    }
 
-   If (!isInRange(k[4], -13, 13) || !isNumber(k[4]))
+   If (!isInRange(k[4], -14, 14) || !isNumber(k[4]))
    {
-      simpleMsgBoxWrapper(appName, "Please define a correct GMT time offset for the custom location. This can range from -12 to 12 hours.", 0, 1, 48)
+      simpleMsgBoxWrapper(appName, "Please define a correct GMT time offset for the custom location. This can range from -14 to 14 hours.", 0, 1, 48)
       Return
    }
 
-   If (!isInRange(k[5], -13, 13) || !isNumber(k[5]))
+   If (!isInRange(k[5], -14, 14) || !isNumber(k[5]))
    {
-      simpleMsgBoxWrapper(appName, "Please define a correct DST time offset for the custom location. This can range from -12 to 12 hours.`n`nIf no daylight saving time is to be observed, use the same value defined as the GMT offset.", 0, 1, 48)
+      simpleMsgBoxWrapper(appName, "Please define a correct DST time offset for the custom location. This can range from -14 to 14 hours.`n`nIf no daylight saving time is to be observed, use the same value defined as the GMT offset.", 0, 1, 48)
       Return
    }
 
@@ -7385,8 +7413,8 @@ btnUIaddTodayGeoLocation() {
    If (k.Count()<6 || StrLen(k[1])<4
       || !isNumber(k[2]) || !isInRange(k[2], -90, 90)
       || !isNumber(k[3]) || !isInRange(k[3], -180, 180)
-      || !isNumber(k[4]) || !isInRange(k[4], -13, 13)
-      || !isNumber(k[5]) || !isInRange(k[5], -13, 13)
+      || !isNumber(k[4]) || !isInRange(k[4], -14, 14)
+      || !isNumber(k[5]) || !isInRange(k[5], -14, 14)
       || !isNumber(k[6]) || !isInRange(k[6], -5000, 13000))
    {
       simpleMsgBoxWrapper(appName, "The selected location does not provide all the data required by a custom location entry:`n`nLocation name|Latitude|Longitude|GMT offset|DST offset|Altitude (in meters)", 0, 1, 48)
@@ -7526,7 +7554,7 @@ loadGeoData() {
       If (ST_Count(userlist, "|")<6)
       {
          userlist .= "`nCustom locations|User defined default|-30.1914|30.1939|2.0|2.0|" A_Year "`n"
-         FileAppend, % userlist , %WinStorePath%\resources\geo-locations-userlist.txt
+         FileAppend, % userlist , %WinStorePath%\resources\geo-locations-userlist.txt, UTF-8
       }
    }
 
@@ -7807,7 +7835,7 @@ UnZipExtract2Folder(Zip, Dest="", Filename="") {
     }
 }
 
-coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob:=0, simplifiedMode:=0) {
+coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob:=0, simplifiedMode:=0, dstInfo:=0) {
    If IsObject(prevufkob)
    {
       prevDuration := prevufkob.pvdur
@@ -7828,23 +7856,40 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
 
    ; calculate sunrise and sunset times for yesterday, today and tomorrow 
    ; I chose to do this because the results returned can be missing or exceed the given date
-   If (simplifiedMode=0)
+   kob := SolarCalculator(trz, latu, longu, gmtOffset, altitudeBonus)
+   If (simplifiedMode=1 && (InStr(kob.RawDa, ref)!=1 || InStr(kob.RawR, ref)!=1 || InStr(kob.RawN, ref)!=1
+   || InStr(kob.RawS, ref)!=1 || InStr(kob.RawDu, ref)!=1))
    {
-      kobyd := SolarCalculator(yd, latu, longu, gmtOffset, altitudeBonus)
-      kobtmr := SolarCalculator(tmr, latu, longu, gmtOffset, altitudeBonus)
+      ; the simplified mode only holds while every moment of the day lands on the day itself;
+      ; it does not where the zone offset sits far from the longitude - Apia [Samoa] at GMT +13
+      ; has its sunrise on the next date - nor wherever a twilight goes missing
+      simplifiedMode := 0
    }
 
-   kob := SolarCalculator(trz, latu, longu, gmtOffset, altitudeBonus)
+   If (simplifiedMode=0)
+   {
+      ; gmtOffset is the one in effect on trz; yesterday and tomorrow can sit on the other
+      ; side of a daylight saving switch, so their own offset is resolved for them
+      kobyd := SolarCalculator(yd, latu, longu, resolveGmtOffset(yd, dstInfo, gmtOffset), altitudeBonus)
+      kobtmr := SolarCalculator(tmr, latu, longu, resolveGmtOffset(tmr, dstInfo, gmtOffset), altitudeBonus)
+   }
+
    If ((!kob.r || !kob.s) && simplifiedMode=0)
    {
       ofu := SubStr(trz, 1, 8) . "000001"
-      ; if no sunrise, sunset returned by Solar Calculator, use the SunRise class
-      bkob := calculateSunMoonRiseSet(SubStr(trz, 1, 10) "0101", ofu, latu, longu, gmtOffset, 1, altitudeBonus)
+      ; if no sunrise, sunset returned by Solar Calculator, use the SunRise class;
+      ; calculateSunMoonRiseSet() wants an UTC instant to search around, so local noon is
+      ; converted back to UTC; searching around local noon also keeps both events of the
+      ; local day well inside the +/- 24 hours search window of the SunRise class
+      qtz := SubStr(trz, 1, 8) . "120000"
+      qtz += -1*gmtOffset, Hours
+      bkob := calculateSunMoonRiseSet(qtz, ofu, latu, longu, gmtOffset, 1, altitudeBonus)
       ; If (!bkob.r || !bkob.s)
       If (!bkob.r && !bkob.s)
       {
          fnOutputDebug("2nd bkob")
-         bkob := calculateSunMoonRiseSet(SubStr(trz, 1, 10) "3101", ofu, latu, longu, gmtOffset, 1, altitudeBonus)
+         qtz += 30, Minutes
+         bkob := calculateSunMoonRiseSet(qtz, ofu, latu, longu, gmtOffset, 1, altitudeBonus)
          ; If ((bbkob.r && bbkob.s) || (!bkob.r && !bkob.s))
          ; {
          ;    fnOutputDebug("2nd bbkob yay")
@@ -7904,7 +7949,8 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
    {
       fkob.RawR := bkob.RawR
       fkob.r := bkob.r
-      fkob.accuracy .= "."
+      If bkob.RawR   ; the marker means «taken from the SunRise class», not «nothing found»
+         fkob.accuracy .= "."
    } Else
    {
       fkob.RawR := kob.RawR
@@ -7915,7 +7961,8 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
    {
       fkob.RawS := bkob.RawS
       fkob.s := bkob.s
-      fkob.accuracy .= "."
+      If bkob.RawS   ; the marker means «taken from the SunRise class», not «nothing found»
+         fkob.accuracy .= "."
    } Else
    {
       fkob.RawS := kob.RawS
@@ -8025,9 +8072,9 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
          ; based on the sunlight duration and the sunset time, moreBonus, both 
          ; determined from a previous call to this function
          fnOutputDebug("add possibleSR= " possibleSR)
-         FormatTime, p, % possibleSR, yyyy/MM/dd HH:mm
+         FormatTime, prx, % possibleSR, yyyy/MM/dd HH:mm
          fkob.RawR := possibleSR
-         fkob.r := p
+         fkob.r := prx
          fkob.accuracy .= "/"
       }
    }
@@ -8037,7 +8084,7 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
    If (!bonus && InStr(moreBonus, ref)=1 && moreBonus && SubStr(moreBonus, 1, 10)!=SubStr(fkob.RawS, 1, 10) && moreBonus<fkob.RawR)
       bonus := moreBonus
 
-   If (!bonus && prevDuration=86400 && InStr(fkob.RawR, ref)=1 && (InStr(fkob.RawS, tref)=1 || InStr(fkob.RawS, tref + 1)=1))
+   If (!bonus && prevDuration=86400 && InStr(fkob.RawR, ref)=1 && (InStr(fkob.RawS, tref)=1 || InStr(fkob.RawS, xtref)=1))
    {
       ; We have no "sunset bonus" from yesterday, because yesterday was a polar day [no sunset],
       ; but we do have a sunrise today and a sunset defined for tomorrow, then...
@@ -8081,7 +8128,7 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
        z := timeSpanInSeconds(kobyd.RawR, kobyd.RawDa)
        giu := trz 
        giu += -2, Days
-       kobxyd := SolarCalculator(giu, latu, longu, gmtOffset, altitudeBonus)
+       kobxyd := SolarCalculator(giu, latu, longu, resolveGmtOffset(giu, dstInfo, gmtOffset), altitudeBonus)
        y := timeSpanInSeconds(SubStr(kobyd.RawDa, 1, 8) . SubStr(kobxyd.RawDa, 9), kobyd.RawDa)
        z += y + 24
        gj := fkob.RawR
@@ -8100,8 +8147,16 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
        iu += -wz, Seconds
        If (iu<prevufkob.RawDu || iu<prevufkob.RawS || !prevufkob.accuracy)
        {
-          iu := (prevufkob.accuracy="}") ? prevufkob.RawS : prevufkob.RawDu
-          If (iu=prevufkob.RawS)
+          ; accuracy is an accumulated string of markers, so it can only be probed with InStr();
+          ; Dusk=2 is the flag set together with the «}» marker and it is dropped again once
+          ; the substituted dusk gets replaced by an estimated one, which is what matters here
+          iu := (prevufkob.Dusk=2) ? prevufkob.RawS : prevufkob.RawDu
+          If (StrLen(iu)!=14)
+          {
+             ; yesterday offers neither reference; adding to a blank timestamp would hand
+             ; back the current date and time and pass it off as a dawn
+             iu := ""
+          } Else If (iu=prevufkob.RawS)
           {
              iu += (190 - dayum)*2, Seconds
           } Else
@@ -8111,7 +8166,7 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
           }
        }
 
-       zvr := min(iu, gj) ; choose from A or B 'n C'
+       zvr := iu ? min(iu, gj) : gj ; choose from A or B 'n C'
        fkob.RawDa := zvr
        FormatTime, tw, % zvr, yyyy/MM/dd HH:mm
        fkob.twR := tw
@@ -8124,12 +8179,14 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
    If (fkob.RawS<kobtmr.RawDa && kobtmr.RawDa<fkob.RawDu && fkob.RawS<kobtmr.RawS && kobtmr.RawS>kobtmr.RawDa && kobtmr.RawS
    && fkob.RawS && kobtmr.RawDa && InStr(fkob.RawDu, tref)=1 && InStr(fkob.RawS, ref)=1 && InStr(kobtmr.RawDa, tref)=1 && !kob.RawDu)
    {
-      ; if the dusk occured yesterday and it is the same with the one identified «today»
-      ; and we have a sunset specific for today...
+      ; if the dusk landed on tomorrow and we have a sunset specific for today...
       ; we estimate a new dusk for today's sunset
       fnOutputDebug("new dusk twilight: " twDurC "|"  fkob.diffuDusk "|" fkob.diffuDawn "|" prevufkob.diffuDusk "|" prevufkob.diffuDawn)
       twDurD := getTwilightDuration(trz, latu, longu, gmtOffset)
-      twDur := max(Round(twDurD), Round(twDurC))
+      ; twDurC is built out of the day to day change of the dawn/dusk times, not out of a
+      ; twilight duration; near the poles that change grows to hours and would win a max()
+      ; against the real duration, so it only serves as a fallback
+      twDur := Round(twDurD) ? Round(twDurD) : Round(twDurC)
       If twDur
       {
          iu := fkob.RawS
@@ -8142,10 +8199,10 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
          newu := 1
       } Else If (InStr(fkob.RawS, ref)=1 && InStr(kobtmr.RawDa, tref)=1)
       {
-         w := timeSpanInSeconds(SubStr(fkob.RawS, 1, 8) "235959", fkob.RawS)
-         w += timeSpanInSeconds(SubStr(kobtmr.RawDa, 1, 8) "000001", kobtmr.RawDa)
+         wdu := timeSpanInSeconds(SubStr(fkob.RawS, 1, 8) "235959", fkob.RawS)
+         wdu += timeSpanInSeconds(SubStr(kobtmr.RawDa, 1, 8) "000001", kobtmr.RawDa)
          iu := fkob.RawS
-         iu += w//1.25, Seconds
+         iu += wdu//1.25, Seconds
          newu := 1
       }
 
@@ -8154,7 +8211,7 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
          fkob.RawDu := iu
          FormatTime, tw, % iu, yyyy/MM/dd HH:mm
          fkob.twS := tw
-         fkob.accuracy .= w ? "~>" : ">"
+         fkob.accuracy .= wdu ? "~>" : ">"
          If (InStr(fkob.RawDu, tref)=1)
             g := timeSpanInSeconds(SubStr(fkob.RawDu, 1, 8) "000001", fkob.RawDu)
       }
@@ -8204,7 +8261,7 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
          ; in-between the two moments of the day
 
          z := timeSpanInSeconds(kobtmr.RawS, kobtmr.RawDu)
-         kobxtmr := SolarCalculator(xtmr, latu, longu, gmtOffset, altitudeBonus)
+         kobxtmr := SolarCalculator(xtmr, latu, longu, resolveGmtOffset(xtmr, dstInfo, gmtOffset), altitudeBonus)
          y := timeSpanInSeconds(SubStr(kobtmr.RawDu, 1, 8) . SubStr(kobxtmr.RawDu, 9), kobtmr.RawDu)
          z += y
          j := fkob.RawS
@@ -8242,7 +8299,7 @@ coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, prevufkob
    Return fkob
 }
 
-wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0) {
+wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0, dstInfo:=0) {
    ; this function tries to make sensical the values displayed by Church Bells Tower 
    ; tomorrow or yesterday are relative to the given date;
    ; the time for rise can be yesterday, if not available for today;
@@ -8315,20 +8372,26 @@ wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0) {
       bxtref := SubStr(bxtmr, 1, 8)
       bydref := SubStr(byd, 1, 8)
  
-      bfkob := coreWrapSunInfos(byd, btrz, btmr, bxtmr, latu, longu, gmtOffset, Altitude)
+      bfkob := coreWrapSunInfos(byd, btrz, btmr, bxtmr, latu, longu, resolveGmtOffset(btrz, dstInfo, gmtOffset), Altitude, 0, simplifiedMode, dstInfo)
       bduration := coreCalculateLightDuration(bfkob.sunbonux, bfkob.r, bfkob.s, bfkob.RawR, bfkob.RawS, bydref, bref, btref, btrz, "Sun", latu)
       moreBonus := InStr(bfkob.RawS, ref) ? bfkob.RawS : 0
       FormatTime, dayum, % trz, Yday
-      If (isInRange(dayum, mEquiDay + 15, sEquiDay - 15) && moreBonus && bfkob.RawS)
+      If (isInRange(dayum, mEquiDay + 15, sEquiDay - 15) && latu>0 && moreBonus && bfkob.RawS)
+      || (!isInRange(dayum, mEquiDay + 15, sEquiDay - 15) && latu<0 && moreBonus && bfkob.RawS)
       {
          ; a possible sunrise is calculated based on the sunlight duration and the sunset time of the previous call to coreWrapSunInfos();
-         ; this applies only between the march equinox and september equinox;
+         ; this applies only between the march equinox and september equinox in the northern
+         ; hemisphere and only outside of that interval in the southern one;
          ; the next call to coreWrapSunInfos() will determine if this is going to be used or not
-         possibleSR := bfkob.RawS
          ; sp := timeSpanInSeconds(SubStr(moreBonus, 1, 8) "000001", moreBonus)
-         k := 86400 - bduration[2] ; - sp
-         possibleSR += k//2, Seconds
-         fnOutputDebug("maybe possibleSR=" possibleSR "; bdur[2]=" bduration[2] "; sp=" sp)
+         k := (bduration[2]<86400) ? 86400 - bduration[2] : 0 ; - sp
+         If (k>0)
+         {
+            ; a day longer than 24 hours leaves no room for a sunrise to be placed
+            possibleSR := bfkob.RawS
+            possibleSR += k//2, Seconds
+            fnOutputDebug("maybe possibleSR=" possibleSR "; bdur[2]=" bduration[2] "; sp=" sp)
+         }
       }
  
       bfkob.psr := possibleSR
@@ -8338,24 +8401,31 @@ wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0) {
       ; fnOutputDebug("first run duration=" bduration[1] "; moreBonus=" moreBonus)
    }
 
-   fkob := coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, bfkob)
+   fkob := coreWrapSunInfos(yd, trz, tmr, xtmr, latu, longu, gmtOffset, Altitude, bfkob, simplifiedMode, dstInfo)
    duration := coreCalculateLightDuration(fkob.sunbonux, fkob.r, fkob.s, fkob.RawR, fkob.RawS, yref, ref, tref, trz, "Sun", latu)
-   If (isInRange(dayum, mEquiDay - 2, jSolsDay - 1) && fkob.r=bfkob.r && fkob.s=bfkob.s && duration[2]<bduration[2] && simplifiedMode=0)
+   If (isInRange(dayum, mEquiDay - 2, jSolsDay - 1) && latu>0 && fkob.r=bfkob.r && fkob.s=bfkob.s && duration[2]<bduration[2] && simplifiedMode=0)
+   || (isInRange(dayum, sEquiDay - 2, dSolsDay - 1) && latu<0 && fkob.r=bfkob.r && fkob.s=bfkob.s && duration[2]<bduration[2] && simplifiedMode=0)
    {
       ; guesstimate a new sunrise if yesteday and today have the same sunrise and sunset times
       ; and the sunlight duration of today is shorter compared to yesterday;
-      ; this can never be the case between the march equinox and June's solstice
+      ; this can never be the case between the march equinox and June's solstice in the northern
+      ; hemisphere, nor between the september equinox and December's solstice in the southern one;
       ; the sunrise is calculated based on the sunlight duration and the sunset time of the first call to coreWrapSunInfos();
       possibleSR := max(bfkob.RawS, bfkob.RawR)
-      k := 86400 - bduration[2] ; - sp
-      possibleSR += k//2, Seconds
-      fkob.RawR := possibleSR
-      FormatTime, rx, % possibleSR, yyyy/MM/dd HH:mm
-      fkob.r := rx
-      fkob.accuracy .= "!"
+      k := (bduration[2]<86400) ? 86400 - bduration[2] : 0 ; - sp
+      If (StrLen(possibleSR)=14 && k>0)
+      {
+         ; a blank base or a day longer than 24 hours cannot yield a sunrise; adding to a
+         ; blank timestamp would silently produce one out of the current date and time
+         possibleSR += k//2, Seconds
+         fkob.RawR := possibleSR
+         FormatTime, rx, % possibleSR, yyyy/MM/dd HH:mm
+         fkob.r := rx
+         fkob.accuracy .= "!"
 
-      ; recalculate sunlight duration
-      duration := coreCalculateLightDuration(fkob.sunbonux, fkob.r, fkob.s, fkob.RawR, fkob.RawS, yref, ref, tref, trz, "Sun", latu)
+         ; recalculate sunlight duration
+         duration := coreCalculateLightDuration(fkob.sunbonux, fkob.r, fkob.s, fkob.RawR, fkob.RawS, yref, ref, tref, trz, "Sun", latu)
+      }
       ; fnOutputDebug("deep fuck up")
       ; SoundBeep 300, 100
    }
@@ -8382,10 +8452,13 @@ wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0) {
 }
 
 coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, obju, latu:=0, sunlight:=0, civilExtra:=0, civilrest:=0) {
+   forceType := 0
    If (civilrest=1 && obju="civil")
    {
-      rawP := 86400 - sunlight
-      duration := transformSecondsReadable(rawP)
+      ; both the dawn and the dusk were substituted, so everything outside the sunlight is
+      ; twilight; a sunlight span of 24 hours or more leaves no twilight at all
+      rawP := (sunlight<86400) ? 86400 - sunlight : 1
+      duration := (rawP>1) ? transformSecondsReadable(rawP) : "00:00"
    } Else If ((dcR && dcS) || (!dcR && InStr(dSraw, ref)=1) || (!dcS && InStr(dRraw, ref)=1))
    {
       If (dcR && dcS)
@@ -8419,11 +8492,14 @@ coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, 
       {
          ; fnOutputDebug("civil p=" p "; sl=" sunlight "; extra=" civilExtra)
          p += civilExtra
-         p := (p>sunlight) ? p - sunlight : sunlight - p
+         ; the dawn to dusk span always contains the sunrise to sunset span; when it does not,
+         ; the two contradict each other and reflecting the difference would only invent a
+         ; plausible looking twilight out of inconsistent input
+         p := (p>sunlight) ? p - sunlight : 0
       }
 
       rawP := p
-      duration := transformSecondsReadable(p)
+      duration := p ? transformSecondsReadable(p) : "00:00"
       ; If (obju="sun")
       ; ToolTip, % duration "=" Round(p/60, 1) "=" Mod(p, 60) , , , 2
    } Else If (obju="Sun")
@@ -8451,8 +8527,8 @@ coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, 
       || (!isInRange(dayum, mEquiDay + 2, sEquiDay - 2) && latu<0 && sunlight>72150)
       {
          forceType := 1
-         rawP := 86400 - sunlight
-         duration := transformSecondsReadable(rawP)
+         rawP := (sunlight<86400) ? 86400 - sunlight : 1
+         duration := (rawP>1) ? transformSecondsReadable(rawP) : "00:00"
       } Else
       {
          rawP := 1
@@ -8473,6 +8549,17 @@ coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, 
       {
          rawP := 1
          duration := "00:00"
+      } Else
+      {
+         ; the moon does cross the horizon, yet neither event could be matched to this day;
+         ; its elevation follows a sinusoid between minu and maxu, so the share of the day
+         ; spent above the horizon is acos(-midpoint/amplitude)/pi ; this joins continuously
+         ; with the two cases above, which are its clamped extremes
+         amplu := (bonus.maxu - bonus.minu)/2
+         midu := (bonus.maxu + bonus.minu)/2
+         rawP := amplu ? Round(86400 * ACos(clampInRange(-1*midu/amplu, -1, 1))/3.14159265358979) : 1
+         rawP := clampInRange(rawP, 1, 86400)
+         duration := (rawP>1) ? transformSecondsReadable(rawP) : "00:00"
       }
    }
    ; If (obju="Civil")
@@ -8573,7 +8660,11 @@ wrapCalcMoonRiseSet(t, latu, longu, gmtOffset:=0, Altitude:=0) {
           otherz.RawS := kob.RawS
        }
 
-       If (InStr(fkob.RawR, ref) && (InStr(fkob.RawS, ref) || InStr(fkob.RawS, tref)) && fkob.RawR<fkob.RawS && fkob.r && fkob.s)
+       ; on a «reverse» day the moon sets in the morning and rises in the evening, so demanding
+       ; that the rise precedes the set kept the loop calling the DLL all 48 times; the otherz[]
+       ; fallbacks are only consulted when today has no rise or no set of its own, which is not
+       ; the case here, so there is nothing left to look for
+       If (InStr(fkob.RawR, ref)=1 && InStr(fkob.RawS, ref)=1 && fkob.r && fkob.s)
           Break
    }
 
@@ -8589,7 +8680,9 @@ wrapCalcMoonRiseSet(t, latu, longu, gmtOffset:=0, Altitude:=0) {
       fkob.RawS := otherz.RawS
    }
    ; fkob.v := (trz>fkob.RawR && trz<fkob.RawS) ? "Yes" : "No"
-   fkob.reverse := (fkob.RawS<fkob.RawR && fkob.RawS && fkob.RawR) ? 1 : 0
+   ; RawR/RawS still carry their 0/1 «nothing found» markers when no event was matched, and
+   ; 1 is lower than any date stamp: a missing moonset must not read as a set before the rise
+   fkob.reverse := (fkob.RawR>1 && fkob.RawS>1 && fkob.RawS<fkob.RawR) ? 1 : 0
    fkob.ref := ref
    fkob.yref := yref
    fkob.tref := tref
@@ -8598,6 +8691,13 @@ wrapCalcMoonRiseSet(t, latu, longu, gmtOffset:=0, Altitude:=0) {
 }
 
 timeSpanInSeconds(x, y) {
+; Both arguments must be date stamps of at least YYYYMMDD. A blank value - or one of the
+; 0/1 «nothing found» markers - would make EnvSub fall back on the current date and time
+; and return a plausible looking, but entirely meaningless, span.
+
+    If (StrLen(x)<8 || StrLen(y)<8)
+       Return 0
+
     ax := max(x, y)
     an := min(x, y)
     p := ax
@@ -8722,34 +8822,45 @@ calculateSunMoonRiseSet(t, rt, latu, longu, gmtOffset:=0, obju:=1, altitudeBonus
 
    If twilight
    {
-      twRiseRaw := nrise
-      twSetRaw := nsetu
-      twRiseRaw += -twilight, Seconds
-      twSetRaw += twilight, Seconds
+      ; a twilight is an offset from a rise or a set; without one there is nothing to offset,
+      ; and both EnvAdd and FormatTime would quietly fall back on the current date and time,
+      ; handing back an invented dawn or dusk instead of a blank one
+      If nrise
+      {
+         twRiseRaw := nrise
+         twRiseRaw += -twilight, Seconds
+         FormatTime, twRise, % twRiseRaw, yyyy/MM/dd HH:mm
+      }
+
+      If nsetu
+      {
+         twSetRaw := nsetu
+         twSetRaw += twilight, Seconds
+         FormatTime, twSet, % twSetRaw, yyyy/MM/dd HH:mm
+      }
       ; fnOutputDebug("tw=" twilight " twRise=" twRise " twSet=" twSet)
-      FormatTime, twRise, % twRiseRaw, yyyy/MM/dd HH:mm
-      FormatTime, twSet, % twSetRaw, yyyy/MM/dd HH:mm
    }
 
-   obju := []
-   ; obju.v := (ot>nrise && ot<nsetu) ? "Yes" : "No"
+   ; a fresh object, rather than obju: that parameter still names the celestial body asked for
+   resObj := []
+   ; resObj.v := (ot>nrise && ot<nsetu) ? "Yes" : "No"
    If nsetu
       FormatTime, fnsetu, % nsetu, yyyy/MM/dd HH:mm
 
    If nrise
       FormatTime, fnrise, % nrise, yyyy/MM/dd HH:mm
 
-   obju.r := fnrise
-   obju.s := fnsetu
-   obju.RawDa := twRiseRaw
-   obju.RawR := nrise
-   obju.RawS := nsetu
-   obju.RawDu := twSetRaw
-   obju.tw := twilight
-   obju.twR := twRise
-   obju.twS := twSet
+   resObj.r := fnrise
+   resObj.s := fnsetu
+   resObj.RawDa := twRiseRaw
+   resObj.RawR := nrise
+   resObj.RawS := nsetu
+   resObj.RawDu := twSetRaw
+   resObj.tw := twilight
+   resObj.twR := twRise
+   resObj.twS := twSet
    ; fnOutputDebug(r "=" nrise "=" nsetu)
-   Return obju
+   Return resObj
 }
 
 calculateEquiSols(k, yearu, l:=0) {
@@ -9000,13 +9111,14 @@ UIlistSunRiseSets(modus:=0, cr:=0, i:=0, o:=0) {
   timeus := yearu "0101020102"
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
+  dstInfo := buildDSTinfo(k, w[4], w[5])
   listu := yearu " for " cr w[1] " at " w[2] ", " w[3] "`n"
   allYearLight := 0
   Loop, 365
   {
       FormatTime, gyd, % timeus, Yday
       gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
-      obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
+      obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], 0, dstInfo)
       FormatTime, f, % timeus, MM/dd
       licht := obj.durRaw + obj.cdurRaw
       allYearLight += licht
@@ -9119,6 +9231,7 @@ uiPopulateTableYearSolarData() {
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
   gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  dstInfo := buildDSTinfo(k, w[4], w[5])
   simplifiedMode := testCircumpolarDays(yearu, w[2], w[3], gmtOffset, w[6])
   arrayUcivilrise := []
   arrayUsunriseu := []
@@ -9130,7 +9243,7 @@ uiPopulateTableYearSolarData() {
   {
       FormatTime, gyd, % timeus, Yday
       gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
-      obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], simplifiedMode)
+      obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], simplifiedMode, dstInfo)
       FormatTime, f, % timeus, MM/dd
       timis := timeus
       timis += gmtOffset, Hours
@@ -10291,6 +10404,7 @@ UIcityChooser() {
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
   gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  dstInfo := buildDSTinfo(k, w[4], w[5])
   timi := timeus
   timi += gmtOffset, Hours
   FormatTime, brr, % timi, yyyy/MM/dd HH:mm
@@ -10331,12 +10445,12 @@ UIcityChooser() {
   {
       If testValid
       {
-         obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
+         obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], 0, dstInfo)
          prevtimi := timeus
          prevtimi += -1, Days
          FormatTime, gyud, % prevtimi, Yday
          prevgmtOffset := isInDSTperiod(gyud, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
-         prevobj := wrapCalcSunInfos(prevtimi, w[2], w[3], prevgmtOffset, w[6])
+         prevobj := wrapCalcSunInfos(prevtimi, w[2], w[3], prevgmtOffset, w[6], 0, dstInfo)
          prevTduru := Round(prevobj.cdurRaw + prevobj.durRaw)
          thisTduru := Round(obj.cdurRaw + obj.durRaw)
          If InStr(obj.dur, "00:00")
@@ -10673,6 +10787,7 @@ toggleTodayGraphMODE(modus:=0) {
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
   gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  dstInfo := buildDSTinfo(k, w[4], w[5])
   timi := timeus
   timi += gmtOffset, Hours
   If (todaySunMoonGraphMode=1)
@@ -10687,9 +10802,9 @@ toggleTodayGraphMODE(modus:=0) {
      getSunAzimuthElevation(timeus, w[2], w[3], 0, azii, elevu)
      If (A_PtrSize=8)
      {
-        obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
+        obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], 0, dstInfo)
         fmax := obj.elev
-        cobj := wrapCalcSunInfos(timeus, w[2], w[3] - 180, gmtOffset, w[6])
+        cobj := wrapCalcSunInfos(timeus, w[2], w[3] - 180, gmtOffset, w[6], 0, dstInfo)
         getSunAzimuthElevation(cobj.RawN, w[2], w[3], gmtOffset, brr, fmin)
         fmax := Round(fmax, 1)
         fmin := Round(fmin, 1)
@@ -11008,9 +11123,10 @@ coreJumpSolarEventsToday() {
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
   gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  dstInfo := buildDSTinfo(k, w[4], w[5])
   timi := timeus
   timi += gmtOffset, Hours
-  cobj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6])
+  cobj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], 0, dstInfo)
   cobj.sday := k.DaylightDateYday
   cobj.eday := k.StandardDateYday
   cobj.lgmt := gmtOffset
@@ -11149,14 +11265,17 @@ UIpanelTodayLightDiffSolstices() {
   cobj := coreJumpSolarEventsToday()
   kjune := calculateEquiSols(2, cobj.y, 0)
   kdec := calculateEquiSols(4, cobj.y, 0)
+  dstInfo := {dstStartYday: cobj.sday, dstEndYday: cobj.eday, stdOffset: cobj.gmt, dstOffset: cobj.dst}
   ; ToolTip, % kjune "`n" kdec , , , 2
   FormatTime, gyd, % kjune, Yday
-  gmtOffset := isinRange(gyd, cobj.sday, cobj.eday - 1) ? cobj.dst : cobj.gmt
-  jobj := wrapCalcSunInfos(kjune, cobj.latu, cobj.longu, gmtOffset, cobj.altitude)
+  ; isInRange() would answer the exact opposite in the southern hemisphere, where the
+  ; daylight saving period wraps around the end of the year
+  gmtOffset := isInDSTperiod(gyd, cobj.sday, cobj.eday) ? cobj.dst : cobj.gmt
+  jobj := wrapCalcSunInfos(kjune, cobj.latu, cobj.longu, gmtOffset, cobj.altitude, 0, dstInfo)
 
   FormatTime, gyd, % kdec, Yday
-  gmtOffset := isinRange(gyd, cobj.sday, cobj.eday - 1) ? cobj.dst : cobj.gmt
-  dobj := wrapCalcSunInfos(kdec, cobj.latu, cobj.longu, gmtOffset, cobj.altitude)
+  gmtOffset := isInDSTperiod(gyd, cobj.sday, cobj.eday) ? cobj.dst : cobj.gmt
+  dobj := wrapCalcSunInfos(kdec, cobj.latu, cobj.longu, gmtOffset, cobj.altitude, 0, dstInfo)
 
   diffSols := (jobj.durRaw >= dobj.durRaw) ? jobj.durRaw - dobj.durRaw : dobj.durRaw - jobj.durRaw
   diffSols := transformSecondsReadable(diffSols, 2)
