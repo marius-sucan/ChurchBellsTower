@@ -1,0 +1,79 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{D6118FBC-875A-4065-9CE7-832F661FF3B1}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx</Extensions>
+    </Filter>
+    <Filter Include="Source Files\Included by cbt-main.cpp">
+      <UniqueIdentifier>{73CAF6CA-B064-478F-B60F-71B3636A4702}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Not in use">
+      <UniqueIdentifier>{86BE1911-7772-4189-8491-1E037AE09B94}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{339C6664-7C8A-4CDB-93C3-584B4DEB05E5}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx</Extensions>
+    </Filter>
+    <Filter Include="Notes and references">
+      <UniqueIdentifier>{F85A22E2-AC01-40CF-887B-3F03D4D81464}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="cbt-main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MoonPhase.cpp">
+      <Filter>Source Files\Included by cbt-main.cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="SunRise.cpp">
+      <Filter>Source Files\Included by cbt-main.cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="MoonRise.cpp">
+      <Filter>Source Files\Included by cbt-main.cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="Twilight.cpp">
+      <Filter>Source Files\Included by cbt-main.cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="SolarCalculator.cpp">
+      <Filter>Source Files\Included by cbt-main.cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="moonDiskAngle.cpp">
+      <Filter>Source Files\Not in use</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cbt-main.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MoonPhase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SunRise.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MoonRise.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Twilight.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SolarCalculator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="moonDiskAngle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="readme.txt">
+      <Filter>Notes and references</Filter>
+    </None>
+    <None Include="readme-visual-studio.txt">
+      <Filter>Notes and references</Filter>
+    </None>
+    <None Include="SunMoonCalculator.java">
+      <Filter>Notes and references</Filter>
+    </None>
+  </ItemGroup>
+</Project>

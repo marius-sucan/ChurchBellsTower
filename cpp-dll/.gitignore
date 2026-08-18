@@ -1,0 +1,5 @@
+# Visual Studio build output for cbt-main.vcxproj
+build/
+.vs/
+*.vcxproj.user
+*.aps
