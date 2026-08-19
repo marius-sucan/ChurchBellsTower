@@ -1187,7 +1187,6 @@ nearestAnalogClockScale(givenScale) {
 
 TollExtraNoon() {
   ; Static lastToll := 1
-
   If (noTollingBgrSounds>=2)
      isSoundPlayingNow()
 
@@ -2123,9 +2122,7 @@ JEE_ScreenToClient(hWnd, vPosX, vPosY, ByRef vPosX2, ByRef vPosY2) {
 GetLogicalCursorPos(ByRef mX, ByRef mY) {
 ; The cursor position as this process is shown it, which is the space
 ; ScreenToClient(), Gui Show and SysGet Monitor all work in. Unlike
-; GetPhysicalCursorPos() it reports no raw device pixels and caches nothing, so
-; it stays right on monitors that do not run at the system DPI, and it never
-; hands out a position the mouse has already left.
+; GetPhysicalCursorPos() it reports no raw device pixels.
    VarSetCapacity(POINT, 8, 0)
    If !DllCall("user32\GetCursorPos", "Ptr", &POINT)
    {
@@ -2157,8 +2154,8 @@ getGraphMousePos(ctrlHwnd, ByRef fx, ByRef fy) {
 ; The cursor must be read in the same coordinate space ScreenToClient() answers
 ; in, which is what GetLogicalCursorPos() returns. GetPhysicalCursorPos()
 ; reports raw device pixels instead, and the two only agree while the window
-; sits on a monitor running at the system DPI. That is why the graph used to be
-; read correctly on one screen and wrongly on another.
+; sits on a monitor running at the system DPI. 
+
    fx := fy := 0
    If (!ctrlHwnd || !DllCall("user32\IsWindow", "Ptr", ctrlHwnd))
       Return 0
@@ -2212,10 +2209,6 @@ GetWinClientSize(ByRef w, ByRef h, hwnd, mode) {
 ; by Lexikos http://www.autohotkey.com/forum/post-170475.html
 ; modified by Marius Șucan
 ; mode 0 = client area, mode 1 = visible window bounds (DWM aware), mode 2 = window rectangle.
-; The cached result must be keyed on the mode as well. Keyed only on the handle,
-; a window rectangle read could be handed back to a caller asking for the client
-; area of the very same control moments later, and the two differ whenever the
-; control has a border.
     Static prevW, prevH, prevHwnd, prevMode := -1, lastInvoked := 1
     If (A_TickCount - lastInvoked<95) && (prevHwnd=hwnd) && (prevMode=mode)
     {
@@ -2584,19 +2577,13 @@ graphInfoLineSunYear(fx, fy) {
    Gui, SettingsGUIA: ListView, LViewSunCombined
    dayz := LV_GetCount()
    If (dayz<1)
-   {
-      GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
       Return
-   }
 
    dayNo := graphDayForPos(fx, dayz)
    zp := graphRowForDay(dayNo, dayz)
    LV_GetText(datu, zp, 2)
    If (!datu || datu="date")
-   {
-      GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
       Return
-   }
 
    LV_GetText(dawn, zp, 3)
    LV_GetText(riseu, zp, 4)
@@ -2625,18 +2612,12 @@ graphInfoLineMoonYear(fx, fy) {
    Gui, SettingsGUIA: ListView, LViewSunCombined
    dayz := LV_GetCount()
    If (dayz<1)
-   {
-      GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
       Return
-   }
 
    zp := graphRowForDay(graphDayForPos(fx, dayz), dayz)
    LV_GetText(datu, zp, 2)
    If (!datu || datu="date")
-   {
-      GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
       Return
-   }
 
    LV_GetText(riseu, zp, 3)
    LV_GetText(noonu, zp, 4)
@@ -6933,10 +6914,6 @@ getPercentOfAstroSeason(z:=0) {
 }
 
 getPercentOfToday(ByRef minsPassed:=0) {
-; Counts from midnight over the 1440 minutes a day has, the same way UIcityChooser() does
-; for the date being observed; the panel is painted from here and refreshed from there, so
-; the two disagreeing made its reading of the day jump the moment it was first refreshed.
-
    FormatTime, CurrentDateTime,, yyyyMMddHHmm
    FormatTime, CurrentDay,, yyyyMMdd
    FirstMinOfDay := CurrentDay "0000"
@@ -8638,14 +8615,7 @@ wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0, d
 coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, obju, latu:=0, sunlight:=0, civilExtra:=0, civilrest:=0) {
 ; The sun and the civil twilight hand over a date stamp in bonus - an extra span to be added
 ; to the day, or 0 when there is none - whereas the moon hands over the getMoonNoonZeit()
-; object that its own fallback needs further below. Both used to travel in this one parameter
-; and the date stamp tests of the branch right below were left to read the moon's object: it
-; is always true, and it turns into an empty string wherever a stamp is expected, so what
-; those tests answered for the moon was decided by the type rather than by the data. The two
-; answers happen to coincide - the span added is a zero one and the cut-off falls on the same
-; midnight either way - but nothing was holding them together. Kept apart, each one is read
-; for what it is and the moon simply has no bonus span, which is the truth of it.
-
+; object that its own fallback needs further below. The moon simply has no bonus span.
    moonNoon := 0
    If IsObject(bonus)
    {
@@ -8721,7 +8691,6 @@ coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, 
       ; only if sunlight time is over 20 hours and the day of the year is
       ; between the March equinox and the September equinox, if it is the north pole,
       ; however ... it is the opposite for the south pole.
-
       forceType := 0
       FormatTime, dayum, % trz, Yday
       If (isInRange(dayum, mEquiDay + 2, sEquiDay - 2) && latu>0 && sunlight>72150)
@@ -8739,7 +8708,6 @@ coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, 
    {
       ; if no rise/set for the moon, use the data from getMoonNoonZeit()
       ; we have min and max elevation of the moon and make assumptions based on these
-
       forceType := 0
       FormatTime, dayum, % trz, Yday
       If (moonNoon.maxu>0 && moonNoon.minu>-0.1)
@@ -9439,7 +9407,6 @@ uiPopulateTableYearSolarData() {
   arrayUnoonu := []
   arrayUsunsetu := []
   arrayUcivilsetu := []
-
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
@@ -10579,9 +10546,6 @@ extractGeoLocationInfos(p) {
 
 UItodayPanelNoDateInfos(NextYear) {
 ; The year and the day of the panel have nothing to show for a date the system cannot format.
-; A control read back while the panel is being torn down, or a location entry that went
-; missing from the lists, both hand over a blank one.
-
    ; GuiControl, SettingsGUIA:, UIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(1, 1009, 0, 24) "} Full"
    GuiControl, SettingsGUIA:, UIastroInfoProgressAnnum, % "|" CalcTextHorizPrev(1, 366) "| " NextYear
    GuiControl, SettingsGUIA:, UIastroInfoProgressDayu, % "|" CalcTextHorizPrev(1, 1442, 0, 25) "| 24h "
@@ -10701,9 +10665,6 @@ UIcityChooser() {
   timi += gmtOffset, Hours
   FormatTime, brr, % timi, yyyy/MM/dd HH:mm
   FormatTime, testValid, % timeus, yyyy/MM/dd
-  ; only the day and the time are shown, so the year is cut away first; a placeholder put
-  ; in place of the whole stamp would be cut away right along with it and leave the field
-  ; blank instead of telling the user there is nothing to show
   brr := SubStr(brr, 6)
   If !brr
      brr := "--:--"
@@ -10725,9 +10686,6 @@ UIcityChooser() {
      generateGraphTodaySolar(timi, w[2], w[3], gmtOffset)
   }
 
-  ; both angles are missing together whenever they could not be calculated at all, and an
-  ; elevation of exactly zero is a perfectly good reading, so neither may be tested for
-  ; truth: doing so used to answer «Alt -- / Az 0.0°», half unknown and half invented
   eleva := isNumber(elevu) ? Round(elevu, 1) "°" : "--"
   azimu := isNumber(azii) ? Round(azii, 1) "°" : "--"
   thisu := (w[7]=1) ? "Capital. " : ""
@@ -10743,7 +10701,7 @@ UIcityChooser() {
   NextYear := CurrentYear + 1
   ; the dawn and the dusk hand their two controls over to the moon's fraction and age, so
   ; the tint the sun puts on them whenever a twilight had to be substituted has to be undone
-  ; by whichever of the two branches runs next; left to the sun alone it stuck to the moon
+  ; by whichever of the two branches runs next
   baseClr := (uiDarkMode=1) ? "+c" darkControlColor : "-c"
   If (userAstroInfodMode=1)
   {
@@ -10815,7 +10773,7 @@ UIcityChooser() {
          GuiControl, SettingsGUIA:, uiastroinfoLightMode, Sunlight:
 
       ; the moon leaves «Next phase:» behind in this label, so it has to be reclaimed before
-      ; the bail-out below and not after it, or it ends up naming a «---» that is not a phase
+      ; the bail-out below and not after it
       GuiControl, SettingsGUIA:, UIastroInfoLabelTotalLight, Total light:
       If !testValid
       {
@@ -10831,11 +10789,6 @@ UIcityChooser() {
   {
       If !testValid
       {
-         ; the moon phase was never calculated for a date that cannot be read, so there is
-         ; nothing to display and nothing to search forward from either; walking on used to
-         ; read a whole panel out of an empty phase - a fraction of 0.0%, a nameless moon -
-         ; and to set the phase search off from a stamp that adding to turns into the current
-         ; date and time, which answers with the plausible looking and the meaningless
          GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Rise: 0°
          GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Set: 0°
          GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Peak:
@@ -10957,22 +10910,15 @@ UIcityChooser() {
   strA := w[1] "|" w[2] "|" w[3] "|" w[4] "|" w[5] "|" w[6]
 
   FormatTime, brrYD, % timi, YDay
-  ; the days that came before, plus the minutes lived of this one; counting the whole of
-  ; today as elapsed as well used to put the first minute of January at 0.3% of the year
   ylength := isLeapYear(CurrentYear) ? 527040 : 525600   ; minutes in the year
   percentileYear := clampInRange(Round(((brrYD - 1)*1440 + minsPassed)/ylength*100, 1), 0, 99.9) "%"
   daysPlural := (brrYD>1) ? "days" : "day"
   percentileDay := Round((minsPassed/1440) * 100, 1) "%"
   GuiControl, SettingsGUIA:, UIastroInfoAnnum, %brrYD% %daysPlural% (%percentileYear%) of %CurrentYear% ; %daysPlural2% elapsed.
   GuiControl, SettingsGUIA:, UIastroInfoDayu, %minsPassed% minutes (%percentileDay%) of today ; have elapsed.
-
   GuiControl, SettingsGUIA:, UIastroInfoProgressAnnum, % "|" CalcTextHorizPrev(brrYD, 366) "| " NextYear
   GuiControl, SettingsGUIA:, UIastroInfoProgressDayu, % "|" CalcTextHorizPrev(minsPassed, 1442, 0, 25) "| 24h "
   lastUsedGeoLocation := countriesArrayList[uiUserCountry] . ":" . strA
-  ; the panel refreshes itself once a minute and again on every step of the date buttons,
-  ; which auto repeat several times a second under a held mouse button, whereas the chosen
-  ; location only ever moves when the user picks another one; writing all three keys on
-  ; every single pass hammered the settings file for nothing
   thisGeoState := uiUserCountry "|" uiUserCity "|" lastUsedGeoLocation
   If (thisGeoState!=lastSavedGeoState)
   {
@@ -11599,8 +11545,6 @@ UIpanelTodayLightDiffSolstices() {
   dstInfo := {dstStartYday: cobj.sday, dstEndYday: cobj.eday, stdOffset: cobj.gmt, dstOffset: cobj.dst}
   ; ToolTip, % kjune "`n" kdec , , , 2
   FormatTime, gyd, % kjune, Yday
-  ; isInRange() would answer the exact opposite in the southern hemisphere, where the
-  ; daylight saving period wraps around the end of the year
   gmtOffset := isInDSTperiod(gyd, cobj.sday, cobj.eday) ? cobj.dst : cobj.gmt
   jobj := wrapCalcSunInfos(kjune, cobj.latu, cobj.longu, gmtOffset, cobj.altitude, 0, dstInfo)
 
