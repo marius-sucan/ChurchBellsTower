@@ -2120,6 +2120,69 @@ JEE_ScreenToClient(hWnd, vPosX, vPosY, ByRef vPosX2, ByRef vPosY2) {
   POINT := ""
 }
 
+GetLogicalCursorPos(ByRef mX, ByRef mY) {
+; The cursor position as this process is shown it, which is the space
+; ScreenToClient(), Gui Show and SysGet Monitor all work in. Unlike
+; GetPhysicalCursorPos() it reports no raw device pixels and caches nothing, so
+; it stays right on monitors that do not run at the system DPI, and it never
+; hands out a position the mouse has already left.
+   VarSetCapacity(POINT, 8, 0)
+   If !DllCall("user32\GetCursorPos", "Ptr", &POINT)
+   {
+      MouseGetPos, mX, mY
+      Return (mX="" || mY="") ? 0 : 1
+   }
+
+   mX := NumGet(POINT, 0, "Int")
+   mY := NumGet(POINT, 4, "Int")
+   POINT := ""
+   Return 1
+}
+
+getGraphMousePos(ctrlHwnd, ByRef fx, ByRef fy) {
+; Converts the current mouse position into coordinates over the graph drawn
+; inside ctrlHwnd, normalized to the 0-1 range. Returns 0 when the pointer is
+; not over the graph, so that callers never compute with positions outside it.
+;
+; Two rectangles take part here and they are not the same one.
+; Gdip_SetPbitmapCtrl() stretches the graph to the size WinGetPos() reports,
+; the window rectangle, and the static control then blits that bitmap unscaled
+; at the client origin. SS_SUNKEN (+0x1000) gives these controls a
+; WS_EX_STATICEDGE border, so their client area is two pixels narrower and
+; shorter than the window. Hit testing therefore belongs to the client
+; rectangle, while the scale of the graph belongs to the window rectangle.
+; Dividing by the client size, as this used to, stretched every reading by the
+; ratio between the two.
+;
+; The cursor must be read in the same coordinate space ScreenToClient() answers
+; in, which is what GetLogicalCursorPos() returns. GetPhysicalCursorPos()
+; reports raw device pixels instead, and the two only agree while the window
+; sits on a monitor running at the system DPI. That is why the graph used to be
+; read correctly on one screen and wrongly on another.
+   fx := fy := 0
+   If (!ctrlHwnd || !DllCall("user32\IsWindow", "Ptr", ctrlHwnd))
+      Return 0
+
+   If !GetLogicalCursorPos(mx, my)
+      Return 0
+
+   JEE_ScreenToClient(ctrlHwnd, mx, my, nx, ny)
+   GetWinClientSize(cw, ch, ctrlHwnd, 0)
+   If (cw<1 || ch<1)
+      Return 0
+
+   If (nx<0 || ny<0 || nx>=cw || ny>=ch)
+      Return 0
+
+   GetWinClientSize(imgW, imgH, ctrlHwnd, 2)
+   If (imgW<cw || imgH<ch)     ; unreadable window rectangle; the client area is the closest guess
+      imgW := cw, imgH := ch
+
+   fx := nx/imgW
+   fy := ny/imgH
+   Return 1
+}
+
 GetWindowBounds(hWnd) {
    ; function by GeekDude: https://gist.github.com/G33kDude/5b7ba418e685e52c3e6507e5c6972959
    ; W10 compatible function to find a window's visible boundaries
@@ -2148,30 +2211,44 @@ GetWindowBounds(hWnd) {
 GetWinClientSize(ByRef w, ByRef h, hwnd, mode) {
 ; by Lexikos http://www.autohotkey.com/forum/post-170475.html
 ; modified by Marius Șucan
-    Static prevW, prevH, prevHwnd, lastInvoked := 1
-    If (A_TickCount - lastInvoked<95) && (prevHwnd=hwnd)
+; mode 0 = client area, mode 1 = visible window bounds (DWM aware), mode 2 = window rectangle.
+; The cached result must be keyed on the mode as well. Keyed only on the handle,
+; a window rectangle read could be handed back to a caller asking for the client
+; area of the very same control moments later, and the two differ whenever the
+; control has a border.
+    Static prevW, prevH, prevHwnd, prevMode := -1, lastInvoked := 1
+    If (A_TickCount - lastInvoked<95) && (prevHwnd=hwnd) && (prevMode=mode)
     {
        W := prevW, H := prevH
        Return
     }
 
-    prevHwnd := hwnd
+    prevHwnd := hwnd, prevMode := mode
     If (mode=1)
     {
        r := GetWindowBounds(hwnd)
        prevW := W := r.w
        prevH := H := r.h
-    } Else 
+    } Else If (mode=2)
     {
        VarSetCapacity(rc, 16, 0)
-       DllCall("GetClientRect", "uint", hwnd, "uint", &rc)
-       prevW := W := NumGet(rc, 8, "int")
-       prevH := H := NumGet(rc, 12, "int")
+       DllCall("user32\GetWindowRect", "Ptr", hwnd, "Ptr", &rc)
+       prevW := W := NumGet(rc, 8, "Int") - NumGet(rc, 0, "Int")
+       prevH := H := NumGet(rc, 12, "Int") - NumGet(rc, 4, "Int")
+       rc := ""
+    } Else
+    {
+       ; the buffer address must be passed as a pointer; "uint" truncates it to
+       ; 32 bits and corrupts the call in the 64 bits edition
+       VarSetCapacity(rc, 16, 0)
+       DllCall("user32\GetClientRect", "Ptr", hwnd, "Ptr", &rc)
+       prevW := W := NumGet(rc, 8, "Int")
+       prevH := H := NumGet(rc, 12, "Int")
        rc := ""
     }
 
     lastInvoked := A_TickCount
-} 
+}
 
 getListViewData(guiu, lvu, cols, userDelim:=" | ", minRows:=0, allowEmpty:=0) {
    Gui, %guiu%: Default
@@ -2376,103 +2453,17 @@ WM_MouseMove(wP, lP, msg, hwnd) {
   Static lastInvoked := 1, prevenThisu := 1
   MouseGetPos, xu, yu, OutputVarWin, OutputVarControl, 2
   ; ToolTip, % AnyWindowOpen "=" OutputVarWin "=" OutputVarControl "=" hSolarGraphPic , , , 2
-  If (AnyWindowOpen=7 && generatingEarthMapNow=0 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
+  If (generatingEarthMapNow=0 && hSolarGraphPic && OutputVarControl=hSolarGraphPic && isInRange(AnyWindowOpen, 7, 9))
   {
-     GetPhysicalCursorPos(xu, yu)
-     GetWinClientSize(w, h, hSolarGraphPic, 0)
-     JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
-     p := nx/w, hh := ny/h
-     zp := Round(p*365)
-     hh := clampInRange(Round(hh*24, 1), 0, 24)
-     If (hh<10)
-        hh := "0" hh
-
-     Gui, SettingsGUIA: ListView, LViewSunCombined
-     LV_GetText(datu, zp, 2)
-     If (!datu || datu="date")
+     ; The readout is throttled, but the pointer usually comes to rest between
+     ; two updates. Without the delayed pass below, that last position is simply
+     ; dropped and the info line keeps describing a spot the mouse swept over.
+     If (A_TickCount - lastInvoked>60)
      {
-        GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
-     } Else
-     {
-        LV_GetText(dawn, zp, 3)
-        LV_GetText(riseu, zp, 4)
-        LV_GetText(noonu, zp, 5)
-        LV_GetText(elevu, zp, 6)
-        LV_GetText(setu, zp, 7)
-        LV_GetText(dusk, zp, 8)
-        LV_GetText(duru, zp, 9)
-        Gui, SettingsGUIA: ListView, LViewOthers
-        LV_GetText(bumpu, zp, 4)
-        LV_GetText(twdur, zp, 5)
-        dawn := (dawn && dawn!="*") ? dawn : "--:--"
-        dusk := (dusk && dusk!="*") ? dusk : "--:--"
-        setu := setu ? setu : "--:--"
-        riseu := riseu ? riseu : "--:--"
-        datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
-        FormatTime, datu, % datu, dd/MM/yyyy
-        hh := (SolarYearGraphMode!=1) ? "" : " @ " hh " h"
-        t := datu hh ". Sunlight length: " duru " (" bumpu  "). Twilight length: " twdur "."
-        t .= "`nDawn: " dawn ". Sunrise: " riseu ". Noon: " noonu " (" elevu "). Sunset: " setu ". Dusk: " dusk "."
-        GuiControl, SettingsGUIA:, GraphInfoLine, % t
+        lastInvoked := A_TickCount
+        refreshGraphInfoLine()
      }
-     lastInvoked := A_TickCount
-     ; tooltip, % nx "=" ny "=" w "=" h "=" zp
-  } Else If (AnyWindowOpen=9 && generatingEarthMapNow=0 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
-  {
-     GetPhysicalCursorPos(xu, yu)
-     GetWinClientSize(w, h, hSolarGraphPic, 0)
-     JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
-     p := nx/w, hh := ny/h
-     zp := Round(p*365)
-     Gui, SettingsGUIA: ListView, LViewSunCombined
-     LV_GetText(datu, zp, 2)
-     If (!datu || datu="date")
-     {
-        GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
-     } Else
-     {
-        hh := clampInRange(Round(hh*24, 1), 0, 24)
-        If (hh<10)
-           hh := "0" hh
-
-        hh := (SolarYearGraphMode!=1) ? "" : " @ " hh " h"
-        LV_GetText(riseu, zp, 3)
-        LV_GetText(noonu, zp, 4)
-        LV_GetText(elevu, zp, 5)
-        LV_GetText(setu, zp, 6)
-        LV_GetText(duru, zp, 7)
-        Gui, SettingsGUIA: ListView, LViewOthers
-        LV_GetText(bumpu, zp, 8)
-        setu := setu ? setu : "--:--"
-        riseu := riseu ? riseu : "--:--"
-        datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
-        FormatTime, datu, % datu,  dd/MM/yyyy
-        t := datu hh ". Moonlight duration: " duru " (" bumpu  ")."
-        t .= "`nMoon rise: " riseu ". Culminant: " noonu " (" elevu "). Moon set: " setu "."
-        GuiControl, SettingsGUIA:, GraphInfoLine, % t
-     }
-     lastInvoked := A_TickCount
-     ; tooltip, % nx "=" ny "=" w "=" h "=" zp
-  } Else If (AnyWindowOpen=8 && generatingEarthMapNow=0 && OutputVarControl=hSolarGraphPic && (A_TickCount - lastInvoked)>125)
-  {
-     GetPhysicalCursorPos(xu, yu)
-     GetWinClientSize(w, h, hSolarGraphPic, 0)
-     JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
-     px := nx/w
-     py := 1 - ny/h
-     gmtu := Round(24 * px - 12)
-     zx := Round(px*360 - 180, 3)
-     zy := Round(py*180 - 90, 3)
-     If (showEarthSunMapModus=3)
-        getMoonElevation(uiUserFullDateUTC, zy, zx, 0, azii, elevu)
-     Else
-        getSunAzimuthElevation(uiUserFullDateUTC, zy, zx, 0, azii, elevu)
-
-     astralObj := (showEarthSunMapModus=1) ? "Sun" : "Moon"
-     t := "Lat / long: " zy " / " zx ". GMT estimated offset: " gmtu " h. " astralObj " elev.: " Round(elevu) "°."
-     GuiControl, SettingsGUIA:, GraphInfoLine, % t
-     lastInvoked := A_TickCount
-     ; tooltip, % nx "=" ny "=" w "=" h "=" zp
+     SetTimer, refreshGraphInfoLine, -85
   }
 
   Local A
@@ -2531,6 +2522,151 @@ WM_MouseMove(wP, lP, msg, hwnd) {
         DllCall("user32\SetCursor", "Ptr", hCursH)
   } ; Else If (InStr(hwnd, hBibleOSD) && hBibleOSD && bibleQuoteVisible=1 && (A_TickCount - LastBibleQuoteDisplay>HideDelay))
     ;  DestroyOSDguia(A_ThisFunc, 1)
+}
+
+refreshGraphInfoLine() {
+; Recomputes the GraphInfoLine readout of whichever year graph or earth map is
+; on screen. Reached both straight from WM_MouseMove() and from its trailing
+; timer, so it verifies the whole context again instead of trusting the caller.
+   If (generatingEarthMapNow!=0 || !isInRange(AnyWindowOpen, 7, 9))
+      Return
+
+   If !getGraphMousePos(hSolarGraphPic, fx, fy)
+      Return
+
+   If (AnyWindowOpen=7)
+      graphInfoLineSunYear(fx, fy)
+   Else If (AnyWindowOpen=9)
+      graphInfoLineMoonYear(fx, fy)
+   Else If (AnyWindowOpen=8)
+      graphInfoLineEarthMap(fx, fy)
+}
+
+graphRowForDay(dayNo, rowsCount) {
+; Maps a day of the year to a row of the default ListView. The graphs plot one
+; column per day in calendar order, but the tables sort themselves when a column
+; header is clicked, after which the row number is no longer the day. Column 1
+; always holds the day of the year, so check it first and only search when the
+; two have drifted apart.
+   If (rowsCount<1)
+      Return 0
+
+   dayNo := clampInRange(Round(dayNo), 1, rowsCount)
+   LV_GetText(v, dayNo, 1)
+   If (v=dayNo)
+      Return dayNo
+
+   Loop, % rowsCount
+   {
+      LV_GetText(v, A_Index, 1)
+      If (v=dayNo)
+         Return A_Index
+   }
+   Return 0
+}
+
+graphDayForPos(fx, dayz) {
+; Turns a horizontal position over the graph into a day of the year. Each day
+; owns one slice of the width, so the slice has to be floored, not rounded, and
+; the count of days must come from the plotted year: rounding against a fixed
+; 365 shifted every reading by half a day and hid the 29th of February.
+   Return clampInRange(Floor(fx*dayz) + 1, 1, dayz)
+}
+
+graphHourReadable(fy) {
+; The vertical axis of the rise and set graphs spans a full day, 00:00 at the
+; top down to 23:59 at the bottom.
+   hh := clampInRange(Round(fy*24, 1), 0, 24)
+   Return (hh<10) ? "0" hh : hh
+}
+
+graphInfoLineSunYear(fx, fy) {
+   Gui, SettingsGUIA: ListView, LViewSunCombined
+   dayz := LV_GetCount()
+   If (dayz<1)
+   {
+      GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
+      Return
+   }
+
+   dayNo := graphDayForPos(fx, dayz)
+   zp := graphRowForDay(dayNo, dayz)
+   LV_GetText(datu, zp, 2)
+   If (!datu || datu="date")
+   {
+      GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
+      Return
+   }
+
+   LV_GetText(dawn, zp, 3)
+   LV_GetText(riseu, zp, 4)
+   LV_GetText(noonu, zp, 5)
+   LV_GetText(elevu, zp, 6)
+   LV_GetText(setu, zp, 7)
+   LV_GetText(dusk, zp, 8)
+   LV_GetText(duru, zp, 9)
+   Gui, SettingsGUIA: ListView, LViewOthers
+   zq := graphRowForDay(dayNo, LV_GetCount())
+   LV_GetText(bumpu, zq, 4)
+   LV_GetText(twdur, zq, 5)
+   dawn := (dawn && dawn!="*") ? dawn : "--:--"
+   dusk := (dusk && dusk!="*") ? dusk : "--:--"
+   setu := setu ? setu : "--:--"
+   riseu := riseu ? riseu : "--:--"
+   datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
+   FormatTime, datu, % datu, dd/MM/yyyy
+   hh := (SolarYearGraphMode!=1) ? "" : " @ " graphHourReadable(fy) " h"
+   t := datu hh ". Sunlight length: " duru " (" bumpu  "). Twilight length: " twdur "."
+   t .= "`nDawn: " dawn ". Sunrise: " riseu ". Noon: " noonu " (" elevu "). Sunset: " setu ". Dusk: " dusk "."
+   GuiControl, SettingsGUIA:, GraphInfoLine, % t
+}
+
+graphInfoLineMoonYear(fx, fy) {
+   Gui, SettingsGUIA: ListView, LViewSunCombined
+   dayz := LV_GetCount()
+   If (dayz<1)
+   {
+      GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
+      Return
+   }
+
+   zp := graphRowForDay(graphDayForPos(fx, dayz), dayz)
+   LV_GetText(datu, zp, 2)
+   If (!datu || datu="date")
+   {
+      GuiControl, SettingsGUIA:, GraphInfoLine, Hover graph for more information.
+      Return
+   }
+
+   LV_GetText(riseu, zp, 3)
+   LV_GetText(noonu, zp, 4)
+   LV_GetText(elevu, zp, 5)
+   LV_GetText(setu, zp, 6)
+   LV_GetText(duru, zp, 7)
+   LV_GetText(bumpu, zp, 8)   ; this panel has no LViewOthers; its daily difference is column 8 here
+   setu := setu ? setu : "--:--"
+   riseu := riseu ? riseu : "--:--"
+   datu := SubStr(uiUserFullDateUTC, 1, 4) . StrReplace(datu, "/") "020304"
+   FormatTime, datu, % datu, dd/MM/yyyy
+   hh := (SolarYearGraphMode!=1) ? "" : " @ " graphHourReadable(fy) " h"
+   t := datu hh ". Moonlight duration: " duru " (" bumpu  ")."
+   t .= "`nMoon rise: " riseu ". Culminant: " noonu " (" elevu "). Moon set: " setu "."
+   GuiControl, SettingsGUIA:, GraphInfoLine, % t
+}
+
+graphInfoLineEarthMap(fx, fy) {
+   py := 1 - fy
+   gmtu := Round(24 * fx - 12)
+   zx := Round(fx*360 - 180, 3)
+   zy := Round(py*180 - 90, 3)
+   If (showEarthSunMapModus=3)
+      getMoonElevation(uiUserFullDateUTC, zy, zx, 0, azii, elevu)
+   Else
+      getSunAzimuthElevation(uiUserFullDateUTC, zy, zx, 0, azii, elevu)
+
+   astralObj := (showEarthSunMapModus=1) ? "Sun" : "Moon"
+   t := "Lat / long: " zy " / " zx ". GMT estimated offset: " gmtu " h. " astralObj " elev.: " Round(elevu) "°."
+   GuiControl, SettingsGUIA:, GraphInfoLine, % t
 }
 
 trackMouseAnalogClockDragging() {
@@ -10119,11 +10255,10 @@ GdipCreateSimpleShapes(imgSelPx, imgSelPy, imgSelW, imgSelH, shape, roundness, p
 
 locateClickOnEarthMap() {
     Static prevk, clicks := 0
-    GetPhysicalCursorPos(xu, yu)
-    GetWinClientSize(w, h, hSolarGraphPic, 0)
-    JEE_ScreenToClient(hSolarGraphPic, xu, yu, nx, ny)
-    px := nx/w
-    py := 1 - ny/h
+    If !getGraphMousePos(hSolarGraphPic, px, py)
+       Return
+
+    py := 1 - py
     zx := Round(px*360 - 180)
     zy := Round(py*180 - 90)
     ; ToolTip, % zx "=" zy , , , 2
@@ -11053,11 +11188,18 @@ JEE_ClientToScreen(hWnd, vPosX, vPosY, ByRef vPosX2, ByRef vPosY2) {
 
 
 getCtrlCoords(thisHwnd, byRef x1, byRef y1, byRef x2, byRef y2) {
-   ControlGetFocus, ctrlClassNN, ahk_id %thisHwnd%
-   ControlGetPos, x, y, w, h, % ctrlClassNN, ahk_id %thisHwnd%
+; Returns the screen rectangle of the control itself. The former version asked
+; ControlGetFocus() for a class name, which cannot succeed when the handle given
+; already is the control, so the width and the height stayed empty and the two
+; corners collapsed onto each other.
+   x1 := y1 := x2 := y2 := 0
+   If !thisHwnd
+      Return 0
 
-   JEE_ClientToScreen(thisHwnd, 1, 1, x1, y1)
+   GetWinClientSize(w, h, thisHwnd, 0)
+   JEE_ClientToScreen(thisHwnd, 0, 0, x1, y1)
    JEE_ClientToScreen(thisHwnd, w, h, x2, y2)
+   Return 1
 }
 
 WM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
@@ -13418,7 +13560,7 @@ mouseCreateOSDinfoLine(msg:=0, largus:=0, gX:=0, gY:=0) {
     Gui, mouseToolTipGuia: Show, NoActivate AutoSize Hide x1 y1, QPVOguiTipsWin
     If (gX=0 && gY=0)
     {
-      GetPhysicalCursorPos(mX, mY)
+      GetLogicalCursorPos(mX, mY)
       tipX := mX + 15
       tipY := mY + 15
       ResWidth := adjustWin2MonLimits(hGuiTip, tipX, tipY, Final_x, Final_y, Wid, Heig)
