@@ -84,11 +84,23 @@ double fractionalDay(int hour, int minute, int second)
     return (hour + minute / 60.0 + second / 3600.0) / 24;
 }
 
-// Valid from 1901 to 2099, Van Flandern & Pulkkinen (1979)
+// Gregorian calendar date to the Julian day at 0h UT.  Meeus, Astronomical Algorithms,
+// chapter 7, valid for any date of the Gregorian calendar (proleptic before 1582).
+// It replaces the Van Flandern & Pulkkinen form, which only knew the Julian four year
+// leap rule and so drifted a whole day outside 1900-03-01 .. 2100-02-28: every date
+// from 2100-03-01 on came out one day late, and 1899 one day early.
 double calcJulianDay(int year, int month, int day)
 {
-    return 367.0 * year - static_cast<int>(7 * (year + (month + 9) / 12) / 4) + static_cast<int>(275 * month / 9) +
-           day + 1721013.5;
+    if (month <= 2)  // January and February count as months 13 and 14 of the year before
+    {
+        year -= 1;
+        month += 12;
+    }
+    int a = year / 100;
+    int b = 2 - a + a / 4;  // the Gregorian century correction the old formula lacked
+
+    return static_cast<int>(365.25 * (year + 4716)) + static_cast<int>(30.6001 * (month + 1)) +
+           day + b - 1524.5;
 }
 
 double calcJulianCent(JulianDay jd)

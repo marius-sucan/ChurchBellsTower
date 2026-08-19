@@ -463,9 +463,14 @@ void moonCalcPosition(double timeUTC, double obslatitude, double obslongitude, d
      altitudeh *= c180divPI;
 
      // bepalen van de refractie
-     double refractieArgument = altitudeh + (10.3 / (altitudeh + 5.11));
-     double refractieR = 1.02/(tan(refractieArgument * PIdiv180));
-     refractieR /= 60.0;
+     // Saemundsson's formula, which this used to apply at every altitude, only holds
+     // at and above the horizon.  Below it the 10.3 / (h + 5.11) term runs away: it is
+     // a pole at h = -5.11, and its argument sweeps through -180 degrees near
+     // h = -5.169, where the tangent crosses zero.  Moon elevations of 107, 210, even
+     // 24953 degrees came out of that neighbourhood.  calcRefraction() keeps
+     // Saemundsson above -0.575 degrees and switches to Zimmerman below it, which the
+     // two agree on at the seam and which stays finite all the way down to the nadir.
+     double refractieR = calcRefraction(altitudeh);
 
      // bepalen van de parallax in horizontale coordinaten
      double parallaxh = asin(sin(pi * PIdiv180) * cos(altitudeh * PIdiv180)) * c180divPI;
@@ -595,38 +600,44 @@ DLL_API int DLL_CALLCONV getMoonNoon(double timeUTC, double obslatitude, double 
 
      double res[9];
      double maxu = -91;     double minu = 91;
-     double maxuZeit = 0;   int maxuIndexZeit = 0;
-     double minuZeit = 0;   int minuIndexZeit = 0;
+     double maxuZeit = 0;   double minuZeit = 0;
 
-     for (int i = 0; i < 24; ++i)
+     // Hour 24 belongs in the grid as well: without it a peak inside the closing
+     // hour of the day is only ever sampled up to an hour before it, and a lower
+     // interior peak elsewhere in the day can win the comparison, leaving the moon's
+     // highest point out by as much as five degrees on a handful of days a year.
+     for (int i = 0; i <= 24; ++i)
      {
          double b = timeUTC + i * 3600;
          moonCalcPosition(b, obslatitude, obslongitude, res, 1);
          // fnOutputDebug("res[1] = " + std::to_string(res[1]));
          if (res[1]>maxu)
          {
-            maxuIndexZeit = i;
             maxuZeit = b;
             maxu = res[1];
          }
 
          if (res[1]<minu)
          {
-            minuIndexZeit = i;
             minuZeit = b;
             minu = res[1];
          }
      }
 
+     // The hourly scan above lands within half an hour of the peak; refine it minute
+     // by minute around that sample.  The base point has to be read from a variable
+     // the loop does not write.  Taking it from maxuZeit moved the window along with
+     // every improvement, so the scan walked away from the hour it was meant to cover
+     // and left the transit minutes - now and then a couple of hours - off the peak.
      int extraLoops = 0;   int outerLoops = 0;
+     double baseZeit = maxuZeit;
      for (int i = -30; i < 90; ++i)
      {
-         double b = maxuZeit + i * 60;
+         double b = baseZeit + i * 60;
          moonCalcPosition(b, obslatitude, obslongitude, res, 1);
          // fnOutputDebug("res[1] = " + std::to_string(res[1]));
          if (res[1]>maxu)
          {
-            maxuIndexZeit = i;
             maxuZeit = b;
             maxu = res[1];
             extraLoops++;
@@ -639,14 +650,14 @@ DLL_API int DLL_CALLCONV getMoonNoon(double timeUTC, double obslatitude, double 
      // outerLoops = 0; extraLoops = 0;
      if (doMinu==1)
      {
+         baseZeit = minuZeit;
          for (int i = -30; i < 90; ++i)
          {
-             double b = minuZeit + i * 60;
+             double b = baseZeit + i * 60;
              moonCalcPosition(b, obslatitude, obslongitude, res, 1);
              // fnOutputDebug("res[1] = " + std::to_string(res[1]));
              if (res[1]<minu)
              {
-                minuIndexZeit = i;
                 minuZeit = b;
                 minu = res[1];
                 extraLoops++;
@@ -670,7 +681,7 @@ DLL_API int DLL_CALLCONV getMoonNoon(double timeUTC, double obslatitude, double 
 DLL_API int DLL_CALLCONV getTwilightDuration(double t, double lat, double lon, double degs, double* twDur) {
   // Find duration of today's twilight.
   Twilight tw;
-  tw.calculate(lat, degs, t);
+  tw.calculate(lat, lon, degs, t);
   time_t duration = tw.twilightDuration;
   // Duration in seconds of twilight. [morning or evening, both are considered to be equal]
   *twDur = duration;
@@ -715,7 +726,7 @@ DLL_API int DLL_CALLCONV getSunMoonRiseSet(double t, double rt, double lat, doub
  
      // Find duration of today's twilight.
      Twilight tw;
-     tw.calculate(lat, 6.1, t);
+     tw.calculate(lat, lon, 6.1, t);
      *twDur = tw.twilightDuration;  // Duration in seconds of twilight.
   } else
   {

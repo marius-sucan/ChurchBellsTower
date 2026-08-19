@@ -132,7 +132,11 @@ MoonRise::testMoonRiseSet(int k, double offsetDays, double latitude, double long
   e = (-b + d) / (2 * a);
   if ((e < 0) || (e > 1))
     e = (-b - d) / (2 * a);
-  time = k + e + 1 / 120;      // Time since k=0 of event (in hours).
+  // Time since k=0 of the event, in hours.  The extra 1/120 h is half a minute: the
+  // event time ends up truncated to whole minutes for display, and this makes that
+  // truncation round to the nearest minute.  It used to read 1 / 120, which is integer
+  // division and quietly evaluated to 0, so every event came out up to a minute early.
+  time = k + e + 1 / 120.0;
 
   // The time we started searching + the time from the start of the search to the
   // event is the time of the event.  Add (time since k=0) - window/2 hours.
