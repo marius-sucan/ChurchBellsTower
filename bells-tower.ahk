@@ -1091,6 +1091,49 @@ isInDSTperiod(yd, dStartYday, dEndYday) {
    Return (dStartYday<=dEndYday) ? (yd>=dStartYday && yd<dEndYday) : (yd>=dStartYday || yd<dEndYday)
 }
 
+summerHalfYdays(tziObj, ByRef startYday, ByRef endYday) {
+; Returns the days of year that delimit the northern summer half, the stretch during which
+; every location uses the second of the two offsets it carries in geo-locations-final.txt.
+;
+; Those two offsets are the ones in effect on the 1st of January and on the 1st of July -
+; see the header of resources/timezones.txt. They are indexed by season, not by standard
+; and daylight time: a southern location is on standard time in July, exactly while a
+; northern one is on daylight time, so in both hemispheres the second column is the one
+; that applies between spring and autumn as seen from the north.
+;
+; The host machine's own daylight saving calendar is the only source of transition days at
+; hand and it is used to place the boundary, but only when it is a northern calendar. A
+; southern host switches at the opposite ends of the year and, taken at face value, would
+; invert the offset of every location on Earth all year long. A host in a zone that keeps
+; no daylight saving time reports no transition day at all, which used to pin the whole
+; world to its January offset from spring to autumn.
+
+   Static defaultStart := 84    ; around the last Sunday of March
+        , defaultEnd := 303     ; around the last Sunday of October
+
+   startYday := defaultStart
+   endYday := defaultEnd
+   If !IsObject(tziObj)
+      Return
+
+   dStart := tziObj.DaylightDateYday
+   dEnd := tziObj.StandardDateYday
+   If (dStart && dEnd && dStart<dEnd)
+   {
+      startYday := dStart
+      endYday := dEnd
+   }
+}
+
+pickSeasonalGmtOffset(yd, tziObj, janOffset, julOffset) {
+; Picks the offset a location keeps on the given day of year out of the two seasonal ones
+; stored for it. See summerHalfYdays() for why the choice cannot be made by simply asking
+; the host machine whether it is currently observing daylight saving time.
+
+   summerHalfYdays(tziObj, sYday, eYday)
+   Return isInDSTperiod(yd, sYday, eYday) ? julOffset : janOffset
+}
+
 buildDSTinfo(tziObj, standardOffset, daylightOffset) {
 ; Bundles everything wrapCalcSunInfos() needs to resolve the GMT offset of the days that
 ; surround the reference day. Returns 0 when there is no time zone information to work
@@ -1099,7 +1142,8 @@ buildDSTinfo(tziObj, standardOffset, daylightOffset) {
    If !IsObject(tziObj)
       Return 0
 
-   Return {dstStartYday: tziObj.DaylightDateYday, dstEndYday: tziObj.StandardDateYday, stdOffset: standardOffset, dstOffset: daylightOffset}
+   summerHalfYdays(tziObj, sYday, eYday)
+   Return {dstStartYday: sYday, dstEndYday: eYday, stdOffset: standardOffset, dstOffset: daylightOffset}
 }
 
 resolveGmtOffset(timeStampu, dstInfo, gmtOffset) {
@@ -6753,12 +6797,16 @@ getPercentOfAstroSeason(z:=0) {
 }
 
 getPercentOfToday(ByRef minsPassed:=0) {
+; Counts from midnight over the 1440 minutes a day has, the same way UIcityChooser() does
+; for the date being observed; the panel is painted from here and refreshed from there, so
+; the two disagreeing made its reading of the day jump the moment it was first refreshed.
+
    FormatTime, CurrentDateTime,, yyyyMMddHHmm
    FormatTime, CurrentDay,, yyyyMMdd
-   FirstMinOfDay := CurrentDay "0001"
+   FirstMinOfDay := CurrentDay "0000"
    EnvSub, CurrentDateTime, %FirstMinOfDay%, Minutes
-   minsPassed := CurrentDateTime + 1
-   Return minsPassed/1442
+   minsPassed := CurrentDateTime + 1    ; the minute of the day being lived, from 1 to 1440
+   Return minsPassed/1440
 }
 
 fnOutputDebug(msg, forced:=0) {
@@ -8452,6 +8500,23 @@ wrapCalcSunInfos(t, latu, longu, gmtOffset:=0, Altitude:=0, simplifiedMode:=0, d
 }
 
 coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, obju, latu:=0, sunlight:=0, civilExtra:=0, civilrest:=0) {
+; The sun and the civil twilight hand over a date stamp in bonus - an extra span to be added
+; to the day, or 0 when there is none - whereas the moon hands over the getMoonNoonZeit()
+; object that its own fallback needs further below. Both used to travel in this one parameter
+; and the date stamp tests of the branch right below were left to read the moon's object: it
+; is always true, and it turns into an empty string wherever a stamp is expected, so what
+; those tests answered for the moon was decided by the type rather than by the data. The two
+; answers happen to coincide - the span added is a zero one and the cut-off falls on the same
+; midnight either way - but nothing was holding them together. Kept apart, each one is read
+; for what it is and the moon simply has no bonus span, which is the truth of it.
+
+   moonNoon := 0
+   If IsObject(bonus)
+   {
+      moonNoon := bonus
+      bonus := 0
+   }
+
    forceType := 0
    If (civilrest=1 && obju="civil")
    {
@@ -8541,11 +8606,11 @@ coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, 
 
       forceType := 0
       FormatTime, dayum, % trz, Yday
-      If (bonus.maxu>0 && bonus.minu>-0.1)
+      If (moonNoon.maxu>0 && moonNoon.minu>-0.1)
       {
          rawP := 86400
          duration := transformSecondsReadable(rawP)
-      } Else If (bonus.maxu<=0.1)
+      } Else If (moonNoon.maxu<=0.1)
       {
          rawP := 1
          duration := "00:00"
@@ -8555,8 +8620,8 @@ coreCalculateLightDuration(bonus, dcR, dcS, dRraw, dSraw, yref, ref, tref, trz, 
          ; its elevation follows a sinusoid between minu and maxu, so the share of the day
          ; spent above the horizon is acos(-midpoint/amplitude)/pi ; this joins continuously
          ; with the two cases above, which are its clamped extremes
-         amplu := (bonus.maxu - bonus.minu)/2
-         midu := (bonus.maxu + bonus.minu)/2
+         amplu := (moonNoon.maxu - moonNoon.minu)/2
+         midu := (moonNoon.maxu + moonNoon.minu)/2
          rawP := amplu ? Round(86400 * ACos(clampInRange(-1*midu/amplu, -1, 1))/3.14159265358979) : 1
          rawP := clampInRange(rawP, 1, 86400)
          duration := (rawP>1) ? transformSecondsReadable(rawP) : "00:00"
@@ -9117,7 +9182,7 @@ UIlistSunRiseSets(modus:=0, cr:=0, i:=0, o:=0) {
   Loop, 365
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+      gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
       obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], 0, dstInfo)
       FormatTime, f, % timeus, MM/dd
       licht := obj.durRaw + obj.cdurRaw
@@ -9230,7 +9295,7 @@ uiPopulateTableYearSolarData() {
   maxLichtu := 0, minLichtu := 86400
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
   dstInfo := buildDSTinfo(k, w[4], w[5])
   simplifiedMode := testCircumpolarDays(yearu, w[2], w[3], gmtOffset, w[6])
   arrayUcivilrise := []
@@ -9242,7 +9307,7 @@ uiPopulateTableYearSolarData() {
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+      gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
       obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], simplifiedMode, dstInfo)
       FormatTime, f, % timeus, MM/dd
       timis := timeus
@@ -9343,7 +9408,7 @@ uiPopulateTableYearSolarData() {
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+      gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
       timis := timeus
       timis += gmtOffset, Hours
       FormatTime, testToday, % timis, MM/dd
@@ -9401,7 +9466,7 @@ uiPopulateTableYearSolarData() {
   FormatTime, gyd, % A_NowUTC, Yday
   yearu := SubStr(uiUserFullDateUTC, 1, 4)
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := k.isDST ? w[5] : w[4]
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
 
   thisu := countriesArrayList[uiUserCountry] ". " w[1]
   thisu .= " (" Round(w[2], 3) " / " Round(w[3], 3) "). GMT: " Round(gmtOffset, 1) " h."
@@ -9458,7 +9523,7 @@ uiPopulateTableYearMoonData() {
   maxLichtu := 0, minLichtu := 86400
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
   arrayUsunriseu := []
   arrayUnoonu := []
   arrayUsunsetu := []
@@ -9466,7 +9531,7 @@ uiPopulateTableYearMoonData() {
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+      gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
       FormatTime, f, % timeus, MM/dd
       timis := timeus
       timis += gmtOffset, Hours
@@ -9550,7 +9615,7 @@ uiPopulateTableYearMoonData() {
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
-      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+      gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
       timis := timeus
       timis += gmtOffset, Hours
       FormatTime, testToday, % timis, MM/dd
@@ -9593,7 +9658,7 @@ uiPopulateTableYearMoonData() {
   FormatTime, gyd, % A_NowUTC, Yday
   yearu := SubStr(uiUserFullDateUTC, 1, 4)
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := k.isDST ? w[5] : w[4]
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
 
   thisu := countriesArrayList[uiUserCountry] ". " w[1]
   thisu .= " (" Round(w[2], 3) " / " Round(w[3], 3) "). GMT: " Round(gmtOffset, 1) " h."
@@ -10346,13 +10411,17 @@ decideJijiReadable(timeus, elevu, lat, lon, noonu:="a") {
    zd := (delev>elevu) ? "Dawn" : "Dusk"
    zdu := (delev>elevu) ? "Sunrise" : "Sunset"
 
+   ; the bands below are tested in order and inclusive at both ends, so each one has to pick
+   ; up where the one that claimed the boundary left off; the sunrise band used to start at
+   ; -0.61 while the civil twilight ended at -0.611, and the sliver left between the two fell
+   ; all the way through the chain to «Night», in the middle of the brightest moment of dawn
    If (isInRange(elevu, -6.1, -0.611))
       j := "Civil twilight. " zd
    Else If (isInRange(elevu, -12, -6.1))
       j := "Nautical twilight. " zd
    Else If (isInRange(elevu, -17.9, -12))
       j := "Astronomical twilight. " zd
-   Else If (isInRange(elevu, 0.15, -0.61))
+   Else If (isInRange(elevu, 0.15, -0.611))
       j := "Daylight. " zdu
    Else If (isInRange(elevu, -0.61, 5.9))
       j := "Daylight. Warm sunlight"
@@ -10373,7 +10442,95 @@ extractGeoLocationInfos(p) {
   Return w
 }
 
+UItodayPanelNoDateInfos(NextYear) {
+; The year and the day of the panel have nothing to show for a date the system cannot format.
+; A control read back while the panel is being torn down, or a location entry that went
+; missing from the lists, both hand over a blank one.
+
+   ; GuiControl, SettingsGUIA:, UIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(1, 1009, 0, 24) "} Full"
+   GuiControl, SettingsGUIA:, UIastroInfoProgressAnnum, % "|" CalcTextHorizPrev(1, 366) "| " NextYear
+   GuiControl, SettingsGUIA:, UIastroInfoProgressDayu, % "|" CalcTextHorizPrev(1, 1442, 0, 25) "| 24h "
+   ; GuiControl, SettingsGUIA:, UIastroInfoMphase, ---
+   ; GuiControl, SettingsGUIA:, UIastroInfoMoon, ---
+   GuiControl, SettingsGUIA:, UIastroInfoAnnum, ---
+   GuiControl, SettingsGUIA:, UIastroInfoDayu, ---
+   GuiControl, SettingsGUIA:, UIastroInfoTotalLight, ---
+   GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, ---
+}
+
+findNextMoonPhaseZeit(timeUTC, latu, longu, gmtOffset, currentPhaseName, ByRef phaseName) {
+; Walks forward from the given moment in search of the next new or full moon: the first
+; sample whose phase is one of those two and is not the half of the cycle the caller is
+; already in. The steps are two hours long while the moon is far from either of them and
+; ten minutes long around them, where the phase name is about to turn over.
+;
+; That answer only moves once the phase it points at is reached, or once the caller's own
+; phase changes, so it is kept until then. The panel used to walk the whole way again on
+; every single refresh - once a minute on its own, and on every step of the date buttons
+; while they auto repeat under a held mouse button.
+
+   Static cacheKey := "", cacheFrom := "", cacheHit := "", cacheZeit := "", cacheName := ""
+
+   phaseName := ""
+   If (!timeUTC || !currentPhaseName)
+      Return ""
+
+   ; the first word of a phase names the half of the cycle the moon is in - «Waxing» and
+   ; «First» both lead up to the full moon, «Waning» and «Last» to the new one - so it is
+   ; what tells the phase being left behind apart from the one being looked for
+   ju := SubStr(currentPhaseName, 1, InStr(currentPhaseName, A_Space))
+   thisKey := latu "|" longu "|" gmtOffset "|" ju
+   If (thisKey=cacheKey && cacheHit && timeUTC>=cacheFrom && timeUTC<cacheHit)
+   {
+      phaseName := cacheName
+      Return cacheZeit
+   }
+
+   startDate := SubStr(timeUTC, 1, 8) "000325"
+   If (timeUTC>startDate)
+   {
+      ; the walk starts at the top of the day and used to be taken ten minutes at a time
+      ; merely to reach the present; land on the very same grid point in a single step
+      skipu := Ceil(timeSpanInSeconds(startDate, timeUTC)/600) * 10
+      startDate += skipu, Minutes
+   }
+
+   hitZeit := hitUTC := xu := ""
+   Loop, 2160
+   {
+       ; pk := oldMoonPhaseCalculator(startDate)
+       pk := MoonPhaseCalculator(startDate, 0, latu, longu)
+       xu := pk[1]
+       If !xu
+          Break   ; nothing reads the phase back, so there is nothing to be gained by walking on
+
+       fg := IsInRange(pk[5], 2, 14) || IsInRange(pk[5], 16, 27) ? 120 : 10
+       startDate += fg, Minutes
+       If (!InStr(xu, "moon") || InStr(xu, ju))
+          Continue
+
+       hitUTC := startDate
+       If gmtOffset
+          startDate += gmtOffset, Hours
+
+       fg := InStr(xu, "full") ? -3 : -8
+       startDate += fg, Minutes
+       FormatTime, hitZeit, % startDate, MM/dd HH:mm
+       Break
+   }
+
+   cacheKey := thisKey
+   cacheFrom := timeUTC
+   cacheHit := hitZeit ? hitUTC : ""    ; a search that came up empty is not worth keeping
+   cacheZeit := hitZeit
+   cacheName := hitZeit ? xu : ""
+   phaseName := cacheName
+   Return hitZeit
+}
+
 UIcityChooser() {
+  Static lastSavedGeoState := ""
+
   If (AnyWindowOpen!=6)
      Return
 
@@ -10403,13 +10560,17 @@ UIcityChooser() {
   yearu := SubStr(uiUserFullDateUTC, 1, 4)
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
   dstInfo := buildDSTinfo(k, w[4], w[5])
   timi := timeus
   timi += gmtOffset, Hours
   FormatTime, brr, % timi, yyyy/MM/dd HH:mm
   FormatTime, testValid, % timeus, yyyy/MM/dd
-  If !testValid
+  ; only the day and the time are shown, so the year is cut away first; a placeholder put
+  ; in place of the whole stamp would be cut away right along with it and leave the field
+  ; blank instead of telling the user there is nothing to show
+  brr := SubStr(brr, 6)
+  If !brr
      brr := "--:--"
 
   astralObj := (userAstroInfodMode=1) ? "Sun" : "Moon"
@@ -10429,18 +10590,26 @@ UIcityChooser() {
      generateGraphTodaySolar(timi, w[2], w[3], gmtOffset)
   }
 
-  eleva := elevu ? Round(elevu, 1) "°" : "--"
+  ; both angles are missing together whenever they could not be calculated at all, and an
+  ; elevation of exactly zero is a perfectly good reading, so neither may be tested for
+  ; truth: doing so used to answer «Alt -- / Az 0.0°», half unknown and half invented
+  eleva := isNumber(elevu) ? Round(elevu, 1) "°" : "--"
+  azimu := isNumber(azii) ? Round(azii, 1) "°" : "--"
   thisu := (w[7]=1) ? "Capital. " : ""
   thisu .= "Lat / long: " Round(w[2], 3) " / " Round(w[3], 3) ". Elevation: " w[6] " meters."
   GuiControl, SettingsGUIA:, uiInfoGeoData, % thisu
 
   j := (gmtOffset>=0) ? "+" : ""
   GuiControl, SettingsGUIA:, UIastroInfoLtimeGMT, % "GMT " j Round(gmtOffset, 1) " h"
-  GuiControl, SettingsGUIA:, UIastroInfoLtimeus, % SubStr(brr, 6)
-  GuiControl, SettingsGUIA:, UIastroInfoObjElev, % "Alt " eleva " / Az " Round(azii, 1) "°"
+  GuiControl, SettingsGUIA:, UIastroInfoLtimeus, % brr
+  GuiControl, SettingsGUIA:, UIastroInfoObjElev, % "Alt " eleva " / Az " azimu
 
   CurrentYear := testValid ? SubStr(timi, 1, 4) : yearu
   NextYear := CurrentYear + 1
+  ; the dawn and the dusk hand their two controls over to the moon's fraction and age, so
+  ; the tint the sun puts on them whenever a twilight had to be substituted has to be undone
+  ; by whichever of the two branches runs next; left to the sun alone it stuck to the moon
+  baseClr := (uiDarkMode=1) ? "+c" darkControlColor : "-c"
   If (userAstroInfodMode=1)
   {
       If testValid
@@ -10449,7 +10618,7 @@ UIcityChooser() {
          prevtimi := timeus
          prevtimi += -1, Days
          FormatTime, gyud, % prevtimi, Yday
-         prevgmtOffset := isInDSTperiod(gyud, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+         prevgmtOffset := pickSeasonalGmtOffset(gyud, k, w[4], w[5])
          prevobj := wrapCalcSunInfos(prevtimi, w[2], w[3], prevgmtOffset, w[6], 0, dstInfo)
          prevTduru := Round(prevobj.cdurRaw + prevobj.durRaw)
          thisTduru := Round(obj.cdurRaw + obj.durRaw)
@@ -10492,7 +10661,6 @@ UIcityChooser() {
       GuiControl, SettingsGUIA:, UIastroInfoLightDiff, % (diffuZeit && diffuZeit!="0s") ? diffuZeit : "--"
       GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Rise: 0°
       GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Set: 0°
-      baseClr := (uiDarkMode=1) ? "+c" darkControlColor : "-c"
       daLabel := (obj.Dawn=2) ? "Twilight:" : "Dawn: -6°"
       duLabel := (obj.Dusk=2) ? "Twilight:" : "Dusk: -6°"
       clr1 := (obj.Dawn=2) ? "+c998899" : baseClr
@@ -10511,17 +10679,12 @@ UIcityChooser() {
       } Else
          GuiControl, SettingsGUIA:, uiastroinfoLightMode, Sunlight:
 
+      ; the moon leaves «Next phase:» behind in this label, so it has to be reclaimed before
+      ; the bail-out below and not after it, or it ends up naming a «---» that is not a phase
+      GuiControl, SettingsGUIA:, UIastroInfoLabelTotalLight, Total light:
       If !testValid
       {
-         ; GuiControl, SettingsGUIA:, UIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(1, 1009, 0, 24) "} Full"
-         GuiControl, SettingsGUIA:, UIastroInfoProgressAnnum, % "|" CalcTextHorizPrev(1, 366) "| " NextYear
-         GuiControl, SettingsGUIA:, UIastroInfoProgressDayu, % "|" CalcTextHorizPrev(1, 1442, 0, 25) "| 24h "
-         ; GuiControl, SettingsGUIA:, UIastroInfoMphase, ---
-         ; GuiControl, SettingsGUIA:, UIastroInfoMoon, ---
-         GuiControl, SettingsGUIA:, UIastroInfoAnnum, ---
-         GuiControl, SettingsGUIA:, UIastroInfoDayu, ---
-         GuiControl, SettingsGUIA:, UIastroInfoTotalLight, ---
-         GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, ---
+         UItodayPanelNoDateInfos(NextYear)
          Return
       }
 
@@ -10529,13 +10692,42 @@ UIcityChooser() {
       totalu := transformSecondsReadable(totalu)
       GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % totalu
       GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, % diffuTotalZeit ? diffuTotalZeit : "--"
-      GuiControl, SettingsGUIA:, UIastroInfoLabelTotalLight, Total light:
   } Else
   {
+      If !testValid
+      {
+         ; the moon phase was never calculated for a date that cannot be read, so there is
+         ; nothing to display and nothing to search forward from either; walking on used to
+         ; read a whole panel out of an empty phase - a fraction of 0.0%, a nameless moon -
+         ; and to set the phase search off from a stamp that adding to turns into the current
+         ; date and time, which answers with the plausible looking and the meaningless
+         GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Rise: 0°
+         GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Set: 0°
+         GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Peak:
+         GuiControl, SettingsGUIA:, UIastroInfoRise, --:--
+         GuiControl, SettingsGUIA:, UIastroInfoNoon, --:--
+         GuiControl, SettingsGUIA:, UIastroInfoSet, --:--
+         GuiControl, SettingsGUIA:, UIastroInfoLabelDawn, Fraction:
+         GuiControl, SettingsGUIA:, UIastroInfoLabelDusk, Age:
+         GuiControl, SettingsGUIA: %baseClr%, UIastroInfoDawn
+         GuiControl, SettingsGUIA: %baseClr%, UIastroInfoDusk
+         GuiControl, SettingsGUIA:, UIastroInfoDawn, --
+         GuiControl, SettingsGUIA:, UIastroInfoDusk, --
+         GuiControl, SettingsGUIA: +Redraw, UIastroInfoDawn
+         GuiControl, SettingsGUIA: +Redraw, UIastroInfoDusk
+         GuiControl, SettingsGUIA:, UIastroInfoObjInfo, ---
+         GuiControl, SettingsGUIA:, UIastroInfoDaylight, --:--
+         GuiControl, SettingsGUIA:, UIastroInfoLightDiff, --
+         GuiControl, SettingsGUIA:, uiastroinfoLightMode, Moonlight:
+         GuiControl, SettingsGUIA:, UIastroInfoLabelTotalLight, Next phase:
+         UItodayPanelNoDateInfos(NextYear)
+         Return
+      }
+
       prevtimi := timeus
       prevtimi += -1, Days
       FormatTime, gyud, % prevtimi, Yday
-      prevgmtOffset := isInDSTperiod(gyud, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+      prevgmtOffset := pickSeasonalGmtOffset(gyud, k, w[4], w[5])
       prevobj := wrapCalcMoonRiseSet(prevtimi, w[2], w[3], prevgmtOffset, w[6])
       prevtimi := timi
       prevtimi += -1, Days
@@ -10593,74 +10785,68 @@ UIcityChooser() {
       GuiControl, SettingsGUIA:, UIastroInfoDusk, %moonPhaseA%d
       GuiControl, SettingsGUIA:, UIastroInfoLabelDawn, Fraction:
       GuiControl, SettingsGUIA:, UIastroInfoDawn, %moonPhaseL%`%
+      ; these two controls are the sun's dawn and dusk, which tints them whenever a twilight
+      ; had to be substituted; the fraction and the age of the moon are no such thing
+      GuiControl, SettingsGUIA: %baseClr%, UIastroInfoDawn
+      GuiControl, SettingsGUIA: %baseClr%, UIastroInfoDusk
+      GuiControl, SettingsGUIA: +Redraw, UIastroInfoDawn
+      GuiControl, SettingsGUIA: +Redraw, UIastroInfoDusk
       GuiControl, SettingsGUIA:, UIastroInfoDaylight, % mduru
       GuiControl, SettingsGUIA:, uiastroinfoLightMode, Moonlight:
 
       diffuZeit := clampInRange(prevdur[2] - duration[2], -86400, 86400)
       diffuZeit := transformSecondsReadable(abs(diffuZeit), 2)
-      diffuZeit := (prevdur[2]<duration[2]) ? "+" diffuZeit : "-" diffuZeit
+      ; two days of equal moonlight - a run of them is the rule at high latitudes - leave no
+      ; difference to sign; the sun says «--» there and so must the moon, never «-0s»
+      If (diffuZeit!="00:00" && diffuZeit!="0s" && diffuZeit)
+         diffuZeit := (prevdur[2]<duration[2]) ? "+" diffuZeit : "-" diffuZeit
+      Else
+         diffuZeit := ""
+
       GuiControl, SettingsGUIA:, UIastroInfoLightDiff, % diffuZeit ? diffuZeit : "--"
 
-      prevu := startDate := SubStr(uiUserFullDateUTC, 1, 8) "000325"
-      ju := SubStr(moonPhaseN, 1, InStr(moonPhaseN, A_Space))
-      ; startDate := 2022 01 01 010101
-      loopsOccured := 0
-      OutputVar := ""
-      Loop, 2160
-      {
-          ; pk := (uiUserFullDateUTC>startDate) ? 0 : oldMoonPhaseCalculator(startDate)
-          pk := (uiUserFullDateUTC>startDate) ? 0 : MoonPhaseCalculator(startDate, 0, w[2], w[3])
-          xu := pk[1]
-          fg := IsInRange(pk[5], 2, 14) || IsInRange(pk[5], 16, 27) ? 120 : 10
-          startDate += fg, Minutes
-          loopsOccured++
-          If (prevu!=xu && InStr(xu, "moon") && !InStr(xu, ju))
-          {
-             prevu := xu
-             If gmtOffset
-                startDate += gmtOffset, Hours
-
-             fg := InStr(xu, "full") ? -3 : -8
-             startDate += fg, Minutes
-             FormatTime, OutputVar, % startDate, MM/dd HH:mm
-             Break
-             ; listu .= OutputVar " = " xu "`n`n"
-             ; listu .= OutputVar " = " pk[1] "`n p=" pk[3] "; f=" pk[4] "; a=" pk[5] " `n"
-          }
-      }
-      ; ToolTip, % loopsOccured , , , 2
-      pu := OutputVar ? OutputVar : "--"
+      nextPhaseZeit := findNextMoonPhaseZeit(uiUserFullDateUTC, w[2], w[3], gmtOffset, moonPhaseN, nextPhaseName)
+      pu := nextPhaseZeit ? nextPhaseZeit : "--"
       GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % pu
-      pu := OutputVar ? xu : "-"
+      pu := nextPhaseZeit ? nextPhaseName : "-"
       GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, % pu
        ; GuiControl, SettingsGUIA:, UIastroInfoMoonZodia, % moonZ
   }
 
   CurrentDateTime := timi
   CurrentDay := SubStr(CurrentDateTime, 1, 8)
-  FirstMinOfDay := CurrentDay "000101"
+  FirstMinOfDay := CurrentDay "000000"
   ; ToolTip, % CurrentDateTime "`n" FirstMinOfDay , , , 2
   EnvSub, CurrentDateTime, %FirstMinOfDay%, Minutes
-  minsPassed := CurrentDateTime + 1
+  minsPassed := CurrentDateTime + 1    ; the minute of the day being lived, from 1 to 1440
   strA := w[1] "|" w[2] "|" w[3] "|" w[4] "|" w[5] "|" w[6]
 
   FormatTime, brrYD, % timi, YDay
-  w := brrYD/7
-  ylength := isLeapYear(CurrentYear) ? 529240 : 527825
-  percentileYear := clampInRange(Round(((brrYD*24)*60 + minsPassed)/ylength*100, 1), 0, 99.9) "%"
+  ; the days that came before, plus the minutes lived of this one; counting the whole of
+  ; today as elapsed as well used to put the first minute of January at 0.3% of the year
+  ylength := isLeapYear(CurrentYear) ? 527040 : 525600   ; minutes in the year
+  percentileYear := clampInRange(Round(((brrYD - 1)*1440 + minsPassed)/ylength*100, 1), 0, 99.9) "%"
   daysPlural := (brrYD>1) ? "days" : "day"
-  percentileDay := Round((minsPassed/1441) * 100, 1) "%"
+  percentileDay := Round((minsPassed/1440) * 100, 1) "%"
   GuiControl, SettingsGUIA:, UIastroInfoAnnum, %brrYD% %daysPlural% (%percentileYear%) of %CurrentYear% ; %daysPlural2% elapsed.
   GuiControl, SettingsGUIA:, UIastroInfoDayu, %minsPassed% minutes (%percentileDay%) of today ; have elapsed.
 
   GuiControl, SettingsGUIA:, UIastroInfoProgressAnnum, % "|" CalcTextHorizPrev(brrYD, 366) "| " NextYear
   GuiControl, SettingsGUIA:, UIastroInfoProgressDayu, % "|" CalcTextHorizPrev(minsPassed, 1442, 0, 25) "| 24h "
   lastUsedGeoLocation := countriesArrayList[uiUserCountry] . ":" . strA
-  INIaction(1, "uiUserCountry", "SavedSettings")
-  INIaction(1, "uiUserCity", "SavedSettings")
-  INIaction(1, "lastUsedGeoLocation", "SavedSettings")
-  If (AnyWindowOpen=6)
-     lastTodayPanelZeitUpdate := A_Mon A_Hour A_Min
+  ; the panel refreshes itself once a minute and again on every step of the date buttons,
+  ; which auto repeat several times a second under a held mouse button, whereas the chosen
+  ; location only ever moves when the user picks another one; writing all three keys on
+  ; every single pass hammered the settings file for nothing
+  thisGeoState := uiUserCountry "|" uiUserCity "|" lastUsedGeoLocation
+  If (thisGeoState!=lastSavedGeoState)
+  {
+     lastSavedGeoState := thisGeoState
+     INIaction(1, "uiUserCountry", "SavedSettings")
+     INIaction(1, "uiUserCity", "SavedSettings")
+     INIaction(1, "lastUsedGeoLocation", "SavedSettings")
+  }
+  lastTodayPanelZeitUpdate := A_Mon A_Hour A_Min
 }
 
 UIcountryChooser() {
@@ -10786,7 +10972,7 @@ toggleTodayGraphMODE(modus:=0) {
   yearu := SubStr(timeus, 1, 4)
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
   dstInfo := buildDSTinfo(k, w[4], w[5])
   timi := timeus
   timi += gmtOffset, Hours
@@ -11122,13 +11308,16 @@ coreJumpSolarEventsToday() {
   yearu := SubStr(timeus, 1, 4)
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
   dstInfo := buildDSTinfo(k, w[4], w[5])
   timi := timeus
   timi += gmtOffset, Hours
   cobj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], 0, dstInfo)
-  cobj.sday := k.DaylightDateYday
-  cobj.eday := k.StandardDateYday
+  ; the callers pair sday/eday with the two seasonal offsets kept in gmt/dst, so they must
+  ; be the normalised summer half - never the raw transition days of the host machine
+  summerHalfYdays(k, sYday, eYday)
+  cobj.sday := sYday
+  cobj.eday := eYday
   cobj.lgmt := gmtOffset
   cobj.gmt := w[4]
   cobj.dst := w[5]
@@ -11151,7 +11340,7 @@ UItodayInfosYear() {
   yearu := SubStr(uiUserFullDateUTC, 1, 4)
   FormatTime, gyd, % timeus, Yday
   k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
 
   timi := uiUserFullDateUTC
   timi += gmtOffset, Hours
@@ -11232,7 +11421,7 @@ btnUItodayInfosLocations() {
       If (w[1]="" || w[2]="" || w[3]="")
          Continue
 
-      gmtOffset := isInDSTperiod(gyd, k.DaylightDateYday, k.StandardDateYday) ? w[5] : w[4]
+      gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
       timi := timeus
       timi += gmtOffset, Hours
       FormatTime, brr, % timi, dd/MM/yyyy, HH:mm
