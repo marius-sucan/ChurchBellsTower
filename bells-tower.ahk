@@ -2592,6 +2592,8 @@ graphInfoLineSunYear(fx, fy) {
    LV_GetText(setu, zp, 7)
    LV_GetText(dusk, zp, 8)
    LV_GetText(duru, zp, 9)
+   ; NB: this leaves LViewOthers selected on return. The current ListView belongs to the
+   ; GUI rather than to the thread, so anything that fills a table has to select its own.
    Gui, SettingsGUIA: ListView, LViewOthers
    zq := graphRowForDay(dayNo, LV_GetCount())
    LV_GetText(bumpu, zq, 4)
@@ -9367,6 +9369,15 @@ uiPopulateTableYearSolarData() {
   If (A_PtrSize!=8)
      Return
 
+  ; Filling the four tables takes seconds, and the graph readout has to keep away from
+  ; them until they are whole. graphInfoLineSunYear() selects a ListView of its own and
+  ; leaves it selected, and the current ListView belongs to the GUI, not to the thread
+  ; that selected it. A mouse move over the panel - reaching the readout straight from
+  ; WM_MouseMove() or through the timer it arms - therefore used to divert the LV_Add()
+  ; calls further below into whichever table the readout had looked at last, which is why
+  ; the summary table ended up with a handful of rows instead of the whole year.
+  ; refreshGraphInfoLine() already stands down for as long as this flag is raised.
+  generatingEarthMapNow := 1
   ToolTip, % "Please wait..."
   startoperation := A_TickCount
   p := geoData[uiUserCountry "|" uiUserCity]
@@ -9507,7 +9518,6 @@ uiPopulateTableYearSolarData() {
 
   graphArrayTimes := []
   timis := timeus := otimeus
-  Gui, SettingsGUIA: ListView, LViewSunCombined
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
@@ -9526,6 +9536,8 @@ uiPopulateTableYearSolarData() {
       {
 
          bpu := SubStr(timis, 1, 8)
+         ; selected anew on every pass; see the note in the function header
+         Gui, SettingsGUIA: ListView, LViewSunCombined
          LV_Add(A_Index - 1, gyd, testToday, dawn, sunriseu, noonu, elev, sunsetu, dusk, duru)
          If (SolarYearGraphMode=1)
          {
@@ -9582,7 +9594,6 @@ uiPopulateTableYearSolarData() {
   debugMode := !A_IsCompiled
   ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
   ; ToolTip, % A_TickCount - startoperation , , , 2
-  generatingEarthMapNow := 1
   generateGraphYearSunData(graphArraySun, graphArrayElev, loopsu, graphArrayTimes, yearu)
   generatingEarthMapNow := 0
   ToolTip
@@ -9593,6 +9604,9 @@ uiPopulateTableYearMoonData() {
   If (A_PtrSize!=8)
      Return
 
+  ; Kept away from the graph readout while the tables are built, for the reason given in
+  ; the header of uiPopulateTableYearSolarData().
+  generatingEarthMapNow := 1
   ToolTip, Please wait...
   startoperation := A_TickCount
   p := geoData[uiUserCountry "|" uiUserCity]
@@ -9714,7 +9728,6 @@ uiPopulateTableYearMoonData() {
 
   graphArrayTimes := []
   timis := timeus := otimeus
-  Gui, SettingsGUIA: ListView, LViewSunCombined
   Loop, % loopsu + 1
   {
       FormatTime, gyd, % timeus, Yday
@@ -9727,6 +9740,8 @@ uiPopulateTableYearMoonData() {
          sunriseu := arrayUsunriseu[testToday]
          sunsetu := arrayUsunsetu[testToday]
          bpu := SubStr(timis, 1, 8)
+         ; selected anew on every pass; see the header of uiPopulateTableYearSolarData()
+         Gui, SettingsGUIA: ListView, LViewSunCombined
          LV_Modify(A_Index - 1, ,,, sunriseu,,, sunsetu)
          If (SolarYearGraphMode=1)
          {
@@ -9772,7 +9787,6 @@ uiPopulateTableYearMoonData() {
   debugMode := !A_IsCompiled
   ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
   ; ToolTip, % A_TickCount - startoperation , , , 2
-  generatingEarthMapNow := 1
   generateGraphYearMoonData(graphArrayMoon, graphArrayElev, loopsu, graphArrayTimes, intervalsList, yearu)
   generatingEarthMapNow := 0
   ToolTip
