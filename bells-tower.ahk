@@ -5640,22 +5640,38 @@ PopulateIncomingCelebs() {
     listu .= "Astronomic events:`n`n"
     listu .= listSolarSeasons(ereday, yesterday, tudayDate, tmrwDate, mtmrwDate, 0, 30)
 
-    prevu := startDate := A_Year A_Mon A_MDay 010101
-    ; startDate := 2022 01 01 010101
-    Loop, 60
+    ; The new and the full moons of the coming month, asked of the DLL one after the
+    ; other. This used to be sixty samples taken twelve hours apart, watching for the
+    ; phase name to change, which caught the moment the moon entered the new or the
+    ; full eighth of the cycle - as much as two days ahead of the phase itself, and
+    ; on the wrong side of a midnight often enough to date the event a day out. It
+    ; also missed anything that fell before the first sample, halfway through the
+    ; opening day.
+    shiftu := localTimeShift()
+
+    zeitu := A_Year A_Mon A_MDay "000000"   ; the list opens on the top of today
+    zeitu += -1*shiftu, Seconds             ; ... which is this moment in UTC
+    endZeit := zeitu
+    endZeit += 30, Days
+
+    ; a month holds three of these at the most; the count is a guard, nothing more
+    Loop, 6
     {
-        ; moon phases
-        startDate += 12, Hours
-        pk := oldMoonPhaseCalculator(startDate)
-        xu := pk[1]
-        If (prevu!=xu && (InStr(xu, "full") || InStr(xu, "new")))
-        {
-           prevu := xu
-           FormatTime, OutputVar, % startDate, yyyy/MM/dd
-           OutputVar := friendlyDating(OutputVar, startDate, ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
-           listu .= Format("{:U}", OutputVar) ". " pk[1] "`n`n"
-           ; listu .= OutputVar " = " pk[1] "`n p=" pk[3] "; f=" pk[4] "; a=" pk[5] " `n"
-        }
+        If !getNextMoonPhases(zeitu, toNew, toFirstQ, toFull, toLastQ)
+           Break
+
+        nameu := (toNew<toFull) ? "New moon" : "Full moon"
+        secsu := (toNew<toFull) ? toNew : toFull
+        zeitu += Round(secsu), Seconds
+        If (zeitu>endZeit)
+           Break
+
+        localZeit := zeitu
+        localZeit += shiftu, Seconds
+        FormatTime, OutputVar, % localZeit, yyyy/MM/dd
+        OutputVar := friendlyDating(OutputVar, localZeit, ereday, yesterday, tudayDate, tmrwDate, mtmrwDate)
+        listu .= Format("{:U}", OutputVar) ". " nameu "`n`n"
+        zeitu += 60, Seconds   ; step past it, so the next round finds the one after
     }
 
     If InStr(listu, ". | ✝ ") 
@@ -6206,17 +6222,24 @@ givenDateTestCelebrations(givenDate) {
     Else If (dSolsDay=thisYday)
        listu .= "◯ December Solstice.`n`n"
 
-    prevu := startDate := thisYear thisMon thisMDay 010101
-    Loop, 4
+    ; Does a new or a full moon fall on this day? The DLL says when the next one is, so
+    ; the day only has to be asked about once. Four samples five hours apart used to be
+    ; taken instead, watching for the phase name to turn over, which found the moon
+    ; standing in the new or the full eighth of the cycle rather than the phase itself -
+    ; true of some four days in every fourteen, which is why the calendar had to strike
+    ; the marker off any day whose predecessor already carried it. The first six hours
+    ; of the day and the last three went unsampled as well.
+    shiftu := localTimeShift()
+    zeitu := thisYear thisMon thisMDay "000000"   ; the top of the day, locally
+    zeitu += -1*shiftu, Seconds                   ; ... as the moment it is in UTC
+    zeitu += -1, Seconds   ; the DLL answers with what comes strictly after, and a phase
+                           ; on the stroke of midnight belongs to the day it opens
+    If getNextMoonPhases(zeitu, toNew, toFirstQ, toFull, toLastQ)
     {
-        startDate += 5, Hours
-        pk := oldMoonPhaseCalculator(startDate)
-        xu := pk[1]
-        If (prevu!=xu && (InStr(xu, "full") || InStr(xu, "new")))
-        {
-           prevu := xu
-           listu .= "* " pk[1] ".`n`n"
-        }
+       nameu := (toNew<toFull) ? "New moon" : "Full moon"
+       secsu := (toNew<toFull) ? toNew : toFull
+       If (secsu<=86400)   ; a day's worth of seconds
+          listu .= "* " nameu ".`n`n"
     }
 
     alarmInfos := ""
@@ -6292,7 +6315,6 @@ uiPopulateCalendar() {
   nW := mW -2, nH := mH - 2
   
   lDate := SubStr(lastCalendarClickedDate, 1, 8)
-  prevListu := ""
   Loop, 6
   {
     t := A_Index
@@ -6305,11 +6327,12 @@ uiPopulateCalendar() {
            dayu .= "‎" ; invisible space
 
         GuiControlGet, hVar, SettingsGUIA: hwnd, uiCalendarL%t%C%A_Index%
-        lista := listu := givenDateTestCelebrations(tDate)
-        If InStr(prevListu, "* full moon.")
-           lista := Trimmer(StrReplace(listu, "* full moon."))
-        If InStr(prevListu, "* new moon.")
-           lista := Trimmer(StrReplace(listu, "* new moon."))
+        ; A day carries the marker when the phase itself lands on it, so no two days
+        ; running can carry one - the new moon and the full are a fortnight apart. The
+        ; lines that used to strike it off a day whose predecessor had it were there for
+        ; the sampling this replaced, which flagged the whole new or full eighth of the
+        ; cycle, four days of it at a time.
+        lista := givenDateTestCelebrations(tDate)
 
         tMon := SubStr(tDate, 5, 2)
         opp := (tMon=gMon) ? 255 : 123
@@ -6334,7 +6357,6 @@ uiPopulateCalendar() {
         tDate += 1, Days
         GuiControl, SettingsGUIA:, uiCalendarL%t%C%A_Index%, % dayu
         GuiControl, SettingsGUIA:, uiCalendarL%t%C%A_Index%, % (lista && opp!=253) ? 1 : 0
-        prevListu := listu
     }
   }
 
@@ -8859,6 +8881,21 @@ wrapCalcMoonRiseSet(t, latu, longu, gmtOffset:=0, Altitude:=0) {
    Return fkob
 }
 
+localTimeShift() {
+; How far ahead of UTC the local clock runs, in seconds. A_Now and A_NowUTC are the same
+; moment read off two clocks, so what separates them is the offset. Time zones are whole
+; minutes, and rounding to those keeps the two readings from disagreeing by a second when
+; one of them happens to tick over between the pair.
+;
+; This is the offset in force now, which is all the callers have to go on. A date on the
+; far side of a change of daylight saving is out by the hour that change moves, and that
+; tells only on a moment falling within an hour of a midnight.
+
+    shiftu := A_Now
+    shiftu -= A_NowUTC, Seconds
+    Return Round(shiftu/60) * 60
+}
+
 timeSpanInSeconds(x, y) {
 ; Both arguments must be date stamps of at least YYYYMMDD. A blank value - or one of the
 ; 0/1 «nothing found» markers - would make EnvSub fall back on the current date and time
@@ -8907,7 +8944,7 @@ initCBTdll() {
 }
 
 callCBTdllFunc(funcu) {
-  Static oldie := {"calculateEquiSols":24, "getMoonElevation":32, "getMoonNoon":44, "getMoonPhase":56, "getSolarCalculatorData":48, "getSunAzimuthElevation":52, "getSunMoonRiseSet":48, "getTwilightDuration":36, "oldgetMoonPhase":40}
+  Static oldie := {"calculateEquiSols":24, "getMoonElevation":32, "getMoonNoon":44, "getMoonPhase":56, "getNextMoonPhases":24, "getSolarCalculatorData":48, "getSunAzimuthElevation":52, "getSunMoonRiseSet":48, "getTwilightDuration":36, "oldgetMoonPhase":40}
   If (A_PtrSize=8)
   {
      Return "cbt-main.dll\" funcu
@@ -9120,7 +9157,10 @@ getMoonNoonZeit(timeus, latu, longu, gmtOffset, doAll) {
 
    obju := []
    otn := ot
-   otn += hmax, Minutes
+   ; hmax and hmin arrive in minutes with the fraction still on them - the DLL
+   ; settles the turning point to a twentieth of a second now, rather than
+   ; walking the altitude minute by minute - so they are carried in seconds.
+   otn += Round(hmax*60), Seconds
    FormatTime, fnoon, % otn, yyyy/MM/dd HH:mm
    obju.RawN := otn
    obju.n := fnoon
@@ -9129,7 +9169,7 @@ getMoonNoonZeit(timeus, latu, longu, gmtOffset, doAll) {
    If (doAll=1)
    {
       otm := ot
-      otm += hmin, Minutes
+      otm += Round(hmin*60), Seconds
       FormatTime, fmidn, % otm, yyyy/MM/dd HH:mm
       obju.RawMN := otm
       obju.mn := fmidn
@@ -9137,6 +9177,24 @@ getMoonNoonZeit(timeus, latu, longu, gmtOffset, doAll) {
    }
 
    Return obju
+}
+
+getNextMoonPhases(timeUTC, ByRef toNew, ByRef toFirstQuarter, ByRef toFull, ByRef toLastQuarter) {
+; How long it is from timeUTC - a UTC time stamp - until each of the four principal
+; phases of the moon next comes round, in seconds. Meeus places those instants within
+; a few seconds of where they are, so nothing has to be searched for by sampling the
+; phase forward and watching for the name to turn over.
+;
+; What comes back are lengths of time rather than moments, so they can be added onto a
+; stamp on either clock: the caller decides whether the answer is wanted in UTC or in
+; local time by choosing which one it adds them to.
+
+   toNew := toFirstQuarter := toFull := toLastQuarter := ""
+   If !initCBTdll()
+      Return 0
+
+   timeUTC -= 19700101000000, S   ; convert to Unix TimeStamp
+   Return DllCall(callCBTdllFunc("getNextMoonPhases"), "double", timeUTC, "double*", toNew, "double*", toFirstQuarter, "double*", toFull, "double*", toLastQuarter, "Int")
 }
 
 SolarCalculator(t, latu, longu, gmtOffset:=0, altitudeBonus:=0) {
@@ -9591,6 +9649,7 @@ uiPopulateTableYearSolarData() {
 
 uiPopulateTableYearMoonData() {
   Static lviuws := "LViewSunCombined|LViewMuna"
+       , principalNames := ["New moon", "First Quarter", "Full moon", "Last Quarter"]
   If (A_PtrSize!=8)
      Return
 
@@ -9621,7 +9680,7 @@ uiPopulateTableYearMoonData() {
   timeus += -1, Days
   timis := timeus
   otimeus := timeus
-  prevu := "p"
+  lastPhaseZeit := ""
   debugMode := 0
   graphArrayMoon := []
   graphArrayElev := []
@@ -9692,11 +9751,47 @@ uiPopulateTableYearMoonData() {
 
          Gui, SettingsGUIA: ListView, LViewMuna
          pk := oldMoonPhaseCalculator(timeus)
-         If (prevu!=pk[1] && (InStr(pk[1], "quarter") || InStr(pk[1], "moon")))
+
+         ; A row goes in on the day a principal phase actually falls, which the DLL
+         ; states outright. It used to go in on the first day the phase name turned
+         ; over, and that name stands for an eighth of the cycle, so the row landed as
+         ; much as two days ahead of the phase it announced.
+         ;
+         ; The window is the local day this row speaks for, opened a second early: the
+         ; DLL answers with what comes strictly after, and a phase on the stroke of
+         ; midnight belongs to the day it opens. Either of the two days a year a clock
+         ; change makes 23 or 25 hours long can bring the same phase round twice, so
+         ; the instant last listed is remembered and not listed again.
+         phaseZeit := SubStr(timis, 1, 8) "000000"
+         phaseZeit += -1*Round(gmtOffset*3600) - 1, Seconds
+         If getNextMoonPhases(phaseZeit, toNew, toFirstQ, toFull, toLastQ)
          {
-            prevu := pk[1]
-            ; fnOutputDebug(prevu, 1)
-            LV_Add(A_Index - 1, gyd, f, pk[1], Round(pk[5], 1), pk[6])
+            ; the four stand a week apart, so at most one can land inside a single day
+            phaseSecs := [toNew, toFirstQ, toFull, toLastQ]
+            idu := 0
+            If (toNew<=86400)          ; a day's worth of seconds
+               idu := 1
+            Else If (toFirstQ<=86400)
+               idu := 2
+            Else If (toFull<=86400)
+               idu := 3
+            Else If (toLastQ<=86400)
+               idu := 4
+
+            If idu
+            {
+               phaseZeit += Round(phaseSecs[idu]), Seconds
+               If (phaseZeit!=lastPhaseZeit)
+               {
+                  lastPhaseZeit := phaseZeit
+                  ; the day and the date named here are the local ones the window was
+                  ; taken from; gyd and f are read off timeus, which for anywhere west
+                  ; of GMT-2 is already the day after the one this row speaks for
+                  FormatTime, phaseYday, % timis, Yday
+                  FormatTime, phaseDatum, % timis, MM/dd
+                  LV_Add(A_Index - 1, phaseYday, phaseDatum, principalNames[idu], Round(pk[5], 1), pk[6])
+               }
+            }
          }
          ; jpoi := SubStr(obj.RawN, 1, 8) . "120001"
          ; kpp := timeSpanInSeconds(jpoi, obj.RawN)
@@ -10559,73 +10654,47 @@ UItodayPanelNoDateInfos(NextYear) {
    GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, ---
 }
 
-findNextMoonPhaseZeit(timeUTC, latu, longu, gmtOffset, currentPhaseName, ByRef phaseName) {
-; Walks forward from the given moment in search of the next new or full moon: the first
-; sample whose phase is one of those two and is not the half of the cycle the caller is
-; already in. The steps are two hours long while the moon is far from either of them and
-; ten minutes long around them, where the phase name is about to turn over.
+findNextMoonPhaseZeit(timeUTC, gmtOffset, ByRef phaseName) {
+; When the next new or full moon falls, asked of the DLL outright: chapter 49 of Meeus
+; places the principal phases within a few seconds of where they are, so there is
+; nothing left here to search for.
 ;
-; That answer only moves once the phase it points at is reached, or once the caller's own
-; phase changes, so it is kept until then. The panel used to walk the whole way again on
-; every single refresh - once a minute on its own, and on every step of the date buttons
-; while they auto repeat under a held mouse button.
-
-   Static cacheKey := "", cacheFrom := "", cacheHit := "", cacheZeit := "", cacheName := ""
+; This used to walk forward from the top of the day in two hour and ten minute steps,
+; up to 2160 calls into the DLL, with a cache in front of them to spare the panel the
+; whole walk on every refresh - once a minute on its own, and on every step of the date
+; buttons while they auto repeat under a held mouse button. Even so it could only pin
+; the answer down to the width of a step, and what it found was the moment the moon
+; entered the new or the full eighth of the cycle rather than the phase itself, which
+; falls close to two days later.
+;
+; Standing inside those two days, the walk also had to skip the phase it was already in
+; and point at the far one instead, having no way to tell the near side of the sector
+; from the far side. Nothing needs working around now: whichever of the two comes first
+; is the answer, so the panel counts down to the full moon a few hours off rather than
+; to the new moon a fortnight past it.
 
    phaseName := ""
-   If (!timeUTC || !currentPhaseName)
+   If (!timeUTC || !getNextMoonPhases(timeUTC, toNew, toFirstQ, toFull, toLastQ))
       Return ""
 
-   ; the first word of a phase names the half of the cycle the moon is in - «Waxing» and
-   ; «First» both lead up to the full moon, «Waning» and «Last» to the new one - so it is
-   ; what tells the phase being left behind apart from the one being looked for
-   ju := SubStr(currentPhaseName, 1, InStr(currentPhaseName, A_Space))
-   thisKey := latu "|" longu "|" gmtOffset "|" ju
-   If (thisKey=cacheKey && cacheHit && timeUTC>=cacheFrom && timeUTC<cacheHit)
+   ; only these two are named on this panel, as the New-to-Full bar beside it implies;
+   ; the quarters come back from the DLL just the same, should they be wanted here
+   If (toNew<toFull)
    {
-      phaseName := cacheName
-      Return cacheZeit
+      secsu := toNew
+      phaseName := "New moon"
+   } Else
+   {
+      secsu := toFull
+      phaseName := "Full moon"
    }
 
-   startDate := SubStr(timeUTC, 1, 8) "000325"
-   If (timeUTC>startDate)
-   {
-      ; the walk starts at the top of the day and used to be taken ten minutes at a time
-      ; merely to reach the present; land on the very same grid point in a single step
-      skipu := Ceil(timeSpanInSeconds(startDate, timeUTC)/600) * 10
-      startDate += skipu, Minutes
-   }
-
-   hitZeit := hitUTC := xu := ""
-   Loop, 2160
-   {
-       ; pk := oldMoonPhaseCalculator(startDate)
-       pk := MoonPhaseCalculator(startDate, 0, latu, longu)
-       xu := pk[1]
-       If !xu
-          Break   ; nothing reads the phase back, so there is nothing to be gained by walking on
-
-       fg := IsInRange(pk[5], 2, 14) || IsInRange(pk[5], 16, 27) ? 120 : 10
-       startDate += fg, Minutes
-       If (!InStr(xu, "moon") || InStr(xu, ju))
-          Continue
-
-       hitUTC := startDate
-       If gmtOffset
-          startDate += gmtOffset, Hours
-
-       fg := InStr(xu, "full") ? -3 : -8
-       startDate += fg, Minutes
-       FormatTime, hitZeit, % startDate, MM/dd HH:mm
-       Break
-   }
-
-   cacheKey := thisKey
-   cacheFrom := timeUTC
-   cacheHit := hitZeit ? hitUTC : ""    ; a search that came up empty is not worth keeping
-   cacheZeit := hitZeit
-   cacheName := hitZeit ? xu : ""
-   phaseName := cacheName
+   ; the DLL counts from the moment it was asked about, so the shift into local time
+   ; rides along with it - in seconds, for the sake of the half hour time zones - and
+   ; the half minute on the end leaves the display on the nearer of the two minutes
+   zeit := timeUTC
+   zeit += Round(secsu + gmtOffset*3600 + 30), Seconds
+   FormatTime, hitZeit, % zeit, MM/dd HH:mm
    Return hitZeit
 }
 
@@ -10895,7 +10964,7 @@ UIcityChooser() {
 
       GuiControl, SettingsGUIA:, UIastroInfoLightDiff, % diffuZeit ? diffuZeit : "--"
 
-      nextPhaseZeit := findNextMoonPhaseZeit(uiUserFullDateUTC, w[2], w[3], gmtOffset, moonPhaseN, nextPhaseName)
+      nextPhaseZeit := findNextMoonPhaseZeit(uiUserFullDateUTC, gmtOffset, nextPhaseName)
       pu := nextPhaseZeit ? nextPhaseZeit : "--"
       GuiControl, SettingsGUIA:, UIastroInfoTotalLight, % pu
       pu := nextPhaseZeit ? nextPhaseName : "-"
@@ -12975,39 +13044,14 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
      Return r
   }
 
+  ; The DLL names the phase off the true elongation of the moon from the sun now,
+  ; which is what defines new moon, the quarters and full moon in the first place.
+  ; The corrections that used to sit here were patching up a mean cycle that ran
+  ; up to half a day fast or slow and got the name wrong about one day in eleven;
+  ; against an accurate ID they would take correct names and spoil them instead.
   IDphase++
   phaseName := phaseNames[IDphase]
   ; ToolTip, % fraction "|" IDphase "|" age , , , 2
-  If (fraction<98.0 && IDphase=5 && age>15.5)
-  {
-     IDphase := 6
-     phaseName := phaseNames[IDphase]
-  } Else If (fraction<68.1 && IDphase=6 && age>19.7)
-  {
-     IDphase := 7
-     phaseName := phaseNames[IDphase]
-  } Else If (fraction<30.5 && IDphase=7 && age>23.7)
-  {
-     IDphase := 8
-     phaseName := phaseNames[IDphase]
-  } Else If (fraction<20 && IDphase=8 && age>27.6)
-  {
-     IDphase := 1
-     phaseName := phaseNames[IDphase]
-  } Else If (fraction>2 && IDphase=1 && age>1.1 && age<2)
-  {
-     IDphase := 2
-     phaseName := phaseNames[IDphase]
-  } Else If (fraction>96 && IDphase=5 && age>12 && age<13.3)
-  {
-     IDphase := 4
-     phaseName := phaseNames[IDphase]
-  }
-
-  ;    phaseName .= " (peak)"
-  ; Else if (fraction<0.016 && IDphase=1)
-  ;    phaseName .= " (peak)"
-
   ; fnOutputDebug(IDphase "|" phaseName "|" fraction, 1)
   Return [phaseName, IDphase, phase, fraction/100, age, azimuth, eleva]
 }

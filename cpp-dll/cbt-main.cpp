@@ -30,40 +30,6 @@
 // https://bitbucket.org/talonsoalbi/sunmooncalculator/src/master/
 
 
-DLL_API int DLL_CALLCONV oldgetMoonPhase(double timeus, int timeGiven, double* p, int* IDp, double* a, double* f, double* latu, double* lon, int* z) {
-  // Default to the current time.
-  time_t t = time(NULL);
-
-  // Look for an argument.
-  if (timeGiven==1)
-     t = timeus;
-     // t = atol(timeus);
-
-  // Calculate the moon phase and related information.
-  MoonPhase m;
-  m.calculate(t);
-
-  *p = m.phase;
-  *IDp = m.phaseID;
-  *a = m.age;
-  *f = m.fraction;
-  *latu = m.latitude;
-  *lon = m.longitude;
-  *z = m.zodiacID;
-/*
-  string pn = m.zodiacName;
-  fnOutputDebug("moon phase=" + std::to_string(m.longitude) + pn + std::to_string(m.zodiacID));
-  char* k = ctime(&t);
-  string ks = k;
-  string pn = m.phaseName;
-  fnOutputDebug("Time: " + ks);
-  fnOutputDebug("Julian Day: " + std::to_string(m.jDate));
-  fnOutputDebug("Phase: " + std::to_string(m.phase));
-  fnOutputDebug("Fraction: " + std::to_string(m.fraction));
-  fnOutputDebug("Phase name: " + pn);
-*/
-  return 1;
-}
 
 
 // Rounded HH:mm format
@@ -130,143 +96,146 @@ DLL_API int DLL_CALLCONV getSolarCalculatorData(double lat, double lon, int y, i
   return 1;
 }
 
-double atan2d(double y, double x) {
-   int p = (x<0) ? 1 : 0;
-   return 180.0 / M_PI * atan(y/x) - 180.0*p;
-}
+// ============================================================================
+//  The moon
+//
+//  Positions follow Jean Meeus, "Astronomical Algorithms" (2nd edition):
+//  chapter 47 for the lunar series, 22 for nutation and the obliquity of the
+//  ecliptic, 12 for sidereal time, 13 for the change of coordinates, 40 for the
+//  observer's parallax, 16 for refraction, 48 for the illuminated fraction and
+//  49 for the instants of new moon.  The chapter 47 series is a truncation of
+//  ELP-2000/82 and carries some 10 arcseconds of error in longitude on its own.
+//  That is the floor this code works towards; every other step is kept well
+//  under it, so that what comes out is within a few arcseconds of DE421.
+//
+//  The chapter 47 and 22 tables were converted from the JS code found on
+//  https://www.dannybekaert.be/en/moonposition by Marius Șucan.
+// ============================================================================
 
-void moonCalcPosition(double timeUTC, double obslatitude, double obslongitude, double* results, int onlyElevation=0) {
-// based on the JS code found on https://www.dannybekaert.be/en/moonposition
-// converted to C++ by Marius Șucan
-    const double PIdiv180 = M_PI/180;
-    const double c180divPI = 180.0 / M_PI;
+// tabelgegevens van tabel 47A voor lengtegraad van de maan en afstand tot de maan
+static const double dTable47a[60] = { 0, 2, 2, 0, 0, 0, 2, 2, 2, 2, 0, 1,
+                      0, 2, 0, 0, 4, 0, 4, 2, 2, 1, 1, 2,
+                      2, 4, 2, 0, 2, 2, 1, 2, 0, 0, 2, 2,
+                      2, 4, 0, 3, 2, 4, 0, 2, 2, 2, 4, 0,
+                      4, 1, 2, 0, 1, 3, 4, 2, 0, 1, 2, 2};
 
-    // tabelgegevens van tabel 47A voor lengtegraad van de maan en afstand tot de maan
-    const double dTable47a[60] = { 0, 2, 2, 0, 0, 0, 2, 2, 2, 2, 0, 1,
-                          0, 2, 0, 0, 4, 0, 4, 2, 2, 1, 1, 2,
-                          2, 4, 2, 0, 2, 2, 1, 2, 0, 0, 2, 2,
-                          2, 4, 0, 3, 2, 4, 0, 2, 2, 2, 4, 0,
-                          4, 1, 2, 0, 1, 3, 4, 2, 0, 1, 2, 2};
+static const double mTable47a[60] = { 0, 0, 0, 0, 1, 0, 0, -1, 0, -1, 1, 0,
+                      1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, -1,
+                      0, 0, 0, 1, 0, -1, 0, -2, 1, 2, -2, 0,
+                      0, -1, 0, 0, 1, -1, 2, 2, 1, -1, 0, 0,
+                      -1, 0, 1, 0, 1, 0, 0, -1, 2, 1, 0, 0};
 
-    const double mTable47a[60] = { 0, 0, 0, 0, 1, 0, 0, -1, 0, -1, 1, 0,
-                          1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, -1,
-                          0, 0, 0, 1, 0, -1, 0, -2, 1, 2, -2, 0,
-                          0, -1, 0, 0, 1, -1, 2, 2, 1, -1, 0, 0,
-                          -1, 0, 1, 0, 1, 0, 0, -1, 2, 1, 0, 0};
-                  
-    const double maTable47a[60] = { 1, -1, 0, 2, 0, 0, -2, -1, 1, 0, -1, 0,
-                           1, 0, 1, 1, -1, 3, -2, -1, 0, -1, 0, 1,
-                           2, 0, -3, -2, -1, -2, 1, 0, 2, 0, -1, 1,
-                           0, -1, 2, -1, 1, -2, -1, -1, -2, 0, 1, 4,
-                           0, -2, 0, 2, 1, -2, -3, 2, 1, -1, 3, -1};
-                   
-    const double fTable47a[60] = { 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0,
-                          0, -2, 2, -2, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, -2,
-                          2, 0, 2, 0, 0, 0, 0, 0, 0, -2, 0, 0, 
-                          0, 0, -2, -2, 0, 0, 0, 0, 0, 0, 0, -2};
-                          
-    const double lTable47a[60] = { 6288774, 1274027, 658314, 213618, -185116, -114332, 58793, 57066, 53322, 45758, -40923, -34720,
-                             -30383, 15327, -12528, 10980, 10675, 10034, 8548, -7888, -6766, -5163, 4987, 4036,
-                             3994, 3861, 3665, -2689, -2602, 2390, -2348, 2236, -2120, -2069, 2048, -1773,
-                             -1595, 1215, -1110, -892, -810, 759, -713, -700, 691, 596, 549, 537,
-                             520, -487, -399, -381, 351, -340, 330, 327, -323, 299, 294, 0};
-                             
-    const double rTable47a[60] = { -20905355, -3699111, -2955968, -569925, 48888, -3149, 246158, -152138, -170733, -204586, -129620, 108743,
-                             104755, 10321, 0, 79661, -34782, -23210, -21636, 24208, 30824, -8379, -16675, -12831,
-                             -10445, -11650, 14403, -7003, 0, 10056, 6322, -9884, 5751, 0, -4950, 4130,
-                             0, -3958, 0, 3258, 2616, -1897, -2117, 2354, 0, 0, -1423, -1117,
-                             -1571, -1739, 0, -4421, 0, 0, 0, 0, 1165, 0, 0, 8752};
+static const double maTable47a[60] = { 1, -1, 0, 2, 0, 0, -2, -1, 1, 0, -1, 0,
+                       1, 0, 1, 1, -1, 3, -2, -1, 0, -1, 0, 1,
+                       2, 0, -3, -2, -1, -2, 1, 0, 2, 0, -1, 1,
+                       0, -1, 2, -1, 1, -2, -1, -1, -2, 0, 1, 4,
+                       0, -2, 0, 2, 1, -2, -3, 2, 1, -1, 3, -1};
 
-    // tabelgegevens van tabel 47B voor de breedtegraad van de maan  
-    const double dTable47b[60] = { 0, 0, 0, 2, 2, 2, 2, 0, 2, 0, 2, 2, 
-                          2, 2, 2, 2, 2, 0, 4, 0, 0, 0, 1, 0,
-                          0, 0, 1, 0, 4, 4, 0, 4, 2, 2, 2, 2,
-                          0, 2, 2, 2, 2, 4, 2, 2, 0, 2, 1, 1,
-                          0, 2, 1, 2, 0, 4, 4, 1, 4, 1, 4, 2};
-                           
-    const double mTable47b[60] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0,
-                          0, 1, -1, -1, -1, 1, 0, 1, 0, 1, 0, 1,
-                          1, 1, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0,
-                          0, 0, 0, 1, 1, 0, -1, -2, 0, 1, 1, 1,
-                          1, 1, 0, -1, 1, 0, -1, 0, 0, 0, -1, -2};
-                   
-    const double maTable47b[60] = { 0, 1, 1, 0, -1, -1, 0, 2, 1, 2, 0, -2,
-                           1, 0, -1, 0, -1, -1, -1, 0, 0, -1, 0, 1,
-                           1, 0, 0, 3, 0, -1, 1, -2, 0, 2, 1, -2, 
-                           3, 2, -3, -1, 0, 0, 1, 0, 1, 1, 0, 0,
-                           -2, -1, 1, -2, 2, -2, -1, 1, 1, -1, 0, 0};
-                      
-    const double fTable47b[60] = { 1, 1, -1, -1, 1, -1, 1, 1, -1, -1, -1, -1,
-                          1, -1, 1, 1, -1, -1, -1, 1, 3, 1, 1, 1,
-                          -1, -1, -1, 1, -1, 1, -3, 1, -3, -1, -1, 1,
-                          -1, 1, -1, 1, 1, 1, 1, -1, 3, -1, -1, 1,
-                          -1, -1, 1, -1, 1, -1, -1, -1, -1, -1, -1, 1};
-                   
-    const double bTable47b[60] = { 5128122, 280602, 277693, 173237, 55413, 46271, 32573, 17198, 9266, 8822, 8216, 4324,
-                             4200, -3359, 2463, 2211, 2065, -1870, 1828, -1794, -1749, -1565, -1491, -1475,
-                             -1410, -1344, -1335, 1107, 1021, 833, 777, 671, 607, 596, 491, -451,
-                             439, 422, 421, -366, -351, 331, 315, 302, -283, -229, 223, 223,
-                             -220, -220, -185, 181, -177, 176, 166, -164, 132, -119, 115, 107 };
+static const double fTable47a[60] = { 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0,
+                      0, -2, 2, -2, 0, 0, 0, 0, 0, 0, 0, 0,
+                      0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, -2,
+                      2, 0, 2, 0, 0, 0, 0, 0, 0, -2, 0, 0,
+                      0, 0, -2, -2, 0, 0, 0, 0, 0, 0, 0, -2};
 
-    // tabelgegevens van tabel 22A voor nutatie en obliquity
-    const double dTable22a[63] = { 0, -2, 0, 0, 0, 0, -2, 0, 0,
-                          -2, -2, -2, 0, 2, 0, 2, 0, 0,
-                          -2, 0, 2, 0, 0, -2, 0, -2, 0,
-                          0, 2, -2, 0, -2, 0, 0, 2, 2,
-                          0, -2, 0, 2, 2, -2, -2, 2, 2, 
-                          0, -2, -2, 0, -2, -2, 0, -1, -2,
-                          1, 0, 0, -1, 0, 0, 2, 0, 2};
-                      
-    const double mTable22a[63] = { 0, 0, 0, 0, 1, 0, 1, 0, 0,
-                          -1, 0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          2, 0, 2, 1, 0, -1, 0, 0, 0,
-                          1, 1, -1, 0, 0, 0, 0, 0, 0,
-                          -1, -1, 0, 0, 0, 1, 0, 0, 1,
-                          0, 0, 0, -1, 1, -1, -1, 0, -1};
-                        
-    const double maTable22a[63] = { 0, 0, 0, 0, 0, 1, 0, 0, 1,
-                           0, 1, 0, -1, 0, 1, -1, -1, 1,
-                           2, -2, 0, 2, 2, 1, 0, 0, -1,
-                           0, -1, 0, 0, 1, 0, 2, -1, 1,
-                           0, 1, 0, 0, 1, 2, 1, -2, 0,
-                           1, 0, 0, 2, 2, 0, 1, 1, 0,
-                           0, 1, -2, 1, 1, 1, -1, 3, 0};
-                              
-    const double fTable22a[63] = { 0, 2, 2, 0, 0, 0, 2, 2, 2,
-                          2, 0, 2, 2, 0, 0, 2, 0, 2,
-                          0, 2, 2, 2, 0, 2, 2, 2, 2,
-                          0, 0, 2, 0, 0, 0, -2, 2, 2,
-                          2, 0, 2, 2, 0, 2, 2, 0, 0,
-                          0, 2, 0, 2, 0, 2, -2, 0, 0,
-                          0, 2, 2, 0, 0, 2, 2, 2, 2};
-                          
-    const double oTable22a[63] = { 1, 2, 2, 2, 0, 0, 2, 1, 2,
-                            2, 0, 1, 2, 0, 1, 2, 1, 1,
-                            0, 1, 2, 2, 0, 2, 0, 0, 1,
-                            0, 1, 2, 1, 1, 1, 0, 1, 2,
-                            2, 0, 2, 1, 0, 2, 1, 1, 1,
-                            0, 1, 1, 1, 1, 1, 0, 0, 0,
-                            0, 0, 2, 0, 0, 2, 2, 2, 2};
+static const double lTable47a[60] = { 6288774, 1274027, 658314, 213618, -185116, -114332, 58793, 57066, 53322, 45758, -40923, -34720,
+                         -30383, 15327, -12528, 10980, 10675, 10034, 8548, -7888, -6766, -5163, 4987, 4036,
+                         3994, 3861, 3665, -2689, -2602, 2390, -2348, 2236, -2120, -2069, 2048, -1773,
+                         -1595, 1215, -1110, -892, -810, 759, -713, -700, 691, 596, 549, 537,
+                         520, -487, -399, -381, 351, -340, 330, 327, -323, 299, 294, 0};
 
-    double JDE = ((timeUTC - 86400) / 86400.0L + 2440588.5L);  // julian date
+static const double rTable47a[60] = { -20905355, -3699111, -2955968, -569925, 48888, -3149, 246158, -152138, -170733, -204586, -129620, 108743,
+                         104755, 10321, 0, 79661, -34782, -23210, -21636, 24208, 30824, -8379, -16675, -12831,
+                         -10445, -11650, 14403, -7003, 0, 10056, 6322, -9884, 5751, 0, -4950, 4130,
+                         0, -3958, 0, 3258, 2616, -1897, -2117, 2354, 0, 0, -1423, -1117,
+                         -1571, -1739, 0, -4421, 0, 0, 0, 0, 1165, 0, 0, 8752};
 
-    // juliaanse eeuw en zijn machtsverheffingen
-    double T = (JDE - 2451545.0L) / 36525.0L;
-    double T2 = pow(T, 2);
-    double T3 = pow(T, 3);
-    double T4 = pow(T, 4);
+// tabelgegevens van tabel 47B voor de breedtegraad van de maan
+static const double dTable47b[60] = { 0, 0, 0, 2, 2, 2, 2, 0, 2, 0, 2, 2,
+                      2, 2, 2, 2, 2, 0, 4, 0, 0, 0, 1, 0,
+                      0, 0, 1, 0, 4, 4, 0, 4, 2, 2, 2, 2,
+                      0, 2, 2, 2, 2, 4, 2, 2, 0, 2, 1, 1,
+                      0, 2, 1, 2, 0, 4, 4, 1, 4, 1, 4, 2};
 
-    double fiTable22a[63] = { -171996-174.2*T, -13187-1.6*T, -2274-0.2*T, 2062+0.2*T, 1426-3.4*T, 712+0.1*T, -517+1.2*T, -386-0.4*T, -301,
+static const double mTable47b[60] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0,
+                      0, 1, -1, -1, -1, 1, 0, 1, 0, 1, 0, 1,
+                      1, 1, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0,
+                      0, 0, 0, 1, 1, 0, -1, -2, 0, 1, 1, 1,
+                      1, 1, 0, -1, 1, 0, -1, 0, 0, 0, -1, -2};
+
+static const double maTable47b[60] = { 0, 1, 1, 0, -1, -1, 0, 2, 1, 2, 0, -2,
+                       1, 0, -1, 0, -1, -1, -1, 0, 0, -1, 0, 1,
+                       1, 0, 0, 3, 0, -1, 1, -2, 0, 2, 1, -2,
+                       3, 2, -3, -1, 0, 0, 1, 0, 1, 1, 0, 0,
+                       -2, -1, 1, -2, 2, -2, -1, 1, 1, -1, 0, 0};
+
+static const double fTable47b[60] = { 1, 1, -1, -1, 1, -1, 1, 1, -1, -1, -1, -1,
+                      1, -1, 1, 1, -1, -1, -1, 1, 3, 1, 1, 1,
+                      -1, -1, -1, 1, -1, 1, -3, 1, -3, -1, -1, 1,
+                      -1, 1, -1, 1, 1, 1, 1, -1, 3, -1, -1, 1,
+                      -1, -1, 1, -1, 1, -1, -1, -1, -1, -1, -1, 1};
+
+static const double bTable47b[60] = { 5128122, 280602, 277693, 173237, 55413, 46271, 32573, 17198, 9266, 8822, 8216, 4324,
+                         4200, -3359, 2463, 2211, 2065, -1870, 1828, -1794, -1749, -1565, -1491, -1475,
+                         -1410, -1344, -1335, 1107, 1021, 833, 777, 671, 607, 596, 491, -451,
+                         439, 422, 421, -366, -351, 331, 315, 302, -283, -229, 223, 223,
+                         -220, -220, -185, 181, -177, 176, 166, -164, 132, -119, 115, 107 };
+
+// tabelgegevens van tabel 22A voor nutatie en obliquity
+static const double dTable22a[63] = { 0, -2, 0, 0, 0, 0, -2, 0, 0,
+                      -2, -2, -2, 0, 2, 0, 2, 0, 0,
+                      -2, 0, 2, 0, 0, -2, 0, -2, 0,
+                      0, 2, -2, 0, -2, 0, 0, 2, 2,
+                      0, -2, 0, 2, 2, -2, -2, 2, 2,
+                      0, -2, -2, 0, -2, -2, 0, -1, -2,
+                      1, 0, 0, -1, 0, 0, 2, 0, 2};
+
+static const double mTable22a[63] = { 0, 0, 0, 0, 1, 0, 1, 0, 0,
+                      -1, 0, 0, 0, 0, 0, 0, 0, 0,
+                      0, 0, 0, 0, 0, 0, 0, 0, 0,
+                      2, 0, 2, 1, 0, -1, 0, 0, 0,
+                      1, 1, -1, 0, 0, 0, 0, 0, 0,
+                      -1, -1, 0, 0, 0, 1, 0, 0, 1,
+                      0, 0, 0, -1, 1, -1, -1, 0, -1};
+
+static const double maTable22a[63] = { 0, 0, 0, 0, 0, 1, 0, 0, 1,
+                       0, 1, 0, -1, 0, 1, -1, -1, 1,
+                       2, -2, 0, 2, 2, 1, 0, 0, -1,
+                       0, -1, 0, 0, 1, 0, 2, -1, 1,
+                       0, 1, 0, 0, 1, 2, 1, -2, 0,
+                       1, 0, 0, 2, 2, 0, 1, 1, 0,
+                       0, 1, -2, 1, 1, 1, -1, 3, 0};
+
+static const double fTable22a[63] = { 0, 2, 2, 0, 0, 0, 2, 2, 2,
+                      2, 0, 2, 2, 0, 0, 2, 0, 2,
+                      0, 2, 2, 2, 0, 2, 2, 2, 2,
+                      0, 0, 2, 0, 0, 0, -2, 2, 2,
+                      2, 0, 2, 2, 0, 2, 2, 0, 0,
+                      0, 2, 0, 2, 0, 2, -2, 0, 0,
+                      0, 2, 2, 0, 0, 2, 2, 2, 2};
+
+static const double oTable22a[63] = { 1, 2, 2, 2, 0, 0, 2, 1, 2,
+                        2, 0, 1, 2, 0, 1, 2, 1, 1,
+                        0, 1, 2, 2, 0, 2, 0, 0, 1,
+                        0, 1, 2, 1, 1, 1, 0, 1, 2,
+                        2, 0, 2, 1, 0, 2, 1, 1, 1,
+                        0, 1, 1, 1, 1, 1, 0, 0, 0,
+                        0, 0, 2, 0, 0, 2, 2, 2, 2};
+
+// Nutation in longitude and in obliquity, in arcseconds - Meeus chapter 22.
+// Both series run over the same five arguments, so one pass serves for both.
+void moonNutation(double T, double &dPsi, double &dEpsilon) {
+     double T2 = T*T;
+     double T3 = T2*T;
+
+     double fiTable22a[63] = { -171996-174.2*T, -13187-1.6*T, -2274-0.2*T, 2062+0.2*T, 1426-3.4*T, 712+0.1*T, -517+1.2*T, -386-0.4*T, -301,
                               217-0.5*T, -158, 129+0.1*T, 123, 63, 63+0.1*T, -59, -58-0.1*T, 51,
                               48, 46, -38, -31, 29, 29, 26, -22, 21,
                               17-0.1*T, 16, -16+0.1*T, -15, -13, -12, 11, -10, -8,
                               7, -7, -7, -7, 6, 6, 6, -6, -6,
                               5, -5, -5, -5, 4, 4, 4, -4, -4,
                               -4, 3, -3, -3, -3, -3, -3, -3, -3};
-                             
-    double epsilonTable22a[63] = { 92025+8.9*T, 5736-3.1*T, 977-0.5*T, -895+0.5*T, 54-0.1*T, -7, 224-0.6*T, 200, 129-0.1*T,
+
+     double epsilonTable22a[63] = { 92025+8.9*T, 5736-3.1*T, 977-0.5*T, -895+0.5*T, 54-0.1*T, -7, 224-0.6*T, 200, 129-0.1*T,
                                    -95+0.3*T, 0, -70, -53, 0, -33, 26, 32, 27,
                                    0, -24, 16, 13, 0, -12, 0, 0, -10,
                                    0, -8, 7, 9, 7, 6, 0, 5, 3,
@@ -274,409 +243,555 @@ void moonCalcPosition(double timeUTC, double obslatitude, double obslongitude, d
                                    0, 3, 3, 3, 0, 0, 0, 0, 0,
                                    0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-     // gemiddelde sterrentijd te Greenwich - hoofdstuk 12 - formule 12.4
-     double tetaNul = 280.46061837 + 360.98564736629 * (JDE - 2451545.0) + 0.000387933*T2 - T3/38710000.0;
-     if (tetaNul>0)
-        tetaNul -= floor(tetaNul/360.0)*360.0;
-     else
-        tetaNul += (1.0 + floor(abs(tetaNul)/360.0))*360.0;
+     double D_CH22  = wrapTo360(297.85036 + 445267.111480*T - 0.0019142*T2 + T3/189474.0);
+     double M_CH22  = wrapTo360(357.52772 +  35999.050340*T - 0.0001603*T2 - T3/300000.0);
+     double MA_CH22 = wrapTo360(134.96298 + 477198.867398*T + 0.0086972*T2 + T3/56250.0);
+     double F_CH22  = wrapTo360( 93.27191 + 483202.017538*T - 0.0036825*T2 + T3/327270.0);
 
-     double tetaNulHour = floor(tetaNul/15.0);
-     double tetaNulMinute = floor((tetaNul/15.0 - tetaNulHour)*60.0);
-     double tetaNulSecond = (tetaNul/15.0 - tetaNulHour - tetaNulMinute/60.0)*3600.0;
-     double tetaNulTotalSeconds = tetaNulHour*3600.0 + tetaNulMinute*60.0 + tetaNulSecond;
-  
-     // gemiddelde lengtegraad van de maan
-     double LA = 218.3164477 + 481267.88123421*T - 0.0015786*T2 + T3/538841.0 - T4/65194000.0;
-     LA -= floor(LA/360.0)*360.0;
+     // Longitude of the ascending node of the mean lunar orbit on the ecliptic,
+     // measured from the mean equinox of the date.
+     double omega = wrapTo360(125.04452 - 1934.136261*T + 0.0020708*T2 + T3/450000.0);
 
-     // gemiddelde verlenging van de maan
-     double D = 297.8501921 + 445267.1114034*T - 0.0018819*T2 + T3/545868.0 - T4/113065000.0;
-     D -= floor(D/360.0)*360.0;
-
-     // gemiddelde anomalie van de zon
-     double M = 357.5291092 + 35999.0502909*T - 0.0001536*T2 + T3/24490000.0;
-     M -= floor(M/360.0)*360.0;
-
-     // gemiddelde anomalie van de maan
-     double MA = 134.9633964 + 477198.8675055*T + 0.0087414*T2 + T3/69699.0 - T4/14712000.0;
-     MA -= floor(MA/360.0)*360.0;
-
-     // breedtegraad argument van de maan
-     double F = 93.2720950 + 483202.0175233*T - 0.0036539*T2 - T3/3526000.0 + T4/863310000.0;
-     F -= floor(F/360.0)*360.0;
-
-     // nog drie bijkomende argumenten
-     double A1 = 119.75 + 131.849*T;
-     A1 -= floor(A1/360.0)*360.0;
-     double A2 = 53.09 + 479264.290*T;
-     A2 -= floor(A2/360.0)*360.0;
-     double A3 = 313.45+481266.484*T;
-     A3 -= floor(A3/360.0)*360.0;
-
-     // eccentriciteit van de baan van de aarde rond de zon
-     double E = 1.0 - 0.002516*T - 0.0000074*T2;
-
-     // bepaling van de periodieke termen
-     double Sl = 0.0;
-     double Sr = 0.0;
-
-     double eTerm = 1.0;
-     for (int i=0; i<60; i++)
+     dPsi = 0.0;
+     dEpsilon = 0.0;
+     for (int i=0; i<63; i++)
      {
-        if (abs(mTable47a[i])==1)
-           eTerm = E; 
-        else if (abs(mTable47a[i])==2)
-           eTerm = pow(E, 2);
-        else
-           eTerm = 1.0;
-
-        double pp = (dTable47a[i]*D + mTable47a[i]*M + maTable47a[i]*MA + fTable47a[i]*F)*M_PI / 180.0;
-        Sl += lTable47a[i] * eTerm * sin(pp);
-        Sr += rTable47a[i] * eTerm * cos(pp);
+         double arg = radians(dTable22a[i]*D_CH22 + mTable22a[i]*M_CH22 + maTable22a[i]*MA_CH22
+                            + fTable22a[i]*F_CH22 + oTable22a[i]*omega);
+         dPsi     += fiTable22a[i] * sin(arg);
+         dEpsilon += epsilonTable22a[i] * cos(arg);
      }
 
-     eTerm = 1.0;
-     double Sb = 0.0;
-     for (int i=0; i<60; i++)
-     {
-        if (abs(mTable47b[i])==1)
-           eTerm = E; 
-        else if (abs(mTable47b[i])==2)
-           eTerm = pow(E, 2);
-        else
-           eTerm = 1.0;
-
-        Sb += bTable47b[i] * eTerm * sin((dTable47b[i]*D + mTable47b[i]*M + maTable47b[i]*MA + fTable47b[i]*F) * PIdiv180);
-     }
-
-     // additionele termen voor sigma l en sigma b
-     double addSigmal = 3958.0*sin(A1 * PIdiv180) + 1962.0*sin((LA - F) * PIdiv180) + 318.0*sin(A2 * PIdiv180);
-     double addSigmab = -2235.0*sin(LA * PIdiv180) + 382.0*sin(A3 * PIdiv180) + 175.0*sin((A1 - F) * PIdiv180) + 175.0*sin((A1 + F) * PIdiv180) + 127.0*sin((LA - MA) * PIdiv180) - 115.0*sin((LA + MA) * PIdiv180);
-     Sl += addSigmal;
-     Sb += addSigmab;
-
-     // maan coordinaten
-     // lengtegraad van de maan [ right ascension ]
-     double lambda = LA + (Sl/1000000.0);
-
-     // breedtegraad van de maan
-     double beta = Sb/1000000.0;
-     if (beta>180.0)
-        beta -= 360.0;
-
-     // afstand tot de maan
-     double distance = 385000.56 + (Sr/1000.0);
-
-     // equatoriale horizontale parallax van de maan
-     double pi = asin(6378.14/distance) * c180divPI;
-     // tabelgegevens van tabel 22A voor nutatie en obliquity
-
-     // HS22 gemiddelde verlenging voor de maan vanaf de zon 
-     double D_CH22 = 297.85036 + 445267.111480*T - 0.0019142*T2 + T3/189474.0;
-     D_CH22 -= floor(D_CH22/360.0)*360.0;
-     
-     // HS22 gemiddelde anomalie van de zon (aarde)
-     double M_CH22 = 357.52772 + 35999.050340*T - 0.0001603*T2 - T3/300000.0;
-     M_CH22 -= floor(M_CH22/360.0)*360.0;
-
-     // HS22 gemiddelde anomalie van de maan
-     double MA_CH22 = 134.96298 + 477198.867398*T + 0.0086972*T2 + T3/56250.0;
-     MA_CH22 -= floor(MA_CH22/360.0)*360.0;
-
-     // HS22 breedtegraad argument van de maan
-     double F_CH22 = 93.27191 + 483202.017538*T - 0.0036825*T2 + T3/327270.0;
-     F_CH22 -= floor(F_CH22/360.0)*360.0;
-
-     // lengtegraad van de stijgende knoop van de gemiddelde maanbaan op het ecliptisch vlak gemeten vanaf de gemiddelde equinox van de datum
-     double omega = 125.04452 - 1934.136261*T + 0.0020708*T2 + T3/450000.0;
-     omega -= floor(omega/360.0)*360.0;
-
-     double dFi = 0.0;
-     for (int i=0; i<63; i++) {
-         dFi += fiTable22a[i] * sin((dTable22a[i]*D_CH22 + mTable22a[i]*M_CH22 + maTable22a[i]*MA_CH22 + fTable22a[i]*F_CH22 + oTable22a[i]*omega)*PIdiv180);
-     }
-
-     double dEpsilon = 0.0;
-     for (int i=0; i<63; i++) {
-         dEpsilon += epsilonTable22a[i] * cos((dTable22a[i]*D_CH22 + mTable22a[i]*M_CH22 + maTable22a[i]*MA_CH22 + fTable22a[i]*F_CH22 + oTable22a[i]*omega)*PIdiv180);
-     } 
-
-     dFi /= 10000.0;
+     dPsi /= 10000.0;         // the tables are in units of 0.0001 arcseconds
      dEpsilon /= 10000.0;
+}
 
-     // gecorrigeerde lambda       
-     lambda += dFi/3600.0;
-     lambda -= floor(lambda/360.0)*360.0;
+// Delta T, the gap between dynamical time and the earth's rotation, in seconds.
+//
+// The moon travels 0.55 arcseconds of longitude in a second of time, so the
+// chapter 47 series - which are written in dynamical time - have to be handed
+// TT rather than UT.  Feeding them UT, as this used to, drags the moon 38
+// arcseconds behind where it is, nearly four times the error of the series
+// themselves.  Observed values are tabulated for the years this program is
+// likely to be asked about; beyond either end of the table the polynomial fits
+// of calcDeltaT() take over, shifted so the handover is free of a step.
+double moonDeltaTseconds(double jdUT) {
+     static const int kFirstYear = 1990;
+     static const double kObserved[] = {
+         56.86, 57.57, 58.31, 59.12, 59.98, 60.78, 61.63, 62.30, 62.97, 63.47,  // 1990-1999
+         63.83, 64.09, 64.30, 64.47, 64.57, 64.69, 64.85, 65.15, 65.46, 65.78,  // 2000-2009
+         66.07, 66.32, 66.60, 66.91, 67.28, 67.64, 68.10, 68.59, 68.97, 69.22,  // 2010-2019
+         69.36, 69.36, 69.29, 69.22, 69.18, 69.19, 69.25                        // 2020-2026
+     };
+     static const int kCount = (int)(sizeof(kObserved) / sizeof(kObserved[0]));
+     static const int kLastYear = kFirstYear + kCount - 1;
 
-     // bepalen van epsilonzero
-     double U_CH22 = (double)T/100.0;
-     double U2_CH22 = U_CH22 * U_CH22;
-     double U3_CH22 = U2_CH22 * U_CH22;
-     double U4_CH22 = U3_CH22 * U_CH22;
-     double U5_CH22 = U4_CH22 * U_CH22;
-     double U6_CH22 = U5_CH22 * U_CH22;
-     double U7_CH22 = U6_CH22 * U_CH22;
-     double U8_CH22 = U7_CH22 * U_CH22;
-     double U9_CH22 = U8_CH22 * U_CH22;
-     double U10_CH22 = U9_CH22 * U_CH22;
-
-     double epsilonZeroSeconds = 84381.448 - 4680.93*U_CH22 - 1.55*U2_CH22 + 1999.25*U3_CH22 - 51.38*U4_CH22 - 249.67*U5_CH22 - 39.05*U6_CH22 + 7.12*U7_CH22 + 27.87*U8_CH22 + 5.79*U9_CH22 + 2.45*U10_CH22;
-     double epsilonSeconds = epsilonZeroSeconds + dEpsilon;
-     double epsilonDegrees = epsilonSeconds/3600.0;
-
-     // bepalen van de apparente sterrentijd te Greenwich
-     double appTetaNulTotalSeconds = tetaNulTotalSeconds + (dFi/15.0) * cos(epsilonDegrees*PIdiv180);
-
-     // bepalen van alfa (rechte klimming) en delta (declinatie) van de maan
-     double bPI = beta*PIdiv180; double lPI = lambda*PIdiv180; double ePI = epsilonDegrees*PIdiv180;
-
-     double X = cos(bPI) * cos(lPI);
-     double Y = cos(ePI) * cos(bPI) * sin(lPI) - sin(ePI) * sin(bPI);
-     double Z = sin(ePI) * cos(bPI) * sin(lPI) + cos(ePI) * sin(bPI);
-     double R = sqrt(1.0 - pow(Z, 2));
-     // fnOutputDebug("epsilonDegrees / epsilonSeconds = " + std::to_string(epsilonDegrees) + "/" + std::to_string(epsilonSeconds));
-     // fnOutputDebug("z / r = " + std::to_string(Z) + "/" + std::to_string(R));
-
-     double delta = c180divPI * atan(Z/R);
-     double alfa = (24.0/M_PI) * atan(Y/(X + R));
-                      
-     double alfaUur = floor(alfa);
-     double alfaMinuut = floor((alfa - alfaUur)*60.0);
-     double alfaSeconde = (alfa - alfaUur - (alfaMinuut/60.0))*3600.0;
-     double deltaGraden = floor(delta);
-     double deltaMinuten = floor((delta - deltaGraden)*60.0);
-     double deltaSeconden = floor((delta - deltaGraden - (deltaMinuten/60))*3600.0);
-     double deltaGradenDecimaal = deltaGraden + (deltaMinuten/60.0) + (deltaSeconden/3600.0);
-
-     // bepalen van de uurhoek H
-     double alfaTotalSeconds = alfaUur*3600.0 + alfaMinuut*60.0 + alfaSeconde;
-     double hourAngleTotalSeconds = appTetaNulTotalSeconds + obslongitude*3600.0/15.0 - alfaTotalSeconds;
-     double hourAngle = hourAngleTotalSeconds/3600.0;
-     double hourAngleDegrees = hourAngle*15.0;
-
-     if (hourAngleDegrees<0)
-        hourAngleDegrees += 360.0;
-
-     // bepalen van de hoogte h
-     double altitudeh = asin(sin(obslatitude * PIdiv180) * sin(deltaGradenDecimaal * PIdiv180) + cos(obslatitude * PIdiv180)* cos(deltaGradenDecimaal * PIdiv180) * cos(hourAngleDegrees * PIdiv180));
-     altitudeh *= c180divPI;
-
-     // bepalen van de refractie
-     // Saemundsson's formula, which this used to apply at every altitude, only holds
-     // at and above the horizon.  Below it the 10.3 / (h + 5.11) term runs away: it is
-     // a pole at h = -5.11, and its argument sweeps through -180 degrees near
-     // h = -5.169, where the tangent crosses zero.  Moon elevations of 107, 210, even
-     // 24953 degrees came out of that neighbourhood.  calcRefraction() keeps
-     // Saemundsson above -0.575 degrees and switches to Zimmerman below it, which the
-     // two agree on at the seam and which stays finite all the way down to the nadir.
-     double refractieR = calcRefraction(altitudeh);
-
-     // bepalen van de parallax in horizontale coordinaten
-     double parallaxh = asin(sin(pi * PIdiv180) * cos(altitudeh * PIdiv180)) * c180divPI;
-
-     // correctie van de altitude met de parallax 
-     double corraltitudeh = altitudeh + refractieR - parallaxh;
-     if (onlyElevation==1)
+     // Delta T moves by well under a second a year, so a year good to a few days
+     // is plenty to look it up by.
+     double year = 2000.0 + (jdUT - 2451545.0) / 365.25;
+     if (year >= kFirstYear && year < kLastYear)
      {
-        results[1] = corraltitudeh;
-        return;
+        int i = (int)floor(year) - kFirstYear;
+        double f = year - floor(year);
+        return kObserved[i] + f * (kObserved[i+1] - kObserved[i]);
      }
 
-     // bepalen van de azimuth A
-     double teller = sin(hourAngleDegrees * PIdiv180);
-     double noemer = cos(hourAngleDegrees * PIdiv180) * sin(obslatitude * PIdiv180) - tan(deltaGradenDecimaal * PIdiv180) * cos(obslatitude * PIdiv180);
-     double azimuth = atan2d(teller, noemer);
-     azimuth += 180.0;
-     if (azimuth<0)
-        azimuth += 360.0;
+     int edgeYear = (year < kFirstYear) ? kFirstYear : kLastYear;
+     return kObserved[edgeYear - kFirstYear] + calcDeltaT(year) - calcDeltaT(edgeYear);
+}
 
-     // bepalen van de verlichte fractie van de maanschijf
-     double angleI = 180.0 - D - 6.289*sin(MA*PIdiv180) + 2.1*sin(M*PIdiv180) - 1.274*sin((2.0*D - MA)*PIdiv180) - 0.658*sin(2.0*D*PIdiv180) - 0.214*sin(2.0*MA*PIdiv180) - 0.110*sin(D*PIdiv180);
-     double illumFractionK = 100.0 * ((1.0 + cos(angleI*PIdiv180))/2.0);
+// The four principal phases of the moon, a quarter of a lunation apart.
+enum MoonPrincipalPhase { MOON_NEW = 0, MOON_FIRST_QUARTER = 1, MOON_FULL = 2, MOON_LAST_QUARTER = 3 };
 
-     // zonnecoordinaten
-     double LnulSun = 280.46646 + 36000.76983*T + 0.0003032*T2;
-     LnulSun -= floor(LnulSun/360.0)*360.0;
-     if (LnulSun < 0)
-        LnulSun += 360.0;
+// Instant of one principal phase of lunation k, as a Julian ephemeris day -
+// Meeus chapter 49.  k counts lunations from the new moon of 2000 January 6 and
+// runs negative before it; the phase adds its own quarter to it, so that
+// (k, MOON_FULL) is the full moon of that same lunation.  Good to some 4 seconds
+// against DE421, 13 at worst, over 2020-2030.
+double moonPhaseJDE(double lunation, int which) {
+     double k = lunation + which*0.25;
+     double T = k / 1236.85;
+     double T2 = T*T;
+     double T3 = T2*T;
+     double T4 = T3*T;
 
-     double Msun = 357.52911+35999.05029*T - 0.0001537*T2;
-     Msun -= floor(Msun/360.0)*360.0;
-     if (Msun < 0)
-        Msun += 360.0;
+     double jde = 2451550.09766 + 29.530588861*k + 0.00015437*T2 - 0.000000150*T3 + 0.00000000073*T4;
+     double E   = 1.0 - 0.002516*T - 0.0000074*T2;
 
-     double eSun = 0.016708634 - 0.000042037*T - 0.0000001267*T2;
-     double Csun = (1.914602 - 0.004817*T - 0.000014*T2) * sin(Msun*PIdiv180) + (0.019993 - 0.000101*T) * sin(2.0*Msun*PIdiv180) + 0.000289*sin(3.0*Msun*PIdiv180);
-     double eiSun = LnulSun + Csun;
-     double vSun = Msun + Csun;
-     double Rsun =  (1.000001018 * (1.0 - eSun*eSun)) / (1.0 + eSun*cos(vSun*PIdiv180));
-     double omegaSun = 125.04 - 1934.136*T;
-     double lambdaSun = eiSun - 0.00569 - 0.00478*sin(omegaSun*PIdiv180);
-     double fiMoon = acos(cos(beta*PIdiv180) * cos((lambda - lambdaSun)*PIdiv180)) * c180divPI;
-     double y = Rsun * 149597871.0 * sin(fiMoon*PIdiv180);
-     double x = distance - Rsun * 149597871.0 * cos(fiMoon*PIdiv180);
-     double iMoon = 0.0;
-     if (x>0)
-        iMoon = atan(y/x)*c180divPI;
+     double M  = wrapTo360(  2.5534 +  29.10535670*k - 0.0000014*T2 - 0.00000011*T3);                    // sun's mean anomaly
+     double MA = wrapTo360(201.5643 + 385.81693528*k + 0.0107582*T2 + 0.00001238*T3 - 0.000000058*T4);   // moon's mean anomaly
+     double F  = wrapTo360(160.7108 + 390.67050284*k - 0.0016118*T2 - 0.00000227*T3 + 0.000000011*T4);   // moon's argument of latitude
+     double omega = wrapTo360(124.7746 - 1.56375588*k + 0.0020672*T2 + 0.00000215*T3);
 
-     if (x<0 && y>=0)
-        iMoon = (atan(y/x) + M_PI) * c180divPI;
+     double Mr = radians(M), MAr = radians(MA), Fr = radians(F), Omr = radians(omega);
+     if (which==MOON_NEW || which==MOON_FULL)
+     {
+        // Meeus prints the new moon and the full moon as two tables, but they part
+        // company only in these seven leading coefficients; every term past them is
+        // shared, so only the seven are kept apart here.
+        static const double leadNew[7]  = { -0.40720, 0.17241, 0.01608, 0.01039, 0.00739, -0.00514, 0.00208 };
+        static const double leadFull[7] = { -0.40614, 0.17302, 0.01614, 0.01043, 0.00734, -0.00515, 0.00209 };
+        const double *c = (which==MOON_NEW) ? leadNew : leadFull;
 
-     if (x<0 && y<0)
-        iMoon = (atan(y/x) - M_PI) * c180divPI;
+        jde += c[0]*sin(MAr)                 + c[1]*E*sin(Mr)
+             + c[2]*sin(2*MAr)               + c[3]*sin(2*Fr)
+             + c[4]*E*sin(MAr - Mr)          + c[5]*E*sin(MAr + Mr)
+             + c[6]*E*E*sin(2*Mr)
+             -  0.00111*sin(MAr - 2*Fr)      - 0.00057*sin(MAr + 2*Fr)
+             +  0.00056*E*sin(2*MAr + Mr)    - 0.00042*sin(3*MAr)
+             +  0.00042*E*sin(Mr + 2*Fr)     + 0.00038*E*sin(Mr - 2*Fr)
+             -  0.00024*E*sin(2*MAr - Mr)    - 0.00017*sin(Omr)
+             -  0.00007*sin(MAr + 2*Mr)      + 0.00004*sin(2*MAr - 2*Fr)
+             +  0.00004*sin(3*Mr)            + 0.00003*sin(MAr + Mr - 2*Fr)
+             +  0.00003*sin(2*MAr + 2*Fr)    - 0.00003*sin(MAr + Mr + 2*Fr)
+             +  0.00003*sin(MAr - Mr + 2*Fr) - 0.00002*sin(MAr - Mr - 2*Fr)
+             -  0.00002*sin(3*MAr + Mr)      + 0.00002*sin(4*MAr);
+     } else
+     {
+        jde += -0.62801*sin(MAr)              + 0.17172*E*sin(Mr)
+             -  0.01183*E*sin(MAr + Mr)       + 0.00862*sin(2*MAr)
+             +  0.00804*sin(2*Fr)             + 0.00454*E*sin(MAr - Mr)
+             +  0.00204*E*E*sin(2*Mr)         - 0.00180*sin(MAr - 2*Fr)
+             -  0.00070*sin(MAr + 2*Fr)       - 0.00040*sin(3*MAr)
+             -  0.00034*E*sin(2*MAr - Mr)     + 0.00032*E*sin(Mr + 2*Fr)
+             +  0.00032*E*sin(Mr - 2*Fr)      - 0.00028*E*E*sin(MAr + 2*Mr)
+             +  0.00027*E*sin(2*MAr + Mr)     - 0.00017*sin(Omr)
+             -  0.00005*sin(MAr - Mr - 2*Fr)  + 0.00004*sin(2*MAr + 2*Fr)
+             -  0.00004*sin(MAr + Mr + 2*Fr)  + 0.00004*sin(MAr - 2*Mr)
+             +  0.00003*sin(MAr + Mr - 2*Fr)  + 0.00003*sin(3*Mr)
+             +  0.00002*sin(2*MAr - 2*Fr)     + 0.00002*sin(MAr - Mr + 2*Fr)
+             -  0.00002*sin(3*MAr + Mr);
 
-     if (x==0 && y>0)
-        iMoon = M_PI / 2.0*c180divPI;
+        // The quarters lean to one side of the mean instant and the other.
+        double W = 0.00306 - 0.00038*E*cos(Mr) + 0.00026*cos(MAr) - 0.00002*cos(MAr - Mr)
+                 + 0.00002*cos(MAr + Mr) + 0.00002*cos(2*Fr);
+        jde += (which==MOON_FIRST_QUARTER) ? W : -W;
+     }
 
-     if (x==0 && y<0)
-        iMoon = -M_PI / 2.0*c180divPI;
- 
-     double illumFractionDetail = 100*((1.0 + cos(iMoon*PIdiv180)) / 2.0);
-     double phase = (JDE - 2451550.26L) / 29.530588853L;
-     phase -= floor(phase);
-     double age = phase * 29.530588853L;
-     int phaseID = (int)(phase * 8 + 0.5) % 8;
+     // Planetary arguments.  Small - a minute and a half between them at most -
+     // but they are the difference between four seconds of error and a hundred.
+     static const double aBase[14] = { 299.77, 251.88, 251.83, 349.42,  84.66, 141.74, 207.14,
+                                       154.84,  34.52, 207.19, 291.34, 161.72, 239.56, 331.55 };
+     static const double aRate[14] = {   0.107408,  0.016321, 26.651886, 36.412478, 18.206239,
+                                        53.303771,  2.453732,  7.306860, 27.261239,  0.121824,
+                                         1.844379, 24.198154, 25.513099,  3.592518 };
+     static const double aCoef[14] = { 0.000325, 0.000165, 0.000164, 0.000126, 0.000110,
+                                       0.000062, 0.000060, 0.000056, 0.000047, 0.000042,
+                                       0.000040, 0.000037, 0.000035, 0.000023 };
+     for (int i=0; i<14; i++)
+     {
+         double a = aBase[i] + aRate[i]*k;
+         if (i==0)
+            a -= 0.009173*T2;
+         jde += aCoef[i] * sin(radians(wrapTo360(a)));
+     }
 
-     results[0] = (illumFractionDetail + illumFractionK)/2.0;
-     results[1] = corraltitudeh;// elevation
-     results[2] = azimuth;
-     results[3] = lambda;       // right ascension / longitude
-     results[4] = delta;        // declination
-     results[5] = age;
-     results[6] = phase;
-     results[7] = phaseID;
-     results[8] = beta;         // latitude
+     return jde;
+}
 
-     // fnOutputDebug("rerun = " + std::to_string(JDE));
-     // fnOutputDebug("illumFractionDetail = " + std::to_string(illumFractionDetail));
-     // fnOutputDebug("illumFractionK = " + std::to_string(illumFractionK));
-     // fnOutputDebug("altitude/elev = " + std::to_string(corraltitudeh));
-     // fnOutputDebug("azimuth = " + std::to_string(azimuth));
-     // fnOutputDebug("RA / lambda = " + std::to_string(lambda));
-     // fnOutputDebug("declination / delta = " + std::to_string(delta));
-     // fnOutputDebug("age = " + std::to_string(age));
-     // return 1;
+// Lunation number whose mean new moon last preceded the given instant.
+double moonLunationNumber(double jdTT) {
+     return floor((jdTT - 2451550.09766) / 29.530588861);
+}
+
+// Everything one call can say about the moon.  Angles are in degrees, distances
+// in kilometres, times in days.
+struct MoonState {
+    double jdUT;          // Julian day, universal time
+    double jdTT;          // ... and dynamical time, which the series want
+    double lambda;        // apparent geocentric ecliptic longitude
+    double beta;          // apparent geocentric ecliptic latitude
+    double distance;      // centre to centre, km
+    double parallax;      // equatorial horizontal parallax
+    double ra, dec;       // apparent geocentric right ascension and declination
+    double raTopo;        // ... as seen from the observer's place on the surface
+    double decTopo;
+    double hourAngle;     // topocentric local hour angle
+    double azimuth;       // degrees east of north
+    double altitude;      // topocentric altitude, geometric
+    double altitudeApp;   // ... as refraction leaves it
+    double sunLambda;     // sun's apparent geocentric longitude
+    double sunRadius;     // sun's distance, astronomical units
+    double elongation;    // geocentric moon-sun angle, 0 to 180
+    double phaseAngle;    // sun-moon-earth angle
+    double illumination;  // lit fraction of the disk, per cent
+    double phase;         // place in the lunation: 0 new, 0.25 first quarter, 0.5 full
+    double age;           // days since the new moon that actually happened
+    int    phaseID;       // 0-7, an eighth of the lunation each
+};
+
+// How much of the state a caller needs.  The hunt for the moon's highest point
+// asks for an altitude a few dozen times per call and has no use for the rest.
+enum MoonDetail { MOON_DETAIL_PLACE = 0,   // where the moon is in the sky
+                  MOON_DETAIL_ALL   = 1 }; // ... and how lit and how old it is
+
+void moonComputeState(double timeUTC, double obslatitude, double obslongitude,
+                      MoonState &s, MoonDetail detail) {
+     s.jdUT = timeUTC / 86400.0 + 2440587.5;
+     s.jdTT = s.jdUT + moonDeltaTseconds(s.jdUT) / 86400.0;
+
+     double T  = (s.jdTT - 2451545.0) / 36525.0;
+     double T2 = T*T;
+     double T3 = T2*T;
+     double T4 = T3*T;
+
+     // Mean elements of the moon and of the sun - Meeus chapter 47.
+     double LA = wrapTo360(218.3164477 + 481267.88123421*T - 0.0015786*T2 + T3/538841.0 - T4/65194000.0);   // mean longitude
+     double D  = wrapTo360(297.8501921 + 445267.1114034*T  - 0.0018819*T2 + T3/545868.0 - T4/113065000.0);  // mean elongation
+     double M  = wrapTo360(357.5291092 +  35999.0502909*T  - 0.0001536*T2 + T3/24490000.0);                 // sun's mean anomaly
+     double MA = wrapTo360(134.9633964 + 477198.8675055*T  + 0.0087414*T2 + T3/69699.0  - T4/14712000.0);   // moon's mean anomaly
+     double F  = wrapTo360( 93.2720950 + 483202.0175233*T  - 0.0036539*T2 - T3/3526000.0 + T4/863310000.0); // argument of latitude
+
+     double A1 = wrapTo360(119.75 +    131.849*T);
+     double A2 = wrapTo360( 53.09 + 479264.290*T);
+     double A3 = wrapTo360(313.45 + 481266.484*T);
+
+     // Eccentricity of the earth's orbit round the sun, which damps the terms
+     // that carry the sun's anomaly.
+     double E  = 1.0 - 0.002516*T - 0.0000074*T2;
+     double E2 = E*E;
+
+     double Sl = 0.0, Sr = 0.0, Sb = 0.0;
+     for (int i=0; i<60; i++)
+     {
+        double eTerm = 1.0;
+        if (fabs(mTable47a[i])==1.0)
+           eTerm = E;
+        else if (fabs(mTable47a[i])==2.0)
+           eTerm = E2;
+
+        double arg = radians(dTable47a[i]*D + mTable47a[i]*M + maTable47a[i]*MA + fTable47a[i]*F);
+        Sl += lTable47a[i] * eTerm * sin(arg);
+        Sr += rTable47a[i] * eTerm * cos(arg);
+
+        eTerm = 1.0;
+        if (fabs(mTable47b[i])==1.0)
+           eTerm = E;
+        else if (fabs(mTable47b[i])==2.0)
+           eTerm = E2;
+
+        arg = radians(dTable47b[i]*D + mTable47b[i]*M + maTable47b[i]*MA + fTable47b[i]*F);
+        Sb += bTable47b[i] * eTerm * sin(arg);
+     }
+
+     // Additive terms for Venus, Jupiter and the flattening of the earth.
+     Sl += 3958.0*sin(radians(A1)) + 1962.0*sin(radians(LA - F)) + 318.0*sin(radians(A2));
+     Sb += -2235.0*sin(radians(LA)) + 382.0*sin(radians(A3))
+         +   175.0*sin(radians(A1 - F)) + 175.0*sin(radians(A1 + F))
+         +   127.0*sin(radians(LA - MA)) - 115.0*sin(radians(LA + MA));
+
+     double lambda = LA + Sl/1000000.0;      // geometric, mean equinox of the date
+     s.beta        = Sb/1000000.0;
+     s.distance    = 385000.56 + Sr/1000.0;
+     s.parallax    = degrees(asin(6378.14 / s.distance));
+
+     double dPsi, dEpsilon;
+     moonNutation(T, dPsi, dEpsilon);
+
+     // Mean obliquity of the ecliptic - Laskar's expansion, Meeus chapter 22.
+     double U = T/100.0;
+     double epsilonZeroSeconds = 84381.448 + U*(-4680.93 + U*(-1.55 + U*(1999.25 + U*(-51.38
+                              + U*(-249.67 + U*(-39.05 + U*(7.12 + U*(27.87 + U*(5.79 + U*2.45)))))))));
+     double epsilon = (epsilonZeroSeconds + dEpsilon) / 3600.0;
+
+     // Apparent longitude.  Only nutation is added: the 0.7 arcseconds the moon
+     // slips back over the 1.28 seconds its light takes to reach us is already
+     // carried by the chapter 47 series.  Subtracting it a second time leaves a
+     // measurable 0.8 arcsecond bias against DE421, where leaving it alone
+     // leaves none.
+     s.lambda = wrapTo360(lambda + dPsi/3600.0);
+
+     // Right ascension and declination - Meeus chapter 13.  Read straight off
+     // the ecliptic coordinates: the half-angle detour this replaces rounded the
+     // declination to whole arcseconds on its way through a degrees-minutes-
+     // seconds decomposition it then undid again.
+     double bR = radians(s.beta), lR = radians(s.lambda), eR = radians(epsilon);
+     s.ra  = wrapTo360(degrees(atan2(sin(lR)*cos(eR) - tan(bR)*sin(eR), cos(lR))));
+     s.dec = degrees(asin(sin(bR)*cos(eR) + cos(bR)*sin(eR)*sin(lR)));
+
+     // Apparent sidereal time at Greenwich - Meeus chapter 12.  This one measures
+     // the earth's rotation, so it is a function of UT and not of TT.
+     double Tu = (s.jdUT - 2451545.0) / 36525.0;
+     double gmst = wrapTo360(280.46061837 + 360.98564736629*(s.jdUT - 2451545.0)
+                            + 0.000387933*Tu*Tu - Tu*Tu*Tu/38710000.0);
+     double gast = gmst + (dPsi/3600.0) * cos(radians(epsilon));
+
+     // Local hour angle, still geocentric.  Longitude counts positive east.
+     double H = wrapTo360(gast + obslongitude - s.ra);
+
+     // The observer stands on the surface, not at the centre, and for the moon
+     // that is worth up to a degree - Meeus chapter 40.  Taking the parallax out
+     // in the equatorial frame carries the earth's flattening with it and leaves
+     // a declination and an hour angle that the azimuth can be read from too,
+     // rather than only shifting the altitude.
+     double latR = radians(obslatitude);
+     double u = atan2(0.99664719*sin(latR), cos(latR));
+     double rhoSinPhi = 0.99664719*sin(u);
+     double rhoCosPhi = cos(u);
+
+     double sinPi = sin(radians(s.parallax));
+     double decR = radians(s.dec), HR = radians(H);
+     double denom = cos(decR) - rhoCosPhi*sinPi*cos(HR);
+     double dRA = atan2(-rhoCosPhi*sinPi*sin(HR), denom);
+
+     s.raTopo    = wrapTo360(s.ra + degrees(dRA));
+     s.decTopo   = degrees(atan2((sin(decR) - rhoSinPhi*sinPi)*cos(dRA), denom));
+     s.hourAngle = wrapTo360(H - degrees(dRA));
+
+     // Horizontal coordinates - Meeus chapter 13.  Meeus reckons the azimuth
+     // west from the south; the half turn puts it east from the north.
+     double dtR = radians(s.decTopo), htR = radians(s.hourAngle);
+     double sinLat = sin(latR), cosLat = cos(latR);
+     s.altitude = degrees(asin(sinLat*sin(dtR) + cosLat*cos(dtR)*cos(htR)));
+     s.azimuth  = wrapTo360(180.0 + degrees(atan2(cos(dtR)*sin(htR),
+                            cos(dtR)*cos(htR)*sinLat - sin(dtR)*cosLat)));
+
+     // Refraction lifts the moon by half a degree at the horizon, and it has to
+     // be read off the altitude the moon is actually at - the one parallax has
+     // already pushed down.  Reading it off the geocentric altitude instead, as
+     // this used to, is a third of a degree out around rise and set, where the
+     // curve is at its steepest and where it matters most.
+     s.altitudeApp = s.altitude + calcRefraction(s.altitude);
+
+     if (detail == MOON_DETAIL_PLACE)
+        return;
+
+     // The sun, to the hundredth of a degree of Meeus chapter 25 - enough for an
+     // elongation whose other half is only good to 10 arcseconds anyway.
+     double L0sun = wrapTo360(280.46646 + 36000.76983*T + 0.0003032*T2);
+     double Msun  = wrapTo360(357.52911 + 35999.05029*T - 0.0001537*T2);
+     double Csun  = (1.914602 - 0.004817*T - 0.000014*T2) * sin(radians(Msun))
+                  + (0.019993 - 0.000101*T) * sin(radians(2.0*Msun))
+                  +  0.000289 * sin(radians(3.0*Msun));
+     double eSun  = 0.016708634 - 0.000042037*T - 0.0000001267*T2;
+     double vSun  = Msun + Csun;                     // true anomaly
+
+     s.sunRadius = (1.000001018 * (1.0 - eSun*eSun)) / (1.0 + eSun*cos(radians(vSun)));
+     s.sunLambda = wrapTo360(L0sun + Csun - 0.00569 - 0.00478*sin(radians(125.04 - 1934.136*T)));
+
+     // Elongation, phase angle and the lit fraction of the disk - Meeus chapter
+     // 48.  Only the rigorous 48.3 is used now.  The two-term approximation of
+     // 48.4 that this used to average it with is a tenth of a per cent adrift,
+     // and averaging a good figure with a worse one only spoils the good one.
+     double elongInLongitude = wrapTo360(s.lambda - s.sunLambda);   // 0 at new, 180 at full
+     s.elongation = degrees(acos(cos(radians(s.beta)) * cos(radians(elongInLongitude))));
+
+     double sunKm = s.sunRadius * 149597870.7;
+     s.phaseAngle = degrees(atan2(sunKm * sin(radians(s.elongation)),
+                                  s.distance - sunKm * cos(radians(s.elongation))));
+     s.illumination = 100.0 * (1.0 + cos(radians(s.phaseAngle))) / 2.0;
+
+     // Where the moon stands in the lunation.  New moon, first quarter, full and
+     // last quarter are defined by the elongation - 0, 90, 180, 270 degrees - so
+     // that is what names the phase here.  The mean cycle this replaces ran up to
+     // half a day fast or slow and put the name outright wrong about one day in
+     // eleven, which is what the corrections on the AutoHotkey side were for.
+     s.phase   = elongInLongitude / 360.0;
+     s.phaseID = ((int)floor(s.phase * 8.0 + 0.5)) % 8;
+
+     // Age is a length of time, so it is counted from the new moon that really
+     // happened rather than from a mean one - chapter 49 places those to within
+     // a few seconds.  The starting guess is the mean lunation, which is never
+     // more than about 0.6 days out, so at most one step is needed either way.
+     double k = moonLunationNumber(s.jdTT);
+     double prevNew = moonPhaseJDE(k, MOON_NEW);
+     while (prevNew > s.jdTT)
+     {
+        k -= 1.0;
+        prevNew = moonPhaseJDE(k, MOON_NEW);
+     }
+     for (;;)
+     {
+        double nextNew = moonPhaseJDE(k + 1.0, MOON_NEW);
+        if (nextNew > s.jdTT)
+           break;
+        k += 1.0;
+        prevNew = nextNew;
+     }
+     s.age = s.jdTT - prevNew;
 }
 
 
 DLL_API int DLL_CALLCONV getMoonPhase(double timeUTC, double obsLat, double obsLon, double* p, int* IDp, double* a, double* f, double* latu, double* lon, double* azi, double* eleva) {
-   double res[9];
-   moonCalcPosition(timeUTC, obsLat, obsLon, res);
+   MoonState s;
+   moonComputeState(timeUTC, obsLat, obsLon, s, MOON_DETAIL_ALL);
 
-   double frac = res[0];
-   double altitudeh = res[1];
-   double azimuth = res[2];
-   double lambda = res[3];
-   double delta = res[4];
-   double age = res[5];
-   double phase = res[6];
-   double phaseID = res[7];
-   double beta = res[8];
-
-   *p = phase;
-   *IDp = phaseID;
-   *a = age;
-   *f = frac;
-   *latu = beta;
-   *lon = lambda;
-   *azi = azimuth;
-   *eleva = altitudeh;
+   *p     = s.phase;
+   *IDp   = s.phaseID;
+   *a     = s.age;
+   *f     = s.illumination;    // per cent
+   *latu  = s.beta;
+   *lon   = s.lambda;
+   *azi   = s.azimuth;
+   *eleva = s.altitudeApp;
    return 1;
 }
 
-DLL_API int DLL_CALLCONV getMoonElevation(double timeUTC, double obslatitude, double obslongitude, double *azimuth, double *eleva) {
-     double res[9];
-     moonCalcPosition(timeUTC, obslatitude, obslongitude, res);
-     // fnOutputDebug("res[1] = " + std::to_string(res[1]));
-     double el = res[1];
-     *eleva = el;
-     double azi = res[2];
-     *azimuth = azi;
+// Kept for the callers that want the zodiac sign, which the call above does not
+// report.  It used to run the Schaefer approximation of MoonPhase.cpp, whose
+// longitude wanders by several degrees and put the sign on the wrong side of a
+// boundary often enough to notice; the numbers now come from the same place as
+// everything else.  Note that this one hands back the lit fraction from 0 to 1,
+// where getMoonPhase() hands back a percentage - the two callers on the
+// AutoHotkey side differ that way and always have.
+DLL_API int DLL_CALLCONV oldgetMoonPhase(double timeus, int timeGiven, double* p, int* IDp, double* a, double* f, double* latu, double* lon, int* z) {
+  double timeUTC = (timeGiven==1) ? timeus : (double)time(NULL);
+
+  // Nothing this one reports depends on where the observer stands, so the place
+  // handed to the core is immaterial.
+  MoonState s;
+  moonComputeState(timeUTC, 0.0, 0.0, s, MOON_DETAIL_ALL);
+
+  *p = s.phase;
+  *IDp = s.phaseID;
+  *a = s.age;
+  *f = s.illumination / 100.0;
+  *latu = s.beta;
+  *lon = s.lambda;
+
+  // Ecliptic bounds of the zodiacal constellations, as MoonPhase.cpp lists them.
+  int zodiacID = 0;
+  for (int i = 0; i < (int)(sizeof(zodiacAngles) / sizeof(float)); i++)
+  {
+      if (s.lambda < zodiacAngles[i])
+      {
+         zodiacID = i;
+         break;
+      }
+  }
+  *z = zodiacID;
+  return 1;
+}
+
+// How long from timeUTC until each of the four principal phases next comes round,
+// in seconds.  Meeus chapter 49 gives the instants outright, so there is nothing
+// here to search for: the caller no longer has to walk the phase forward in ten
+// minute steps and watch for the name to turn over, which took a couple of
+// thousand calls to land on a boundary it could only ever resolve to the width of
+// a step - and which named the moment the moon entered the new or full eighth of
+// the cycle, nearly two days before the phase itself.
+//
+// The four are handed back as offsets rather than as absolute times, the way
+// getMoonNoon() and getSunMoonRiseSet() do, so the caller can add them straight
+// onto the timestamp it asked about.  An offset is also a difference of two
+// dynamical times, which leaves delta T out of it entirely.
+DLL_API int DLL_CALLCONV getNextMoonPhases(double timeUTC, double* toNew, double* toFirstQuarter, double* toFull, double* toLastQuarter) {
+     double jdUT = timeUTC / 86400.0 + 2440587.5;
+     double jdTT = jdUT + moonDeltaTseconds(jdUT) / 86400.0;
+
+     double* out[4] = { toNew, toFirstQuarter, toFull, toLastQuarter };
+     for (int which = 0; which < 4; which++)
+     {
+         // Two lunations back is far enough that every phase of the four starts
+         // out behind the given moment, whichever quarter of the cycle it sits in.
+         double k = moonLunationNumber(jdTT) - 2.0;
+         double jde = moonPhaseJDE(k, which);
+         for (int step = 0; step < 8 && jde <= jdTT; step++)
+         {
+             k += 1.0;
+             jde = moonPhaseJDE(k, which);
+         }
+
+         *out[which] = (jde - jdTT) * 86400.0;
+     }
+
      return 1;
 }
 
+DLL_API int DLL_CALLCONV getMoonElevation(double timeUTC, double obslatitude, double obslongitude, double *azimuth, double *eleva) {
+     MoonState s;
+     moonComputeState(timeUTC, obslatitude, obslongitude, s, MOON_DETAIL_PLACE);
+     *azimuth = s.azimuth;
+     *eleva   = s.altitudeApp;
+     return 1;
+}
+
+double moonAltitudeAt(double timeUTC, double obslatitude, double obslongitude) {
+     MoonState s;
+     moonComputeState(timeUTC, obslatitude, obslongitude, s, MOON_DETAIL_PLACE);
+     return s.altitudeApp;
+}
+
+// Golden-section search for the moon's highest or lowest point inside a bracket
+// known to hold it.  Twenty-five or so evaluations bring an hour-wide bracket
+// down to a twentieth of a second, where the altitude curve is flat to far
+// under a thousandth of a degree.  The minute-by-minute walk this replaces cost
+// five times as many evaluations of the full series and still left the transit
+// quantised to whole minutes.
+void moonFindExtremum(double loTime, double hiTime, double obslatitude, double obslongitude,
+                      int wantMax, double &bestTime, double &bestAlt) {
+     const double invPhi = 0.6180339887498949;
+     double sign = wantMax ? 1.0 : -1.0;
+
+     double a = loTime, b = hiTime;
+     double c = b - invPhi*(b - a);
+     double d = a + invPhi*(b - a);
+     double fc = sign * moonAltitudeAt(c, obslatitude, obslongitude);
+     double fd = sign * moonAltitudeAt(d, obslatitude, obslongitude);
+
+     while (b - a > 0.05)
+     {
+         if (fc > fd)
+         {
+            b = d;  d = c;  fd = fc;
+            c = b - invPhi*(b - a);
+            fc = sign * moonAltitudeAt(c, obslatitude, obslongitude);
+         } else
+         {
+            a = c;  c = d;  fc = fd;
+            d = a + invPhi*(b - a);
+            fd = sign * moonAltitudeAt(d, obslatitude, obslongitude);
+         }
+     }
+
+     bestTime = (a + b) / 2.0;
+     bestAlt  = moonAltitudeAt(bestTime, obslatitude, obslongitude);
+}
+
+// Highest point the moon reaches in the twenty-four hours from timeUTC, and
+// optionally its lowest.  hmax and hmin come back as minutes from timeUTC, now
+// with the fraction on them - the caller should carry them over in seconds.
 DLL_API int DLL_CALLCONV getMoonNoon(double timeUTC, double obslatitude, double obslongitude, int doMinu, double *hmax, double *hmin, double *fmax, double *fmin) {
-
-     double res[9];
-     double maxu = -91;     double minu = 91;
-     double maxuZeit = 0;   double minuZeit = 0;
-
      // Hour 24 belongs in the grid as well: without it a peak inside the closing
      // hour of the day is only ever sampled up to an hour before it, and a lower
      // interior peak elsewhere in the day can win the comparison, leaving the moon's
      // highest point out by as much as five degrees on a handful of days a year.
-     for (int i = 0; i <= 24; ++i)
+     const int kHours = 24;
+     double alt[kHours + 1];
+     int iMax = 0, iMin = 0;
+     for (int i = 0; i <= kHours; ++i)
      {
-         double b = timeUTC + i * 3600;
-         moonCalcPosition(b, obslatitude, obslongitude, res, 1);
-         // fnOutputDebug("res[1] = " + std::to_string(res[1]));
-         if (res[1]>maxu)
-         {
-            maxuZeit = b;
-            maxu = res[1];
-         }
+         alt[i] = moonAltitudeAt(timeUTC + i*3600.0, obslatitude, obslongitude);
+         if (alt[i] > alt[iMax])
+            iMax = i;
 
-         if (res[1]<minu)
-         {
-            minuZeit = b;
-            minu = res[1];
-         }
+         if (alt[i] < alt[iMin])
+            iMin = i;
      }
 
-     // The hourly scan above lands within half an hour of the peak; refine it minute
-     // by minute around that sample.  The base point has to be read from a variable
-     // the loop does not write.  Taking it from maxuZeit moved the window along with
-     // every improvement, so the scan walked away from the hour it was meant to cover
-     // and left the transit minutes - now and then a couple of hours - off the peak.
-     int extraLoops = 0;   int outerLoops = 0;
-     double baseZeit = maxuZeit;
-     for (int i = -30; i < 90; ++i)
-     {
-         double b = baseZeit + i * 60;
-         moonCalcPosition(b, obslatitude, obslongitude, res, 1);
-         // fnOutputDebug("res[1] = " + std::to_string(res[1]));
-         if (res[1]>maxu)
-         {
-            maxuZeit = b;
-            maxu = res[1];
-            extraLoops++;
-         } else if (i>0)
-            break;
-         outerLoops++;
-     }
+     // The winning sample has both its neighbours below it, so the turning point
+     // lies between them.  At the ends of the day there is no neighbour to lean
+     // on and the bracket stops at the edge, which keeps the answer inside the
+     // day it was asked about.
+     double peakTime, peakAlt;
+     double lo = timeUTC + (iMax > 0 ? iMax - 1 : 0) * 3600.0;
+     double hi = timeUTC + (iMax < kHours ? iMax + 1 : kHours) * 3600.0;
+     moonFindExtremum(lo, hi, obslatitude, obslongitude, 1, peakTime, peakAlt);
+     *hmax = (peakTime - timeUTC) / 60.0;
+     *fmax = peakAlt;
 
-     // fnOutputDebug("loops = " + std::to_string(extraLoops) + " / " + std::to_string(outerLoops) );
-     // outerLoops = 0; extraLoops = 0;
      if (doMinu==1)
      {
-         baseZeit = minuZeit;
-         for (int i = -30; i < 90; ++i)
-         {
-             double b = baseZeit + i * 60;
-             moonCalcPosition(b, obslatitude, obslongitude, res, 1);
-             // fnOutputDebug("res[1] = " + std::to_string(res[1]));
-             if (res[1]<minu)
-             {
-                minuZeit = b;
-                minu = res[1];
-                extraLoops++;
-             } else if (i>0)
-                break;
-             outerLoops++;
-         }
-         *hmin = (minuZeit - timeUTC)/60;
-         *fmin = minu;
+        lo = timeUTC + (iMin > 0 ? iMin - 1 : 0) * 3600.0;
+        hi = timeUTC + (iMin < kHours ? iMin + 1 : kHours) * 3600.0;
+        moonFindExtremum(lo, hi, obslatitude, obslongitude, 0, peakTime, peakAlt);
+        *hmin = (peakTime - timeUTC) / 60.0;
+        *fmin = peakAlt;
      }
 
-     // fnOutputDebug("loops = " + std::to_string(extraLoops) + " / " + std::to_string(outerLoops) );
-     *hmax = (maxuZeit - timeUTC)/60;
-     *fmax = maxu;
-     // fnOutputDebug("maxu = " + std::to_string(maxu) + " // " + std::to_string(maxuZeit) );
-     // fnOutputDebug("hm = " + std::to_string(hmax) + " // " + std::to_string(hmin) + " // " + std::to_string(extraLoops) + " // " + std::to_string(outerLoops) );
-     // fnOutputDebug("minu = " + std::to_string(minu) + " // " + std::to_string(minuZeit) );
      return 1;
 }
+
 
 DLL_API int DLL_CALLCONV getTwilightDuration(double t, double lat, double lon, double degs, double* twDur) {
   // Find duration of today's twilight.
@@ -718,12 +833,12 @@ DLL_API int DLL_CALLCONV getSunMoonRiseSet(double t, double rt, double lat, doub
         *riseu = -1*(rt - sr.riseTime)/3600;
      else
         *riseu = 999999;
- 
+
      if (sr.hasSet)
         *setu = -1*(rt - sr.setTime)/3600;
      else
         *setu = 999999;
- 
+
      // Find duration of today's twilight.
      Twilight tw;
      tw.calculate(lat, lon, 6.1, t);
@@ -757,8 +872,8 @@ DLL_API int DLL_CALLCONV getSunMoonRiseSet(double t, double rt, double lat, doub
 double calcJDEzEquiSols(int k, int year) {
 // Equinox & Solstice Calculator
 //  The algorithms and correction tables for this computation come directly from the book Astronomical
-//  Algorithms Second Edition by Jean Meeus, ©1998, published by Willmann-Bell, Inc., Richmond, VA, 
-//  ISBN 0-943396-61-1. They were coded in JavaScript and built into the 
+//  Algorithms Second Edition by Jean Meeus, ©1998, published by Willmann-Bell, Inc., Richmond, VA,
+//  ISBN 0-943396-61-1. They were coded in JavaScript and built into the
 //  https://stellafane.org/misc/equinox.html web page by its author, Ken Slater.
 // JS code converted to C++ by Marius Șucan in 2022
 
@@ -799,11 +914,11 @@ double periodic24(double T) {
    };
 
    return S;
-} 
+}
 
 void fromJDtoUTC( double JD, int* monu, int* dayu, int* hour, int* minu ) {
 // Julian Date to UTC date
-// Meeus Astronomical Algorithms Chapter 7 
+// Meeus Astronomical Algorithms Chapter 7
     double Z = floor(JD + 0.5);    // Integer JD's
     double F = (JD + 0.5) - Z;     // Fractional JD's
     double A = 0.0;
@@ -878,22 +993,13 @@ DLL_API double DLL_CALLCONV getMoonLitAngle(double timeUTC, int year, int month,
    JulianDay jd(year, month, day, hour, minute, 35);
    calcEquatorialCoordinates(jd, sunRA, sunDEC, sunRV);
 
-   double res[9];
-   moonCalcPosition(timeUTC, obsLat, obsLon, res);
+   MoonState s;
+   moonComputeState(timeUTC, obsLat, obsLon, s, MOON_DETAIL_ALL);
 
-   double moonRA = res[3];
-   double moonDEC = res[4];
-   double moonLatu = res[8];
-
-   MoonPhase m;
-   m.calculate(timeUTC);
-   double moonLat = m.latitude;
-   double moonLon = m.longitude;
-   double angle = getMoonDiskOrientationAngles(moonLat, moonLon, moonRA, moonDEC, sunRA, sunDEC, obsLat, obsLon);
+   double angle = getMoonDiskOrientationAngles(s.beta, s.lambda, s.ra, s.dec, sunRA, sunDEC, obsLat, obsLon);
    fnOutputDebug("moon angle = " + std::to_string(angle));
-   fnOutputDebug("moon lat/lon = " + std::to_string(moonLat) + "/" + std::to_string(moonLon));
-   fnOutputDebug("2moon lat/lon = " + std::to_string(moonLatu) + "/" + std::to_string(moonRA));
-   fnOutputDebug("moon ra/dec = " + std::to_string(moonRA) + "/" + std::to_string(moonDEC));
+   fnOutputDebug("moon lat/lon = " + std::to_string(s.beta) + "/" + std::to_string(s.lambda));
+   fnOutputDebug("moon ra/dec = " + std::to_string(s.ra) + "/" + std::to_string(s.dec));
    fnOutputDebug("sun ra/dec = " + std::to_string(sunRA) + "/" + std::to_string(sunDEC));
    return angle;
 }
