@@ -31,14 +31,14 @@
 
 #SingleInstance Force
 #NoEnv
-#MaxMem 256
+#MaxMem 512
+#MaxHotkeysPerInterval, 950
 #Include, Lib\va.ahk                   ; windows vista audio APIs wrapper by Lexikos
 #Include, Lib\mci.ahk
 #Include, Lib\gdip_all.ahk
 #Include, Lib\gdi.ahk
 #Include, Lib\analog-clock-display.ahk
 #Include, Lib\Class_CtlColors.ahk
-#Include, Lib\Maths.ahk
 #Include, Lib\hashtable.ahk
 #Include, Lib\Class_ImageButton.ahk
 ; #Include, Lib\direct-sound-wrapper.ahk
@@ -5640,21 +5640,11 @@ PopulateIncomingCelebs() {
     listu .= "Astronomic events:`n`n"
     listu .= listSolarSeasons(ereday, yesterday, tudayDate, tmrwDate, mtmrwDate, 0, 30)
 
-    ; The new and the full moons of the coming month, asked of the DLL one after the
-    ; other. This used to be sixty samples taken twelve hours apart, watching for the
-    ; phase name to change, which caught the moment the moon entered the new or the
-    ; full eighth of the cycle - as much as two days ahead of the phase itself, and
-    ; on the wrong side of a midnight often enough to date the event a day out. It
-    ; also missed anything that fell before the first sample, halfway through the
-    ; opening day.
     shiftu := localTimeShift()
-
     zeitu := A_Year A_Mon A_MDay "000000"   ; the list opens on the top of today
     zeitu += -1*shiftu, Seconds             ; ... which is this moment in UTC
     endZeit := zeitu
     endZeit += 30, Days
-
-    ; a month holds three of these at the most; the count is a guard, nothing more
     Loop, 6
     {
         If !getNextMoonPhases(zeitu, toNew, toFirstQ, toFull, toLastQ)
@@ -6222,13 +6212,6 @@ givenDateTestCelebrations(givenDate) {
     Else If (dSolsDay=thisYday)
        listu .= "◯ December Solstice.`n`n"
 
-    ; Does a new or a full moon fall on this day? The DLL says when the next one is, so
-    ; the day only has to be asked about once. Four samples five hours apart used to be
-    ; taken instead, watching for the phase name to turn over, which found the moon
-    ; standing in the new or the full eighth of the cycle rather than the phase itself -
-    ; true of some four days in every fourteen, which is why the calendar had to strike
-    ; the marker off any day whose predecessor already carried it. The first six hours
-    ; of the day and the last three went unsampled as well.
     shiftu := localTimeShift()
     zeitu := thisYear thisMon thisMDay "000000"   ; the top of the day, locally
     zeitu += -1*shiftu, Seconds                   ; ... as the moment it is in UTC
@@ -6328,12 +6311,8 @@ uiPopulateCalendar() {
 
         GuiControlGet, hVar, SettingsGUIA: hwnd, uiCalendarL%t%C%A_Index%
         ; A day carries the marker when the phase itself lands on it, so no two days
-        ; running can carry one - the new moon and the full are a fortnight apart. The
-        ; lines that used to strike it off a day whose predecessor had it were there for
-        ; the sampling this replaced, which flagged the whole new or full eighth of the
-        ; cycle, four days of it at a time.
+        ; running can carry one - the new moon and the full are a fortnight apart..
         lista := givenDateTestCelebrations(tDate)
-
         tMon := SubStr(tDate, 5, 2)
         opp := (tMon=gMon) ? 255 : 123
         If (SubStr(tDate, 1, 8)=lDate)
@@ -6359,8 +6338,7 @@ uiPopulateCalendar() {
         GuiControl, SettingsGUIA:, uiCalendarL%t%C%A_Index%, % (lista && opp!=253) ? 1 : 0
     }
   }
-
-    ; ToolTip, % thisDate "`n" uiUserFullDateUTC , , , 2
+  ; ToolTip, % thisDate "`n" uiUserFullDateUTC , , , 2
 }
 
 ToggleAlwaysOnTopSettingsWindow() {
@@ -7175,11 +7153,11 @@ PanelMoonYearGraphTable() {
 }
 
 btnHelpYearSolarGraph() {
-  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Sunlight and civil twilight duration per day. The X axis represents the days of year, 1 to 365. The Y axis represents the hours of the day, from 00:01 to 23:59. The taller the yellow bars are, the longer the duration of sunlight is on that day. The civil twilight is represented by a darker yellow at the top of the bars. The bars are shaded based on the solar noon angle of that day. The higher the sun rises at noon the brighter the shade is.`n`n2. Sun rises and sun sets. This mode highlights the time of day the sunsets and sunrises occur. The X axis represents the days of the year and the Y axis are the hours. At the top of the Y axis is 00:00 and at the bottom is 23:59. The data is represented as dots. The brighter dots represent sun rises and sets, while the darker ones, dawn and dusk. Between rises and sets, the solar noon is represented by bright blueish dots.")
+  simpleMsgBoxWrapper(appName, "The graph has two modes, switchable by clicking it:`n `n1. Sunlight and civil twilight duration per day. The X axis shows the days of the year (1–365). Y axis shows hours (00:00 – 23:59). Taller yellow bars indicate longer sunlight duration. The darker yellow at the top represents civil twilight. Bar shading reflects the solar-noon angle: the higher the sun is at noon, the brighter the shade.`n `n2. Sunrise and sunset events. The X axis shows the days of the year. Y axis shows time, with 00:00 at the top and 23:59 at the bottom. The events are shown as dots: brighter dots indicate sunrise and sunset, darker dots indicate dawn and dusk, and bright blueish dots between sunrise and sunset represent solar noon.")
 }
 
 btnHelpYearMoonGraph() {
-  simpleMsgBoxWrapper(appName, "The graph has two modes the user can switch between by clicking on it.`n`n1. Moonlight duration per day. The X axis represents the days of year, 1 to 365. The Y axis represents the hours of the day, from 00:01 to 23:59. The taller the yellow bars are, the longer the duration of moonlight is on that day. The bars are shaded based on the culminant angle of that day. The higher the moon rises the brighter it is.`n`n2. Moon rises and moon sets. X and Y are the same (days and hours). At the top of the Y axis is 00:00 and at the bottom is 23:59. This mode highlights the time of day the moon sets and rises. The X axis represents the days of the year and the Y axis are the hours. At the top of the Y axis is 00:00 and at the bottom is 23:59.  The data is represented as dots. The brighter dots represent rises, and the darker ones, the sets.`n`nThe entire background has a wave pattern. It is calculated based on the moon illumination fraction. The peak blueish bright areas represent full moon, while the darkest shades are for the new moon.")
+  simpleMsgBoxWrapper(appName, "The graph has two modes, switchable by clicking it.`n `n1. Moonlight duration per day: The X axis shows days 1–365. Y axis shows hours from 00:00 to 23:59. Taller yellow bars indicate longer moonlight duration. Bar shading is based on the day’s culminant angle: the higher the Moon rises, the brighter the bar.`n `n2. Moon rises and sets: The X axis shows days of the year. Y axis shows hours with 00:00 at the top and 23:59 at the bottom. Moonrise and moonset times are shown as dots. The brighter dots represent rises and darker dots represent sets.`n `nThe background uses a wave pattern calculated from the Moon’s illumination fraction.")
 }
 
 scorifyCompareWords(thisUserWord, siti) {
@@ -9076,10 +9054,7 @@ calculateEquiSols(k, yearu, l:=0) {
    mm := d := hh := m := ""
    r := DllCall(callCBTdllFunc("calculateEquiSols"), "int", k - 1, "int", yearu, "int*", mm, "int*", d, "int*", hh, "int*", m, "Int")
    If !r
-   {
-      r := AHKcalculateEquiSols(k, yearu, l)
       Return r
-   }
 
    theDate := yearu Format("{:02}", mm) Format("{:02}", d) Format("{:02}", hh) Format("{:02}", m) Format("{:02}", 14)
    If (l=1)
@@ -9194,15 +9169,13 @@ getNextMoonPhases(timeUTC, ByRef toNew, ByRef toFirstQuarter, ByRef toFull, ByRe
       Return 0
 
    timeUTC -= 19700101000000, S   ; convert to Unix TimeStamp
-   Return DllCall(callCBTdllFunc("getNextMoonPhases"), "double", timeUTC, "double*", toNew, "double*", toFirstQuarter, "double*", toFull, "double*", toLastQuarter, "Int")
+   pp := DllCall(callCBTdllFunc("getNextMoonPhases"), "double", timeUTC, "double*", toNew, "double*", toFirstQuarter, "double*", toFull, "double*", toLastQuarter, "Int")
+   Return pp
 }
 
 SolarCalculator(t, latu, longu, gmtOffset:=0, altitudeBonus:=0) {
    If (!initCBTdll() || A_PtrSize!=8)
       Return
-
-   ; If gmtOffset
-   ;    t += -1*gmtOffset, Hours
 
    FormatTime, y, % t, yyyy
    FormatTime, m, % t, M
@@ -9752,16 +9725,6 @@ uiPopulateTableYearMoonData() {
          Gui, SettingsGUIA: ListView, LViewMuna
          pk := oldMoonPhaseCalculator(timeus)
 
-         ; A row goes in on the day a principal phase actually falls, which the DLL
-         ; states outright. It used to go in on the first day the phase name turned
-         ; over, and that name stands for an eighth of the cycle, so the row landed as
-         ; much as two days ahead of the phase it announced.
-         ;
-         ; The window is the local day this row speaks for, opened a second early: the
-         ; DLL answers with what comes strictly after, and a phase on the stroke of
-         ; midnight belongs to the day it opens. Either of the two days a year a clock
-         ; change makes 23 or 25 hours long can bring the same phase round twice, so
-         ; the instant last listed is remembered and not listed again.
          phaseZeit := SubStr(timis, 1, 8) "000000"
          phaseZeit += -1*Round(gmtOffset*3600) - 1, Seconds
          If getNextMoonPhases(phaseZeit, toNew, toFirstQ, toFull, toLastQ)
@@ -10658,21 +10621,6 @@ findNextMoonPhaseZeit(timeUTC, gmtOffset, ByRef phaseName) {
 ; When the next new or full moon falls, asked of the DLL outright: chapter 49 of Meeus
 ; places the principal phases within a few seconds of where they are, so there is
 ; nothing left here to search for.
-;
-; This used to walk forward from the top of the day in two hour and ten minute steps,
-; up to 2160 calls into the DLL, with a cache in front of them to spare the panel the
-; whole walk on every refresh - once a minute on its own, and on every step of the date
-; buttons while they auto repeat under a held mouse button. Even so it could only pin
-; the answer down to the width of a step, and what it found was the moment the moon
-; entered the new or the full eighth of the cycle rather than the phase itself, which
-; falls close to two days later.
-;
-; Standing inside those two days, the walk also had to skip the phase it was already in
-; and point at the far one instead, having no way to tell the near side of the sector
-; from the far side. Nothing needs working around now: whichever of the two comes first
-; is the answer, so the panel counts down to the full moon a few hours off rather than
-; to the new moon a fortnight past it.
-
    phaseName := ""
    If (!timeUTC || !getNextMoonPhases(timeUTC, toNew, toFirstQ, toFull, toLastQ))
       Return ""
@@ -10700,7 +10648,6 @@ findNextMoonPhaseZeit(timeUTC, gmtOffset, ByRef phaseName) {
 
 UIcityChooser() {
   Static lastSavedGeoState := ""
-
   If (AnyWindowOpen!=6)
      Return
 
@@ -12769,34 +12716,6 @@ dummyDoLoopisSoundPlayingNow() {
    isSoundPlayingNow(1)
 }
 
-AHKcalculateEquiSols(k, year, localTime:=0) {
-; Calculate and Display a single event for a single year (an equinox or solstice)
-; Meeus Astronomical Algorithms Chapter 27
-; 4 events for param i: 1=AE, 2=SS, 3-VE, 4=WS
-
-   JDEzero := calcInitialEquiSols(k - 1, year)           ; Initial estimate of date of event
-   ; fnOutputDebug("JDE0=" JDEzero)
-   ; T := (JDEzero - 2451545.0) / 36525
-   T := SM_Divide(JDEzero - 2451545, 36525)
-   W := SM_Add(SM_Multiply(35999.373, T), "-2.47")
-   ; W := 35999.373*T - 2.47
-   dL := SM_Add( 1,  SM_Add( SM_Multiply(0.0334, COSdeg(W)), SM_Multiply(0.0007, COSdeg(SM_Multiply(2, W) ) ) ) )
-   ; dL := 1 + 0.0334*COSdeg(W) + 0.0007*COSdeg(2*W)
-   ; fnOutputDebug("dL=" dL)
-   S := periodic24(T)
-   ; fnOutputDebug("S=" S)
-   JDE := SM_Add( JDEzero,  SM_Divide( SM_Multiply(0.00001, S), dL ) )  ; This is the answer in Julian Emphemeris Days
-   ; JDE := JDEzero + ( (0.00001*S) / dL )   ; This is the answer in Julian Emphemeris Days
-   TDT := fromJDtoUTC(JDE)                   ; Convert Julian Days to TDT in a Date Object
-
-  ; fnOutputDebug("tdt=" tdt)
-  ; fnOutputDebug("std=" std)
-   If (localTime=1)
-      Return convertUTCtoLocalTime(TDT)
-   Else
-      Return TDT
-}
-
 convertUTCtoLocalTime(givenTime) {
   ; convert Unix date to local AHK date (based on current time zone) (alternative)
   Static vSec := 1560516182
@@ -12816,109 +12735,6 @@ convertUTCtoLocalTime(givenTime) {
   EnvAdd, vDate, % vIntervalsLocal//10000000, Seconds
   SYSTEMTIME := 0
   return vDate
-}
-
-calcInitialEquiSols(k, year) {
-; Equinox & Solstice Calculator
-;  The algorithms and correction tables for this computation come directly from the book Astronomical
-;  Algorithms Second Edition by Jean Meeus, ©1998, published by Willmann-Bell, Inc., Richmond, VA, 
-;  ISBN 0-943396-61-1. They were coded in JavaScript and built into the 
-;  https://stellafane.org/misc/equinox.html web page by its author, Ken Slater.
-; JS code converted to AHK by Marius Șucan
-
-; Function valid for years between 1000 and 3000.
-; Calculate an initial guess as the JD of the Equinox or Solstice of a Given Year.
-; Meeus Astronomical Algorithms Chapter 27.
-
-   JDEzero := 0
-   Y := SM_Divide(year - 2000, 1000)
-   ; fnOutputDebug("y=" Y)
-    ; a := SM_Multiply(365242.37404, Y)
-    ; b := SM_Multiply(0.05169, POW(Y, 2))
-    ; fnOutputDebug("a=" a)
-    ; fnOutputDebug("b=" b)
-   If (k=0)
-      JDEzero := SM_Add( SM_Add( 2451623.80984, SM_Multiply(365242.37404, Y) ), SM_Multiply(0.05169, POW(Y, 2) ) ) - SM_Multiply(0.00411, POW(Y, 3)) - SM_Multiply(0.00057, POW(Y, 4))
-      ; JDEzero := 2451623.80984 + 365242.37404*Y + 0.05169*POW(Y, 2) - 0.00411*POW(Y, 3) - 0.00057*POW(Y, 4)
-   Else If (k=1)
-      JDEzero := SM_Add( SM_Add( 2451716.56767, SM_Multiply(365241.62603, Y) ), SM_Multiply(0.00325, POW(Y, 2) ) ) + SM_Multiply(0.00888, POW(Y, 3)) - SM_Multiply(0.00030, POW(Y, 4))
-      ; JDEzero := 2451716.56767 + 365241.62603*Y + 0.00325*POW(Y, 2) + 0.00888*POW(Y, 3) - 0.00030*POW(Y, 4)
-   Else If (k=2)
-      JDEzero := SM_Add( 2451810.21715, SM_Multiply(365242.01767, Y)) - SM_Add( SM_Add( SM_Multiply(0.11575, POW(Y, 2) ) , SM_Multiply(0.00337, POW(Y, 3) ) ) , SM_Multiply(0.00078, POW(Y, 4) ) )
-      ; JDEzero := 2451810.21715 + 365242.01767*Y - 0.11575*POW(Y, 2) + 0.00337*POW(Y, 3) + 0.00078*POW(Y, 4)
-   Else If (k=3)
-      JDEzero := SM_Add( 2451900.05952, SM_Multiply(365242.74049, Y)) - SM_Multiply(0.06223, POW(Y, 2)) - SM_Multiply(0.00823, POW(Y, 3)) + SM_Multiply(0.00032, POW(Y, 4))
-      ; JDEzero := 2451900.05952 + 365242.74049*Y - 0.06223*POW(Y, 2) - 0.00823*POW(Y, 3) + 0.00032*POW(Y, 4)
-
-   return JDEzero
-}
-
-COSdeg(deg) {
-   Static PI := 3.14159265358979323846
-   Return cos( SM_Divide(SM_Multiply(deg, PI), 180) )
-   ; Return cos( deg * PI/180 )
-}
-
-POW(x, y) {
-  return SM_POW(x, y)
-  ; return x^y
-}
-
-periodic24(T) {
-; Calculate 24 Periodic Terms.
-; Meeus Astronomical Algorithms Chapter 27.
-   static A := {1:485,2:203,3:199,4:182,5:156,6:136,7:77,8:74,9:70,10:58,11:52,12:50,13:45,14:44,15:29,16:18,17:17,18:16,19:14,20:12,21:12,22:12,23:9,24:8}
-   static B := {1:324.96,2:337.23,3:342.08,4:27.85,5:73.14,6:171.52,7:222.54,8:296.72,9:243.58,10:119.81,11:297.17,12:21.02,13:247.54,14:325.15,15:60.93,16:155.12,17:288.79,18:198.04,19:199.76,20:95.39,21:287.11,22:320.81,23:227.73,24:15.45}
-   static C := {1:1934.136,2:32964.467,3:20.186,4:445267.112,5:45036.886,6:22518.443,7:65928.934,8:3034.906,9:9037.513,10:33718.147,11:150.678,12:2281.226,13:29929.562,14:31555.956,15:4443.417,16:67555.328,17:4562.452,18:62894.029,19:31436.921,20:14577.848,21:31931.756,22:34777.259,23:1222.114,24:16859.074}
-
-   S := 0
-   Loop, 24
-   {
-      i := A_Index
-      ; S += A[i] * COSdeg( B[i] + (C[i]*T) )
-      S := SM_Add(S, SM_Multiply(A[i], COSdeg( SM_Add(B[i], SM_Multiply(C[i], T) ) )  ) )
-   }
-   return S
-} 
-
-fromJDtoUTC( JD ) {
-; Julian Date to UTC date
-; Meeus Astronomical Algorithms Chapter 7 
-    Z := SM_Floor( SM_Add(JD, 0.5) )  ; Integer JD's
-    F := SM_Add( SM_Add(JD, 0.5), -Z)     ; Fractional JD's
-    if (Z < 2299161)
-    {
-       A := Z
-    } else
-    {
-       alpha := SM_Floor( SM_Divide( SM_Add(Z, "-1867216.25"), 36524.25) )
-       A := SM_Add( SM_Add( SM_Add(Z, 1), alpha), - SM_Floor( SM_Divide(alpha, 4, 90) )  )
-    }
-
-    B := SM_Add(A, 1524)
-    C := SM_Floor( SM_Divide(SM_Add(B, "-122.1"), 365.25, 90) )
-    ; C := Floor( (B-122.1) / 365.25 )
-    D := SM_Floor( SM_Multiply(365.25, C) )
-    ; D := Floor( 365.25*C )
-    E := SM_Floor( SM_Divide(SM_Add(B, -D), 30.6001) )
-    ; E := Floor( ( B-D )/30.6001 )
-    DT := SM_Add( SM_Add( SM_Add(B, -D), - SM_Floor( SM_Multiply(30.6001, E) )  ),  F )   ; Day of Month with decimals for time
-    ; DT := B - D - Floor(30.6001*E) + F   ; Day of Month with decimals for time
-
-    G := (E < 13.5) ? 1 : 13
-    Mon :=  SM_Add(E, -G)                     ; Month
-    G := (Mon > 2.5) ? 4716 : 4715
-    Yr := SM_Add(C, -G)                       ; Year
-    Day := SM_Floor( DT )                     ; Day of Month without decimals for time
-    H := SM_Multiply(24, SM_Add(DT, -Day) )   ; Hours and fractional hours 
-    Hr := SM_Floor( H )                       ; Integer Hours
-    M := SM_Multiply(60, SM_Add(H, -Hr) )    ; Minutes and fractional minutes
-    Min := SM_Floor( M )                      ; Integer Minutes
-    Sec := SM_Floor( 60 * (M - Min) )         ; Integer Seconds (Milliseconds discarded)
-
-    ; theDate := Yr "-" Mon "-" Day "-" Hr "-" Min "-" Sec
-    theDate := Yr Format("{:02}", Mon) Format("{:02}", Day) Format("{:02}", Hr) Format("{:02}", Min) Format("{:02}", Sec)
-    return theDate
 }
 
 TZI_GetTimeZoneInformation(y:=0, gyd:=0) {
@@ -13040,15 +12856,11 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
   If !r 
   {
      fnOutputDebug("dll failed - calculating moon phase with ahk")
-     r := AHKmoonPhaseCalculator(ot, gmtOffset)
      Return r
   }
 
   ; The DLL names the phase off the true elongation of the moon from the sun now,
   ; which is what defines new moon, the quarters and full moon in the first place.
-  ; The corrections that used to sit here were patching up a mean cycle that ran
-  ; up to half a day fast or slow and got the name wrong about one day in eleven;
-  ; against an accurate ID they would take correct names and spoil them instead.
   IDphase++
   phaseName := phaseNames[IDphase]
   ; ToolTip, % fraction "|" IDphase "|" age , , , 2
@@ -13097,7 +12909,6 @@ oldMoonPhaseCalculator(t:=0, gmtOffset:=0, calcDetails:=0) {
   If !r 
   {
      fnOutputDebug("DLL failed - calculating moon phase with ahk")
-     r := AHKmoonPhaseCalculator(ot, gmtOffset, calcDetails)
      Return r
   }
 
@@ -13107,127 +12918,7 @@ oldMoonPhaseCalculator(t:=0, gmtOffset:=0, calcDetails:=0) {
 
   IDphase++
   phaseName := phaseNames[IDphase]
-  ; If (fraction>0.994 && IDphase=5)
-  ;    phaseName .= " (peak)"
-  ; Else if (fraction<0.006 && IDphase=1)
-  ;    phaseName .= " (peak)"
-
   Return [phaseName, IDphase, phase, fraction, age, zodiac, latitude, longitude]
-}
-
-AHKmoonPhaseCalculator(t:=0, gmtOffset:=0, calcDetails:=0) {
-; Calculate the phase and position of the moon for a given date.
-; The algorithm is simple and adequate for many purposes.
-;
-; This software was originally adapted to Javascript by Stephen R. Schmitt
-; from a BASIC program from the 'Astronomical Computing' column of Sky & Telescope,
-; April 1994, page 86, written by Bradley E. Schaefer.
-;
-; Subsequently adapted from Stephen R. Schmitt's Javascript to C++ for the Arduino
-; by Cyrus Rahman. And further down the timeline, the C++ code was converted to AHK
-; by Marius Șucan in September 2022.
-;
-; This work is/was subjected to Stephen Schmitt's copyright:
-; Copyright 2004 Stephen R. Schmitt
-; You may use or modify this source code in any way you find useful, provided
-; that you agree that the author(s) have no warranty, obligations or liability.  You
-; must determine the suitability of this source code for your use.
-;
-; source https://github.com/signetica/MoonPhase
-
-  Static MOON_SYNODIC_PERIOD := 29.530588853     ; Period of moon cycle in days.
-       , MOON_SYNODIC_OFFSET := 2451550.26       ; Reference cycle offset in days. From number of days since new moon on Julian date MOON_SYNODIC_OFFSET (18:15 UTC January 6, 2000), determine remainder of incomplete cycle.
-       , MOON_DISTANCE_PERIOD := 27.55454988     ; Period of distance oscillation
-       , MOON_DISTANCE_OFFSET := 2451562.2
-       , MOON_LATITUDE_PERIOD := 27.212220817    ; Latitude oscillation
-       , MOON_LATITUDE_OFFSET := 2451565.2
-       , MOON_LONGITUDE_PERIOD := 27.321582241   ; Longitude oscillation
-       , MOON_LONGITUDE_OFFSET := 2451555.8
-       , JULIAN_UNIX_EPOCH := 2440587.5          ; The Unix epoch (zero-point) is January 1, 1970 GMT as Julian daye
-       , SECONDS_PER_DAY := 86400.0
-       , LEAP_SECONDS := 27                      ; since 1972 until 2022
-       , M_PI := 3.14159265358979
-       , phaseNames := {1:"New moon", 2:"Waxing Crescent", 3:"First Quarter"
-           , 4: "Waxing Gibbous", 5:"Full moon", 6:"Waning Gibbous"
-           , 7:"Last Quarter", 8:"Waning Crescent"}
-       , zodiacNames := {1:"Pisces", 2:"Aries", 3:"Taurus", 4:"Gemini", 5:"Cancer", 6:"Leo"
-                       , 7:"Virgo", 8:"Libra", 9:"Scorpio", 10:"Sagittarius", 11:"Capricorn", 12:"Aquarius"}
-
-  ; If !initCBTdll()
-  ;    Return
-
-  If (t="now" || !t)
-     t := A_NowUTC
-
-  If gmtOffset
-     t += gmtOffset, Hours
-
-  t -= 19700101000000, S   ; convert to Unix TimeStamp
-
-  ; jDate := getJulianDate(t)
-  ; jDate := (t - LEAP_SECONDS) / SECONDS_PER_DAY + JULIAN_UNIX_EPOCH ; Julian day from Unix time
-  jDate := SM_Add(SM_Divide(SM_Add(t, -LEAP_SECONDS), SECONDS_PER_DAY), JULIAN_UNIX_EPOCH) ; Julian day from Unix time
-
-  ; Calculate illumination (synodic) phase
-  phase := SM_Divide(SM_Add(jDate, -MOON_SYNODIC_OFFSET), MOON_SYNODIC_PERIOD)
-  ; phase := (jDate - MOON_SYNODIC_OFFSET) / MOON_SYNODIC_PERIOD
-  ; phase := phase - floor(phase)
-  phase := SM_Add(phase, - SM_Floor(phase))
-
-  ; Calculate age and illumination fraction.
-  age := phase * MOON_SYNODIC_PERIOD
-  ; age := SM_Multiply(phase, MOON_SYNODIC_PERIOD)
-  fraction := (1.0 - cos(2 * M_PI * phase)) * 0.5
-  ; fraction := SM_Multiply(SM_Add(1.0, -cos(SM_Multiply(2, SM_Multiply(M_PI, phase) ) ) ), 0.5)
-
-  phaseID := mod(round(floor(phase * 8) + 0.51), 8) + 1
-  If (age<1.351)
-    phaseID := 1
-  Else If (age<6.592)
-    phaseID := 2
-  Else If (age<8.282)
-    phaseID := 3
-  Else If (age<13.675)
-    phaseID := 4
-  Else If (age<15.915)
-    phaseID := 5
-  Else If (age<21.387)
-    phaseID := 6
-  Else If (age<22.913)
-    phaseID := 7
-  Else If (age<28.201)
-    phaseID := 8
-  Else
-    phaseID := 1
-
-  phaseName := phaseNames[phaseID]
-  ; If (fraction>0.994 && phaseID=5)
-  ;    phaseName .= " (peak)"
-  ; Else if (fraction<0.006 && phaseID=1)
-  ;    phaseName .= " (peak)"
-
-  If (calcDetails=1)
-  {
-     ; Calculate distance from anomalistic phase.
-     distancePhase := (jDate - MOON_DISTANCE_OFFSET) / MOON_DISTANCE_PERIOD
-     distancePhase := distancePhase - floor(distancePhase)
-     distance := 60.4 - 3.3 * cos(2 * M_PI * distancePhase) - 0.6 * cos(2 * 2 * M_PI * phase - 2 * M_PI * distancePhase) - 0.5 * cos(2 * 2 * M_PI * phase)
- 
-     ; Calculate ecliptic latitude from nodal (draconic) phase.
-     latPhase := (jDate - MOON_LATITUDE_OFFSET) / MOON_LATITUDE_PERIOD
-     latPhase := latPhase - floor(latPhase)
-     latitude := 5.1 * sin(2 * M_PI * latPhase)
- 
-     ; Calculate ecliptic longitude from sidereal motion.
-     longPhase := (jDate - MOON_LONGITUDE_OFFSET) / MOON_LONGITUDE_PERIOD
-     longPhase := longPhase - floor(longPhase)
-     longitude := longitude - 360 * longPhase + 6.3 * sin(2 * M_PI * distancePhase) + 1.3 * sin(2 * 2 * M_PI * phase - 2 * M_PI * distancePhase) + 0.7 * sin(2 * 2 * M_PI * phase)
-     if (longitude > 360)
-        longitude := longitude - 360
-  }
-  ; fnOutputDebug("jd=" jDate "; phase=" phase "; fraction=" fraction "; " phaseName)
-
-  Return [phaseName, phaseID, phase, fraction, age, zodiac, distance, latitude, longitude]
 }
 
 MixARGB(color1, color2, t := 0.5, gamma := 1) {
