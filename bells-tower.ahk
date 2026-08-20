@@ -9426,10 +9426,8 @@ uiPopulateTableYearSolarData() {
   k := TZI_GetTimeZoneInformation(yearu, gyd)
   gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
 
-  ; as in uiPopulateTableYearMoonData(): the walk steps a day at a time in UTC while
-  ; every figure in a row belongs to the city's own day, so it opens where that day
-  ; opens. On 02:01 UTC the table ran from the 31st of December of the year before to
-  ; the 30th of December of this one anywhere west of GMT-2.
+  ; the walk steps one day at a time in UTC while
+  ; every figure in the UI belongs to the city's own day
   timeus += -1*Round(gmtOffset*3600), Seconds
   timis := timeus
   otimeus := timeus
@@ -9454,11 +9452,7 @@ uiPopulateTableYearSolarData() {
       timis := timeus
       timis += gmtOffset, Hours
       FormatTime, testToday, % timis, yyyy/MM/dd
-      ; the Day column names the city's own day, the one the rest of the row is about;
-      ; gyd stays on UTC because the offset has to be looked up before there is any
-      ; local time to read a day out of
       FormatTime, lyd, % timis, Yday
-
       licht := obj.durRaw + obj.cdurRaw
       If (obj.durRaw<950)
          polarNights++
@@ -9666,11 +9660,8 @@ uiPopulateTableYearMoonData() {
   k := TZI_GetTimeZoneInformation(yearu, gyd)
   gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
 
-  ; The walk steps a day at a time in UTC, while every figure in a row belongs to the
-  ; city's own day: the transit, the rise and the set, the phase. Opening it on 02:01
-  ; UTC parts the two anywhere west of GMT-2, where the table then runs from the 31st
-  ; of December of the year before to the 30th of December of this one. Opening it
-  ; where the city's own day opens keeps the walk on the year it was asked for.
+  ; The walk steps one day at a time in UTC, while every figure in the UI belongs to the
+  ; city's own day: the transit, the rise and the set, the phase.
   timeus += -1*Round(gmtOffset*3600), Seconds
   timis := timeus
   otimeus := timeus
@@ -9689,13 +9680,8 @@ uiPopulateTableYearMoonData() {
       gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
       timis := timeus
       timis += gmtOffset, Hours
-
-      ; the Day and the Date name the city's own day, the one the rest of the row is
-      ; about; gyd stays on UTC because the offset has to be looked up before there is
-      ; any local time to read a day out of
       FormatTime, lyd, % timis, Yday
       FormatTime, f, % timis, MM/dd
-
       coolminant := getMoonNoonZeit(SubStr(timis, 1, 8) "000105", w[2], w[3], gmtOffset, 1)
       obj := wrapCalcMoonRiseSet(timeus, w[2], w[3], gmtOffset, w[6])
       If (SolarYearGraphMode=2)
