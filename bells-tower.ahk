@@ -9422,6 +9422,15 @@ uiPopulateTableYearSolarData() {
   deepNights := polarDays := polarNights := allYearLight := 0
   loopsu := isLeapYear(yearu) ? 366 : 365
   timeus += -1, Days
+  FormatTime, gyd, % timeus, Yday
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
+
+  ; as in uiPopulateTableYearMoonData(): the walk steps a day at a time in UTC while
+  ; every figure in a row belongs to the city's own day, so it opens where that day
+  ; opens. On 02:01 UTC the table ran from the 31st of December of the year before to
+  ; the 30th of December of this one anywhere west of GMT-2.
+  timeus += -1*Round(gmtOffset*3600), Seconds
   timis := timeus
   otimeus := timeus
   prevu := "p"
@@ -9429,9 +9438,6 @@ uiPopulateTableYearSolarData() {
   graphArraySun := []
   graphArrayElev := []
   maxLichtu := 0, minLichtu := 86400
-  FormatTime, gyd, % timeus, Yday
-  k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
   dstInfo := buildDSTinfo(k, w[4], w[5])
   simplifiedMode := testCircumpolarDays(yearu, w[2], w[3], gmtOffset, w[6])
   arrayUcivilrise := []
@@ -9448,6 +9454,10 @@ uiPopulateTableYearSolarData() {
       timis := timeus
       timis += gmtOffset, Hours
       FormatTime, testToday, % timis, yyyy/MM/dd
+      ; the Day column names the city's own day, the one the rest of the row is about;
+      ; gyd stays on UTC because the offset has to be looked up before there is any
+      ; local time to read a day out of
+      FormatTime, lyd, % timis, Yday
 
       licht := obj.durRaw + obj.cdurRaw
       If (obj.durRaw<950)
@@ -9513,12 +9523,12 @@ uiPopulateTableYearSolarData() {
          Gui, SettingsGUIA: ListView, LViewRises
          clr1 := (obj.Dawn=2) ? "*" : ""
          clr2 := (obj.Dusk=2) ? "*" : ""
-         LV_Add(A_Index - 1, gyd, clr1 SubStr(obj.twR, 6), SubStr(obj.r, 6), dadur)
+         LV_Add(A_Index - 1, lyd, clr1 SubStr(obj.twR, 6), SubStr(obj.r, 6), dadur)
          Gui, SettingsGUIA: ListView, LViewSets
-         LV_Add(A_Index - 1, gyd, SubStr(psunsetu, 6), clr2 SubStr(obj.twS, 6), dudur)
+         LV_Add(A_Index - 1, lyd, SubStr(psunsetu, 6), clr2 SubStr(obj.twS, 6), dudur)
   
          Gui, SettingsGUIA: ListView, LViewOthers
-         LV_Add(A_Index - 1, gyd, SubStr(testToday, 6), obj.dur, diffuSL, obj.cdur, diffuCL, totalu, diffuT)
+         LV_Add(A_Index - 1, lyd, SubStr(testToday, 6), obj.dur, diffuSL, obj.cdur, diffuCL, totalu, diffuT)
 
          ; jpoi := SubStr(obj.RawN, 1, 8) . "120001"
          ; kpp := timeSpanInSeconds(jpoi, obj.RawN)
@@ -9546,6 +9556,7 @@ uiPopulateTableYearSolarData() {
       timis := timeus
       timis += gmtOffset, Hours
       FormatTime, testToday, % timis, MM/dd
+      FormatTime, lyd, % timis, Yday
       dawn := arrayUcivilrise[testToday]
       sunriseu := arrayUsunriseu[testToday]
       noonu := arrayUnoonu[testToday, 1]
@@ -9559,7 +9570,7 @@ uiPopulateTableYearSolarData() {
          bpu := SubStr(timis, 1, 8)
          ; selected anew on every pass, in case WM_MouseMove() changed it
          Gui, SettingsGUIA: ListView, LViewSunCombined
-         LV_Add(A_Index - 1, gyd, testToday, dawn, sunriseu, noonu, elev, sunsetu, dusk, duru)
+         LV_Add(A_Index - 1, lyd, testToday, dawn, sunriseu, noonu, elev, sunsetu, dusk, duru)
          If (SolarYearGraphMode=1)
          {
             fdawn := fsunriseu := fnoonu := fsunsetu := fdusk := 0
@@ -9651,6 +9662,16 @@ uiPopulateTableYearMoonData() {
   deepNights := polarDays := polarNights := allYearLight := 0
   loopsu := isLeapYear(yearu) ? 366 : 365
   timeus += -1, Days
+  FormatTime, gyd, % timeus, Yday
+  k := TZI_GetTimeZoneInformation(yearu, gyd)
+  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
+
+  ; The walk steps a day at a time in UTC, while every figure in a row belongs to the
+  ; city's own day: the transit, the rise and the set, the phase. Opening it on 02:01
+  ; UTC parts the two anywhere west of GMT-2, where the table then runs from the 31st
+  ; of December of the year before to the 30th of December of this one. Opening it
+  ; where the city's own day opens keeps the walk on the year it was asked for.
+  timeus += -1*Round(gmtOffset*3600), Seconds
   timis := timeus
   otimeus := timeus
   lastPhaseZeit := ""
@@ -9658,9 +9679,6 @@ uiPopulateTableYearMoonData() {
   graphArrayMoon := []
   graphArrayElev := []
   maxLichtu := 0, minLichtu := 86400
-  FormatTime, gyd, % timeus, Yday
-  k := TZI_GetTimeZoneInformation(yearu, gyd)
-  gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
   arrayUsunriseu := []
   arrayUnoonu := []
   arrayUsunsetu := []
@@ -9669,9 +9687,14 @@ uiPopulateTableYearMoonData() {
   {
       FormatTime, gyd, % timeus, Yday
       gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
-      FormatTime, f, % timeus, MM/dd
       timis := timeus
       timis += gmtOffset, Hours
+
+      ; the Day and the Date name the city's own day, the one the rest of the row is
+      ; about; gyd stays on UTC because the offset has to be looked up before there is
+      ; any local time to read a day out of
+      FormatTime, lyd, % timis, Yday
+      FormatTime, f, % timis, MM/dd
 
       coolminant := getMoonNoonZeit(SubStr(timis, 1, 8) "000105", w[2], w[3], gmtOffset, 1)
       obj := wrapCalcMoonRiseSet(timeus, w[2], w[3], gmtOffset, w[6])
@@ -9720,7 +9743,7 @@ uiPopulateTableYearMoonData() {
             arrayUsunsetu[Nsunsetu] := sunsetu
 
          Gui, SettingsGUIA: ListView, LViewSunCombined
-         LV_Add(A_Index - 1, gyd, f,, noonu, obj.elev "°", , obj.dur, diffuT)
+         LV_Add(A_Index - 1, lyd, f,, noonu, obj.elev "°", , obj.dur, diffuT)
 
          Gui, SettingsGUIA: ListView, LViewMuna
          pk := oldMoonPhaseCalculator(timeus)
@@ -9747,12 +9770,7 @@ uiPopulateTableYearMoonData() {
                If (phaseZeit!=lastPhaseZeit)
                {
                   lastPhaseZeit := phaseZeit
-                  ; the day and the date named here are the local ones the window was
-                  ; taken from; gyd and f are read off timeus, which for anywhere west
-                  ; of GMT-2 is already the day after the one this row speaks for
-                  FormatTime, phaseYday, % timis, Yday
-                  FormatTime, phaseDatum, % timis, MM/dd
-                  LV_Add(A_Index - 1, phaseYday, phaseDatum, principalNames[idu], Round(pk[5], 1), pk[6])
+                  LV_Add(A_Index - 1, lyd, f, principalNames[idu], Round(pk[5], 1), pk[6])
                }
             }
          }
