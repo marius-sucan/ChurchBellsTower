@@ -5381,31 +5381,31 @@ wrapCalculateEquiSolsDates(givenDay) {
   If (A_TickCount - lastInvoked<9500)
      Return z
 
-    z := []
-    z.msg := giveYearDayProximity(mEquiDay, givenDay) . "March equinox."      ; 03 / 20
-    If InStr(z.msg, "hide")
-       z.msg := giveYearDayProximity(jSolsDay, givenDay) . "June solstice."      ; 06 / 21
-    If InStr(z.msg, "hide")
-       z.msg := giveYearDayProximity(sEquiDay, givenDay) . "September equinox."  ; 09 / 22
-    If InStr(z.msg, "hide")
-       z.msg  := giveYearDayProximity(dSolsDay, givenDay) . "December solstice."  ; 12 / 21
-    If InStr(z.msg, "hide")
-       z.msg := ""
+  z := []
+  z.msg := giveYearDayProximity(mEquiDay, givenDay) . "March equinox."      ; 03 / 20
+  If InStr(z.msg, "hide")
+     z.msg := giveYearDayProximity(jSolsDay, givenDay) . "June solstice."      ; 06 / 21
+  If InStr(z.msg, "hide")
+     z.msg := giveYearDayProximity(sEquiDay, givenDay) . "September equinox."  ; 09 / 22
+  If InStr(z.msg, "hide")
+     z.msg  := giveYearDayProximity(dSolsDay, givenDay) . "December solstice."  ; 12 / 21
+  If InStr(z.msg, "hide")
+     z.msg := ""
 
-    ; ToolTip, % sEquiDay "==" givenDay , , , 2
-    If (mEquiDay=givenDay)
-       z.r := 1
-    Else If (jSolsDay=givenDay)
-       z.r := 2
-    Else If (sEquiDay=givenDay)
-       z.r := 3
-    Else If (dSolsDay=givenDay)
-       z.r := 4
+  ; ToolTip, % sEquiDay "==" givenDay , , , 2
+  If (mEquiDay=givenDay)
+     z.r := 1
+  Else If (jSolsDay=givenDay)
+     z.r := 2
+  Else If (sEquiDay=givenDay)
+     z.r := 3
+  Else If (dSolsDay=givenDay)
+     z.r := 4
 
-    lastInvoked := A_TickCount
-    endZeit :=  A_TickCount - startZeit
-    ; ToolTip, % endzeit , , , 2
-    Return z
+  lastInvoked := A_TickCount
+  endZeit :=  A_TickCount - startZeit
+  ; ToolTip, % endzeit , , , 2
+  Return z
 }
 
 giveYearDayProximity(givenDay, CurrentDay) {
@@ -12731,27 +12731,6 @@ isSoundPlayingNow(looped:=0) {
 
 dummyDoLoopisSoundPlayingNow() {
    isSoundPlayingNow(1)
-}
-
-convertUTCtoLocalTime(givenTime) {
-  ; convert Unix date to local AHK date (based on current time zone) (alternative)
-  Static vSec := 1560516182
-  vDate := 1970
-  EnvAdd, vDate, % vSec, Seconds
-  ; MsgBox, % vDate
-
-  VarSetCapacity(SYSTEMTIME, 16, 0)
-  vDate := RegExReplace(vDate, "(....)(..)(..)(..)(..)(..)", "$1 $2 $3 $4 $5 $6")
-  Loop, Parse, vDate, % " "
-       NumPut(A_LoopField, &SYSTEMTIME, A_Index*2 - 2, "UShort")
-
-  vIntervalsUTC := vIntervalsLocal := 0
-  DllCall("kernel32\SystemTimeToFileTime", "UPtr", &SYSTEMTIME, "Int64*", vIntervalsUTC)
-  DllCall("kernel32\FileTimeToLocalFileTime", "Int64*", vIntervalsUTC, "Int64*", vIntervalsLocal)
-  vDate := givenTime
-  EnvAdd, vDate, % vIntervalsLocal//10000000, Seconds
-  SYSTEMTIME := 0
-  return vDate
 }
 
 TZI_GetTimeZoneInformation(y:=0, gyd:=0) {
