@@ -7658,13 +7658,11 @@ PanelEarthMap(modus:=0) {
     ; LastWinOpened := A_ThisFunc
     AnyWindowOpen := 8
     btnWid := 100
-    txtWid := 380
     lstWid := 435
     doResetGuiFont()
     If (PrefsLargeFonts=1)
     {
        btnWid := btnWid + 50
-       txtWid := txtWid + 105
        lstWid := lstWid + 245
     }
     If !listedCountries
@@ -10213,7 +10211,7 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
      {
         moonPicBMP := OSDmoonColorBitmap(SubStr(clru, 5), timi)
         pPath := Gdip_CreatePath()
-        pPath := Gdip_AddPathEllipse(pPath, w - 44, 11, 34, 34)
+        Gdip_AddPathEllipse(pPath, w - 44, 11, 34, 34)
         Gdip_SetClipPath(G, pPath)
         Gdip_DrawImage(G, moonPicBMP, w - 44, 11, 34, 34)
         Gdip_DisposeImage(moonPicBMP, 1)
@@ -13082,7 +13080,7 @@ MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
 
   ot := t
   If gmtOffset
-     t += gmtOffset, Hours
+     t += -1*gmtOffset, Hours
 
   t -= 19700101000000, S   ; convert to Unix TimeStamp
   IDphase := azimuth := eleva := latitude := longitude := age := phase := fraction := ""

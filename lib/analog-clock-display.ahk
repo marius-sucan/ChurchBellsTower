@@ -322,6 +322,7 @@ coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup, d
            w := StrSplit(givenGeoLocation, "|")
            yearu := SubStr(datu, 1, 4)
            FormatTime, gyd, % datu, Yday
+           k := TZI_GetTimeZoneInformation(yearu, gyd)
            gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
         }
 
