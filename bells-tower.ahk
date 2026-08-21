@@ -5333,9 +5333,10 @@ wrapCalculateEquiSolsDates(givenDay) {
 
   If (prevYear!=A_Year)
   {
+     answered := 0
      Loop, 4
      {
-         k := calculateEquiSols(A_Index, A_Year, 0)
+         k := calculateEquiSols(A_Index, A_Year)
          FormatTime, OutputVar, % k, Yday
          thisBias := isInDSTperiod(OutputVar, TZI.DaylightDateYday, TZI.StandardDateYday) ? TZI.Bias + TZI.DaylightBias + TZI.StandardBias : TZI.Bias + TZI.StandardBias
          thisBias := -1*thisBias
@@ -5345,24 +5346,35 @@ wrapCalculateEquiSolsDates(givenDay) {
          {
             mEquiDay := OutputVar
             mEquiDate := k
+            answered++
          } Else If (A_Index=2 && OutputVar>165)
          {
             jSolsDay := OutputVar
             jSolsDate := k
+            answered++
          } Else If (A_Index=3 && OutputVar>260)
          {
             sEquiDay := OutputVar
             sEquiDate := k
+            answered++
          } Else If (A_Index=4 && OutputVar>350)
          {
             dSolsDay := OutputVar
             dSolsDate := k
+            answered++
          }
          ; fnOutputDebug(A_Index "=" k "==" OutputVar)
      }
 
-     EquiSolsCache := mEquiDay "|" mEquiDate "|" jSolsDay "|" jSolsDate "|" sEquiDay "|" sEquiDate "|" dSolsDay "|" dSolsDate "|" A_Year "|" prevBias
-     INIaction(1, "EquiSolsCache", "SavedSettings")
+     ; The four defaults these variables carry are the usual dates of the events, give
+     ; or take a day. Without the DLL they are what the loop above leaves behind, and
+     ; writing them out would hand the next session a table that looks computed and is
+     ; not; the year is still marked done, so this is attempted only once per session.
+     If (answered=4)
+     {
+        EquiSolsCache := mEquiDay "|" mEquiDate "|" jSolsDay "|" jSolsDate "|" sEquiDay "|" sEquiDate "|" dSolsDay "|" dSolsDate "|" A_Year "|" prevBias
+        INIaction(1, "EquiSolsCache", "SavedSettings")
+     }
      prevYear := A_Year
   }
 
@@ -8922,7 +8934,7 @@ initCBTdll() {
 }
 
 callCBTdllFunc(funcu) {
-  Static oldie := {"calculateEquiSols":24, "getMoonElevation":32, "getMoonNoon":44, "getMoonPhase":56, "getNextMoonPhases":24, "getSolarCalculatorData":48, "getSunAzimuthElevation":52, "getSunMoonRiseSet":48, "getTwilightDuration":36, "oldgetMoonPhase":40}
+  Static oldie := {"calculateEquiSols":28, "getMoonElevation":32, "getMoonNoon":44, "getMoonPhase":56, "getNextMoonPhases":24, "getSolarCalculatorData":48, "getSunAzimuthElevation":52, "getSunMoonRiseSet":48, "getTwilightDuration":36, "oldgetMoonPhase":40}
   If (A_PtrSize=8)
   {
      Return "cbt-main.dll\" funcu
@@ -9047,20 +9059,21 @@ calculateSunMoonRiseSet(t, rt, latu, longu, gmtOffset:=0, obju:=1, altitudeBonus
    Return resObj
 }
 
-calculateEquiSols(k, yearu, l:=0) {
+calculateEquiSols(k, yearu) {
+; The UTC instant of one of the four solar events of a year, as a time stamp.
+; k: 1 = March equinox, 2 = June solstice, 3 = September equinox, 4 = December solstice.
+; The DLL now answers to the second and in civil time. It used to answer to the
+; minute, in dynamical time, and the seconds were filled in with a made up 14.
+
    If !initCBTdll()
       Return
 
-   mm := d := hh := m := ""
-   r := DllCall(callCBTdllFunc("calculateEquiSols"), "int", k - 1, "int", yearu, "int*", mm, "int*", d, "int*", hh, "int*", m, "Int")
+   mm := d := hh := m := s := 0
+   r := DllCall(callCBTdllFunc("calculateEquiSols"), "int", k - 1, "int", yearu, "int*", mm, "int*", d, "int*", hh, "int*", m, "int*", s, "Int")
    If !r
       Return r
 
-   theDate := yearu Format("{:02}", mm) Format("{:02}", d) Format("{:02}", hh) Format("{:02}", m) Format("{:02}", 14)
-   If (l=1)
-      Return convertUTCtoLocalTime(theDate)
-
-   Return theDate
+   Return yearu Format("{:02}", mm) Format("{:02}", d) Format("{:02}", hh) Format("{:02}", m) Format("{:02}", s)
 }
 
 getMoonLichtAngle(t, obsLat, obsLon, obsAlt) {
@@ -11562,8 +11575,8 @@ UIpanelTodayLightDiffSolstices() {
      Return
 
   cobj := coreJumpSolarEventsToday()
-  kjune := calculateEquiSols(2, cobj.y, 0)
-  kdec := calculateEquiSols(4, cobj.y, 0)
+  kjune := calculateEquiSols(2, cobj.y)
+  kdec := calculateEquiSols(4, cobj.y)
   dstInfo := {dstStartYday: cobj.sday, dstEndYday: cobj.eday, stdOffset: cobj.gmt, dstOffset: cobj.dst}
   ; ToolTip, % kjune "`n" kdec , , , 2
   FormatTime, gyd, % kjune, Yday
