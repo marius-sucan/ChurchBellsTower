@@ -1,0 +1,184 @@
+"""Emit cpp-dll/MoonELP.cpp: ELP/MPP02 truncated to a fixed amplitude threshold,
+with every fitted parameter already folded into the amplitudes so that nothing
+has to be set up at run time."""
+import numpy as np, elp, compare as C
+
+CUT_AS, CUT_KM = 0.01, 0.02
+CORR = 0                       # 0 = the LLR fit, which sits closest to DE440
+
+p, call = elp.load_coefs(CORR)
+ct, ntot = C.trim(call, CUT_AS, CUT_KM)
+
+MAIN = ['main_long', 'main_lat', 'main_dist']
+PERT = ['pert_longT0', 'pert_longT1', 'pert_longT2', 'pert_longT3',
+        'pert_latT0', 'pert_latT1', 'pert_latT2',
+        'pert_distT0', 'pert_distT1', 'pert_distT2', 'pert_distT3']
+
+# ---- the mean arguments, with the LLR corrections folded in -----------------
+SEC = np.pi/648000.0
+DEG = np.pi/180.0
+W1 = [(-142.0 + 18.0/60.0 + (59.95571 + p.Dw1_0)/3600.0)*DEG,
+      (1732559343.73604 + p.Dw1_1)*SEC, (-6.8084 + p.Dw1_2)*SEC,
+      (0.006604 + p.Dw1_3)*SEC, (-3.169e-5 + p.Dw1_4)*SEC]
+W2 = [(83.0 + 21.0/60.0 + (11.67475 + p.Dw2_0)/3600.0)*DEG,
+      (14643420.3171 + p.Dw2_1 + p.Cw2_1)*SEC, (-38.2631 + p.Dw2_2)*SEC,
+      (-0.045047 + p.Dw2_3)*SEC, 0.00021301*SEC]
+W3 = [(125.0 + 2.0/60.0 + (40.39816 + p.Dw3_0)/3600.0)*DEG,
+      (-6967919.5383 + p.Dw3_1 + p.Cw3_1)*SEC, (6.359 + p.Dw3_2)*SEC,
+      (0.007625 + p.Dw3_3)*SEC, -3.586e-5*SEC]
+EA = [(100.0 + 27.0/60.0 + (59.13885 + p.Deart_0)/3600.0)*DEG,
+      (129597742.293 + p.Deart_1)*SEC, -0.0202*SEC, 9e-6*SEC, 1.5e-7*SEC]
+PO = [(102.0 + 56.0/60.0 + (14.45766 + p.Dperi)/3600.0)*DEG,
+      1161.24342*SEC, 0.529265*SEC, -1.1814e-4*SEC, 1.1379e-5*SEC]
+PLAN = [('Me', (-108.0 + 15.0/60.0 + 3.216919/3600.0)*DEG, 538101628.66888*SEC),
+        ('Ve', (-179.0 + 58.0/60.0 + 44.758419/3600.0)*DEG, 210664136.45777*SEC),
+        ('EM', (100.0 + 27.0/60.0 + 59.13885/3600.0)*DEG, 129597742.293*SEC),
+        ('Ma', (-5.0 + 26.0/60.0 + 3.642778/3600.0)*DEG, 68905077.65936*SEC),
+        ('Ju', (34.0 + 21.0/60.0 + 5.379392/3600.0)*DEG, 10925660.57335*SEC),
+        ('Sa', (50.0 + 4.0/60.0 + 38.902495/3600.0)*DEG, 4399609.33632*SEC),
+        ('Ur', (-46.0 + 3.0/60.0 + 4.354234/3600.0)*DEG, 1542482.57845*SEC),
+        ('Ne', (-56.0 + 20.0/60.0 + 56.808371/3600.0)*DEG, 786547.897*SEC)]
+ZETA_RATE = 0.02438029560881907
+RA0 = 384747.961370173/384747.980674318
+
+
+def wrap(items, per_line, indent='     '):
+    out, line = [], indent
+    for i, s in enumerate(items):
+        add = s + (',' if i < len(items)-1 else '')
+        if len(line) + len(add) > 96 and line.strip():
+            out.append(line.rstrip()); line = indent
+        line += add + ' '
+    out.append(line.rstrip())
+    return '\n'.join(out)
+
+
+def num(v):
+    return '%.12g' % v
+
+
+def numHi(v):
+    # the mean arguments must round-trip exactly: a unit in the twelfth digit of
+    # the linear term of W1 is already worth 0''.002 a century out
+    return repr(float(v))
+
+
+mainI, mainA, mainStart = [], [], [0]
+for k in MAIN:
+    s = ct[k]
+    for row, a in zip(s.idx, s.amp):
+        mainI += ['%d' % v for v in row]
+        mainA.append(num(a))
+    mainStart.append(len(mainA))
+
+pertI, pertA, pertP, pertStart = [], [], [], [0]
+for k in PERT:
+    s = ct[k]
+    if s.idx.shape[0]:
+        for row, a, ph in zip(s.idx, s.amp, s.phase0):
+            pertI += ['%d' % v for v in row]
+            pertA.append(num(a))
+            pertP.append(num(ph))
+    pertStart.append(len(pertA))
+
+nm, npr = len(mainA), len(pertA)
+print('main', nm, 'pert', npr, 'total', nm + npr)
+
+body = f'''// ============================================================================
+//  MoonELP.cpp - the moon's geocentric place, from ELP/MPP02
+//
+//  ELP/MPP02 is the semi-analytic lunar theory of J. Chapront and G. Francou,
+//  "The lunar theory ELP revisited.  Introduction of new planetary
+//  perturbations", Astronomy & Astrophysics 404 (2003) 735-742.  It succeeds
+//  ELP2000-82B, of which Meeus's chapter 47 is a 60-term truncation.  Two sets
+//  of fitted parameters are published; the one used here is the set adjusted to
+//  the lunar laser ranging data, which of the two sits closer to JPL DE440.
+//
+//  The complete theory is 35901 terms and reproduces DE440 to 0''.01 in
+//  longitude.  What is kept below is every term of at least {CUT_AS}'' (or
+//  {CUT_KM} km in the distance), which is {nm + npr} of them - {nm} from the main
+//  problem and {npr} from the perturbations.  Measured against DE440 over
+//  1900-2100 the truncation holds
+//
+//      longitude   0''.087 rms, 0''.334 worst
+//      latitude    0''.068 rms, 0''.263 worst
+//      distance    0.12 km rms, 0.44 km worst
+//
+//  against 2''.64 rms and 11''.63 worst for the chapter 47 series it replaces.
+//
+//  The coefficients are Chapront and Francou's, from the files the IMCCE
+//  published with the theory (ELP_MAIN.S1/S2/S3 and ELP_PERT.S1/S2/S3).  The
+//  fitted parameters of the LLR solution are already folded into the amplitudes
+//  here, so there is nothing to set up at run time.  This file was generated by
+//  cpp-dll/moon-accuracy-study/gen_moonelp.py, which also carries the note on
+//  where the series were obtained.
+//
+//  Written for Church Bells Tower by Marius Sucan.
+// ============================================================================
+
+namespace elp {{
+
+// Mean arguments, in radians, as polynomials in T - Julian centuries of
+// dynamical time from J2000.0.  W1 is the moon's mean longitude reckoned from
+// the inertial departure point of J2000, W2 the mean longitude of the perigee,
+// W3 that of the ascending node, Ea the earth's mean heliocentric longitude and
+// Pip that of its perihelion.
+static const double argW1[5] = {{ {', '.join(numHi(v) for v in W1)} }};
+static const double argW2[5] = {{ {', '.join(numHi(v) for v in W2)} }};
+static const double argW3[5] = {{ {', '.join(numHi(v) for v in W3)} }};
+static const double argEa[5] = {{ {', '.join(numHi(v) for v in EA)} }};
+static const double argPip[5] = {{ {', '.join(numHi(v) for v in PO)} }};
+
+// Mean longitudes of the planets, and the general precession that the
+// perturbation series carries as its thirteenth argument.
+static const double argPlanet[8][2] = {{
+{chr(10).join('     { %-22s, %-18s },   // %s' % (numHi(a), numHi(b), n) for n, a, b in PLAN)}
+}};
+static const double zetaRate = {numHi(ZETA_RATE)};
+
+// Ratio between the constant of the distance series and the one the amplitudes
+// were tabulated against.
+static const double distScale = {numHi(RA0)};
+
+// ---- main problem ----------------------------------------------------------
+// Each term is A*sin(i1*D + i2*F + i3*l + i4*l') for the longitude and the
+// latitude, and A*cos(...) for the distance.  D is the mean elongation, F the
+// argument of latitude, l the moon's mean anomaly and l' the sun's.  Amplitudes
+// are in radians, and in kilometres for the distance.
+static const int mainStart[4] = {{ {', '.join(str(v) for v in mainStart)} }};
+static const signed char mainArg[{4*nm}] = {{
+{wrap(mainI, 0)}
+}};
+static const double mainAmp[{nm}] = {{
+{wrap(mainA, 0)}
+}};
+
+// ---- planetary and figure perturbations ------------------------------------
+// Each term is A*sin(phi + i1*D + i2*F + i3*l + i4*l' + i5*Me + i6*Ve + i7*T
+// + i8*Ma + i9*Ju + i10*Sa + i11*Ur + i12*Ne + i13*zeta), where i5 to i12 count
+// the mean longitudes of Mercury, Venus, the earth-moon barycentre, Mars,
+// Jupiter, Saturn, Uranus and Neptune, and zeta is the moon's mean longitude
+// carried forward by the general precession.  The eleven series are the four
+// powers of time for the longitude, three for the latitude and four for the
+// distance, laid end to end in that order.
+static const int pertStart[12] = {{ {', '.join(str(v) for v in pertStart)} }};
+static const signed char pertArg[{13*npr}] = {{
+{wrap(pertI, 0)}
+}};
+static const double pertAmp[{npr}] = {{
+{wrap(pertA, 0)}
+}};
+static const double pertPhase[{npr}] = {{
+{wrap(pertP, 0)}
+}};
+
+}}   // namespace elp
+'''
+# The tables above, plus the hand-written half that evaluates them, make the
+# file that ships.  MoonELP_code.inc is the hand-written half and is the part to
+# edit; this script only ever regenerates the numbers.
+out = ('#include <math.h>\n#include "MoonELP.h"\n\n'
+       + body.replace('\n}   // namespace elp\n', '').rstrip('\n') + '\n'
+       + open('MoonELP_code.inc').read())
+open('MoonELP.cpp', 'w').write(out)
+print('wrote MoonELP.cpp,', len(out), 'bytes,', nm + npr, 'terms')

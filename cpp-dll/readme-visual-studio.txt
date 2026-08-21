@@ -36,9 +36,9 @@ step above is deliberate and manual.
 --------------------------------------------------------------------------------
 
 cbt-main.cpp is a "unity build": it #includes MoonPhase.cpp, SunRise.cpp,
-MoonRise.cpp, Twilight.cpp and SolarCalculator.cpp directly, in that order, and
-the order matters (struct skyCoordinates is defined only once, in SunRise.cpp;
-MoonRise.cpp relies on it).
+Twilight.cpp, SolarCalculator.cpp and MoonELP.cpp directly, in that order.
+MoonELP.cpp is the ELP/MPP02 lunar series and depends on nothing but <math.h>,
+so it can sit anywhere in the list.
 
 So the other .cpp files are listed in the project - so that they show up in
 Solution Explorer and can be edited - but they are marked
@@ -62,7 +62,7 @@ _USE_MATH_DEFINES (preprocessor)
     code uses M_PI in every source file.
 
 Forced include file: cmath  (/FI cmath)
-    SunRise.cpp and MoonRise.cpp do "#define remainder(x, y) ..." as a function
+    SunRise.cpp does "#define remainder(x, y) ..." as a function
     macro. In the Microsoft STL, <cmath> / <xtgmath.h> declare overloads and
     templates named remainder(...), so if <cmath> were first pulled in after
     that #define - which is what happens when SolarCalculator.cpp is included -
@@ -85,7 +85,7 @@ NOMINMAX
 
 SDL checks off
     /sdl promotes warnings such as C4700 (potentially uninitialized local) to
-    errors. SunRise.cpp / MoonRise.cpp use "goto noevent" jumps over plain
+    errors. SunRise.cpp uses "goto noevent" jumps over plain
     uninitialized declarations, which is legal C++ but trips that analysis.
 
 Runtime library: Multi-threaded (/MT, static)
@@ -123,9 +123,10 @@ two bitnesses, so no .def file is needed. Check a build with:
 
   dumpbin /exports build\x64\Release\cbt-main.dll
 
-Nine functions should be listed: calculateEquiSols, getMoonElevation,
-getMoonNoon, getMoonPhase, getSolarCalculatorData, getSunAzimuthElevation,
-getSunMoonRiseSet, getTwilightDuration, oldgetMoonPhase.
+Eleven functions should be listed: calculateEquiSols, getMoonElevation,
+getMoonNoon, getMoonPhase, getMoonRiseSetDay, getNextMoonPhases,
+getSolarCalculatorData, getSunAzimuthElevation, getSunMoonRiseSet,
+getTwilightDuration, oldgetMoonPhase.
 (getMoonLitAngle is commented out in cbt-main.cpp and is not exported.)
 
 

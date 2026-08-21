@@ -182,19 +182,83 @@ double equationOfTimeSmart(double T)
            0.053 * sin(4 * radians(L0)) - 0.02 * sin(2 * radians(M));  // in degrees
 }
 
-// Simple polynomial expressions for delta T (ΔT), in seconds of time
+// Delta T, the gap between dynamical time and the earth's rotation, in seconds.
+//
+// The polynomials for the years up to 1997 are the ones Fred Espenak and Jean
+// Meeus fitted to the historical record for the NASA eclipse pages, each piece
+// good to about a second over the span it covers.  They replace a single
+// parabola that was ten seconds out by 1900 and worse before it.
+//
+// deltaTseconds() in cbt-main.cpp is what the moon and the sun actually go
+// through: it tabulates observed values from 1990 onwards and only leans on this
+// for the years before them, so the branch past 1997 is the least of it.
 double calcDeltaT(double year)
 {
+    double t;
     if (year > 1997)
     {
-        double t = year - 2015;
+        t = year - 2015;
         return 67.62 + t * (0.3645 + 0.0039755 * t);  // Fred Espenak (2014)
     }
-    else  // y > 948
+
+    if (year >= 1986)
     {
-        double u = (year - 2000) / 100;
-        return 64.69 + u * (80.59 + 23.604 * u);  // fitted to historical data, very approximate before 1900
+        t = year - 2000;
+        return 63.86 + t*(0.3345 + t*(-0.060374 + t*(0.0017275 + t*(0.000651814 + t*0.00002373599))));
     }
+
+    if (year >= 1961)
+    {
+        t = year - 1975;
+        return 45.45 + t*(1.067 + t*(-1.0/260.0 - t/718.0));
+    }
+
+    if (year >= 1941)
+    {
+        t = year - 1950;
+        return 29.07 + t*(0.407 + t*(-1.0/233.0 + t/2547.0));
+    }
+
+    if (year >= 1920)
+    {
+        t = year - 1920;
+        return 21.20 + t*(0.84493 + t*(-0.076100 + t*0.0020936));
+    }
+
+    if (year >= 1900)
+    {
+        t = year - 1900;
+        return -2.79 + t*(1.494119 + t*(-0.0598939 + t*(0.0061966 - t*0.000197)));
+    }
+
+    if (year >= 1860)
+    {
+        t = year - 1860;
+        return 7.62 + t*(0.5737 + t*(-0.251754 + t*(0.01680668 + t*(-0.0004473624 + t/233174.0))));
+    }
+
+    if (year >= 1800)
+    {
+        t = year - 1800;
+        return 13.72 + t*(-0.332447 + t*(0.0068612 + t*(0.0041116 + t*(-0.00037436
+             + t*(0.0000121272 + t*(-0.0000001699 + t*0.000000000875))))));
+    }
+
+    if (year >= 1700)
+    {
+        t = year - 1700;
+        return 8.83 + t*(0.1603 + t*(-0.0059285 + t*(0.00013336 - t/1174000.0)));
+    }
+
+    if (year >= 1600)
+    {
+        t = year - 1600;
+        return 120.0 + t*(-0.9808 + t*(-0.01532 + t/7129.0));
+    }
+
+    // Before 1600 the record thins out and this is only the shape of it.
+    double u = (year - 1820) / 100.0;
+    return -20.0 + 32.0*u*u;
 }
 
 //======================================================================================================================

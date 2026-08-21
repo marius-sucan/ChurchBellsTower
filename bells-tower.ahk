@@ -8789,78 +8789,62 @@ wrapCalcMoonRiseSet(t, latu, longu, gmtOffset:=0, Altitude:=0) {
    ; just show the rise/set on the given day, not tomorrow or yesterday [relative to the given date]
    ; the time for rise can be yesterday, if not available for today
    ; the time for set can be tomorrow, if not available for today
-   ; after these «adjustments», calculate day length
+   ;
+   ; The DLL answers for a named day now, so the three days this can want are three
+   ; calls. It used to be asked for a 24 hour window instead, which meant walking the
+   ; window forward an hour at a time and watching for an event to fall on the right
+   ; date: 48 calls a day, and the answer only ever as good as the hour it landed in.
 
    trz := t
    If gmtOffset
       trz += gmtOffset, Hours
 
-   altitudeBonus := (Altitude>100) ? Round(Altitude/1453, 2) : 0  ; in minutes
-   yd := tmr := trz
+   tmr := yd := trz
    tmr += 1, Days
    yd += -1, Days
    ref := SubStr(trz, 1, 8)
    tref := SubStr(tmr, 1, 8)
    yref := SubStr(yd, 1, 8)
 
-   ftz := t
-   ftz += gmtOffset, Hours
-
-   ofu := ftz := SubStr(ftz, 1, 8) . "000001"
-   ftz += -1*gmtOffset, Hours
-   ftz += -15, Hours
-   ; ftz += 24, Hours
-   ; ToolTip, % ftz , , , 2
-   otherz := []
    fkob := []
    fkob.RawR := 0
    fkob.RawS := 1
-   ; ToolTip, % yref "="  ref "=" tref , , , 2
-   Loop, 48
+
+   kob := calculateMoonRiseSetDay(ref, latu, longu, gmtOffset, Altitude)
+   If kob.RawR
    {
-       kob := calculateSunMoonRiseSet(ftz, ofu, latu, longu, gmtOffset, 0, altitudeBonus)
-       ; fnOutputDebug(A_Index " kob.r=" kob.RawR "; ref=" ref "; ftz=" ftz)
-       ftz += 60, Minutes
-       If (InStr(kob.RawR, ref)=1)
-       {
-          fkob.r := kob.r
-          fkob.RawR := kob.RawR
-       } Else If (InStr(kob.RawR, yref)=1)
-       {
-          otherz.r := kob.r
-          otherz.RawR := kob.RawR
-       }
-
-       If (InStr(kob.RawS, ref)=1)
-       {
-          fkob.s := kob.s
-          fkob.RawS := kob.RawS
-       } Else If (InStr(kob.RawS, tref)=1)
-       {
-          otherz.s := kob.s
-          otherz.RawS := kob.RawS
-       }
-
-       ; on a «reverse» day the moon sets in the morning and rises in the evening, so demanding
-       ; that the rise precedes the set kept the loop calling the DLL all 48 times; the otherz[]
-       ; fallbacks are only consulted when today has no rise or no set of its own, which is not
-       ; the case here, so there is nothing left to look for
-       If (InStr(fkob.RawR, ref)=1 && InStr(fkob.RawS, ref)=1 && fkob.r && fkob.s)
-          Break
+      fkob.r := kob.r
+      fkob.RawR := kob.RawR
+      fkob.riseAz := kob.riseAz
+   } Else
+   {
+      ; no rise today, so the one before it is the last there was
+      otherz := calculateMoonRiseSetDay(yref, latu, longu, gmtOffset, Altitude)
+      If otherz.RawR
+      {
+         fkob.r := otherz.r
+         fkob.RawR := otherz.RawR
+         fkob.riseAz := otherz.riseAz
+      }
    }
 
-   If (!InStr(fkob.RawR, ref) && InStr(otherz.RawR, yref)=1 ) ; && otherz.RawR<fkob.RawS)
+   If kob.RawS
    {
-      fkob.r := otherz.r
-      fkob.RawR := otherz.RawR
+      fkob.s := kob.s
+      fkob.RawS := kob.RawS
+      fkob.setAz := kob.setAz
+   } Else
+   {
+      ; ... and with no set today, the next one is tomorrow's
+      otherz := calculateMoonRiseSetDay(tref, latu, longu, gmtOffset, Altitude)
+      If otherz.RawS
+      {
+         fkob.s := otherz.s
+         fkob.RawS := otherz.RawS
+         fkob.setAz := otherz.setAz
+      }
    }
 
-   If (!InStr(fkob.RawS, ref) && InStr(otherz.RawS, tref)=1)
-   {
-      fkob.s := otherz.s
-      fkob.RawS := otherz.RawS
-   }
-   ; fkob.v := (trz>fkob.RawR && trz<fkob.RawS) ? "Yes" : "No"
    ; RawR/RawS still carry their 0/1 «nothing found» markers when no event was matched, and
    ; 1 is lower than any date stamp: a missing moonset must not read as a set before the rise
    fkob.reverse := (fkob.RawR>1 && fkob.RawS>1 && fkob.RawS<fkob.RawR) ? 1 : 0
@@ -8934,7 +8918,7 @@ initCBTdll() {
 }
 
 callCBTdllFunc(funcu) {
-  Static oldie := {"calculateEquiSols":28, "getMoonElevation":32, "getMoonNoon":44, "getMoonPhase":56, "getNextMoonPhases":24, "getSolarCalculatorData":48, "getSunAzimuthElevation":52, "getSunMoonRiseSet":48, "getTwilightDuration":36, "oldgetMoonPhase":40}
+  Static oldie := {"calculateEquiSols":28, "getMoonElevation":32, "getMoonNoon":44, "getMoonPhase":56, "getMoonRiseSetDay":56, "getNextMoonPhases":24, "getSolarCalculatorData":48, "getSunAzimuthElevation":52, "getSunMoonRiseSet":48, "getTwilightDuration":36, "oldgetMoonPhase":40}
   If (A_PtrSize=8)
   {
      Return "cbt-main.dll\" funcu
@@ -8966,7 +8950,72 @@ getSunAzimuthElevation(t, latu, longu, gmtOffset, ByRef azimuth, ByRef elevation
    Return r
 }
 
+calculateMoonRiseSetDay(dateStamp, latu, longu, gmtOffset:=0, Altitude:=0) {
+; Moonrise and moonset on one local day - dateStamp is that day, as YYYYMMDD - given
+; back as local time stamps, or blank where the moon does not cross the horizon that
+; way on that day. The azimuths of the two events come with them.
+;
+; Altitude is how high the observer stands above the ground around them, in metres.
+; The horizon falls away by 1.76 arcminutes for the square root of every metre of it,
+; which brings the rise forward and puts the set back - a minute and a half at a
+; hundred metres, four and a half at five hundred. What the DLL is handed is the
+; height itself, not a correction in minutes: the correction is not a fixed number of
+; minutes at all, but depends on how steeply the moon is climbing, which the DLL
+; knows and this side does not.
+;
+; Note that this reads Altitude as height above the surrounding country. Where the
+; setting holds a height above sea level and the land around is just as high - a city
+; on a plateau - there is no dip to speak of and this overstates it.
+
+   obju := []
+   If (!initCBTdll() || A_PtrSize!=8 || StrLen(dateStamp)<8)
+      Return obju
+
+   If (allowAltitudeSolarChanges!=1 || Altitude<=0)
+      Altitude := 0
+
+   ; the local day starts at midnight on the wall; what the DLL wants is the moment
+   ; that is, on the other clock. The seconds an event comes back with are floored
+   ; rather than rounded, so that one landing a fraction short of the next midnight
+   ; cannot be stamped with the following date, which is the one thing the callers
+   ; below read off these stamps.
+   startLocal := SubStr(dateStamp, 1, 8) "000000"
+   startUnix := startLocal
+   startUnix += -1*gmtOffset, Hours
+   startUnix -= 19700101000000, S   ; convert to Unix TimeStamp
+
+   rise := setu := riseAz := setAz := ""
+   r := DllCall(callCBTdllFunc("getMoonRiseSetDay"), "double", startUnix, "double", 86400.0, "double", latu, "double", longu, "double", Altitude, "double*", rise, "double*", setu, "double*", riseAz, "double*", setAz, "Int")
+   If !r
+      Return obju
+
+   If (rise>=0)
+   {
+      rawR := startLocal
+      rawR += Floor(rise), Seconds
+      FormatTime, fnrise, % rawR, yyyy/MM/dd HH:mm
+      obju.RawR := rawR
+      obju.r := fnrise
+      obju.riseAz := Round(riseAz, 2)
+   }
+
+   If (setu>=0)
+   {
+      rawS := startLocal
+      rawS += Floor(setu), Seconds
+      FormatTime, fnsetu, % rawS, yyyy/MM/dd HH:mm
+      obju.RawS := rawS
+      obju.s := fnsetu
+      obju.setAz := Round(setAz, 2)
+   }
+
+   Return obju
+}
+
 calculateSunMoonRiseSet(t, rt, latu, longu, gmtOffset:=0, obju:=1, altitudeBonus:=0) {
+; The sun. obju=0 asks the DLL for the moon instead, which still answers, but nothing
+; calls it that way any more: the moon goes through calculateMoonRiseSetDay() above,
+; which asks for a named day rather than for a window to search around it.
    ; latu := 52.524,   longu := 13.411 ; germany, berlin
    If (!initCBTdll() || A_PtrSize!=8)
       Return

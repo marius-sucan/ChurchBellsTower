@@ -29,13 +29,13 @@
     <ClCompile Include="SunRise.cpp">
       <Filter>Source Files\Included by cbt-main.cpp</Filter>
     </ClCompile>
-    <ClCompile Include="MoonRise.cpp">
-      <Filter>Source Files\Included by cbt-main.cpp</Filter>
-    </ClCompile>
     <ClCompile Include="Twilight.cpp">
       <Filter>Source Files\Included by cbt-main.cpp</Filter>
     </ClCompile>
     <ClCompile Include="SolarCalculator.cpp">
+      <Filter>Source Files\Included by cbt-main.cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="MoonELP.cpp">
       <Filter>Source Files\Included by cbt-main.cpp</Filter>
     </ClCompile>
     <ClCompile Include="moonDiskAngle.cpp">
@@ -52,13 +52,13 @@
     <ClInclude Include="SunRise.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MoonRise.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Twilight.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SolarCalculator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MoonELP.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="moonDiskAngle.h">
