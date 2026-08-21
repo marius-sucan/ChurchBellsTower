@@ -116,6 +116,8 @@ WinGeoFaultText(wgHr) {
       Return "Windows has no way of telling where this computer is. There is no location sensor here, and neither the Wi-Fi networks in range nor the network address gave the service anything to work with."
    Else If (wgHr=0x80004005)   ; E_FAIL
       Return "The Windows location service failed without saying why."
+   Else If (wgHr=0x800070422)
+      Return "The Windows location service is probbaly not activated."
 
    Return "The Windows location service answered with " . Format("0x{:08X}", wgHr) . "."
 }

@@ -7651,7 +7651,7 @@ PanelEarthMap(modus:=0) {
     ; LastWinOpened := A_ThisFunc
     AnyWindowOpen := 8
     btnWid := 100
-    txtWid := 360
+    txtWid := 380
     lstWid := 435
     doResetGuiFont()
     If (PrefsLargeFonts=1)
@@ -7672,13 +7672,14 @@ PanelEarthMap(modus:=0) {
     If (modus="search")
        tabChoice := 2
 
-    Global GeoDataSearchField, newGeoDataLocationUserEdit, btn5
+    Global GeoDataSearchField, newGeoDataLocationUserEdit, btn5, btn6
     Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Earth map|Search location
     Gui, Tab, 1
     Gui, Add, Text, x+10 y+10 w%txtW% Section -wrap gInfosDummy vGraphInfoLine, Click on the map for a new location and then add it to the custom list.
     widu := (PrefsLargeFonts=1) ? 190 : 120
     GuiAddDropDownList("xp y+5 w" widu " -wrap AltSubmit Choose" showEarthSunMapModus " gToggleEarthSunMap vshowEarthSunMapModus", "Show indexed cities|Show sunlight map|Show moonlight map", "Earth map data")
-    GuiAddButton("x+5 w" btnWid " hp gDetectUserGeoLocation vbtn6", "&Detect location", "Detect location", "Ask Windows where this computer is and put the answer in the field below.")
+    Gui, Add, Button, x+5 w%btnWid% hp gDetectUserGeoLocation vbtn6 +hwndhTemp, &Detect location
+    ToolTip2ctrl(hTemp, "The identified location will be put in the field below.`nClick «Add to list» to store it.")
     widu := (PrefsLargeFonts=1) ? 40 : 32
     GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<", "Previous 6 hours")
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate vbtn5 +hwndhTemp, &Now
@@ -10428,23 +10429,12 @@ DetectUserGeoLocation() {
 ; this computer stands is dropped into the same field a click on the map fills,
 ; so that the answer is read over before Add to list writes it down.
 
-   Static busy := 0
-   If busy   ; the wait below sleeps, and sleeping lets a second click through
-      Return
-
    Gui, SettingsGUIA: Default
-   busy := 1
    GuiControl, SettingsGUIA: Disable, btn6
-   GuiControl, SettingsGUIA:, GraphInfoLine, % "Asking Windows where this computer is..."
    stringu := detectThisComputerLocation(sourceu, faultu)
-   busy := 0
-   If (AnyWindowOpen!=8)   ; the panel was closed while Windows was still thinking
-      Return
-
    GuiControl, SettingsGUIA: Enable, btn6
    If !stringu
    {
-      GuiControl, SettingsGUIA:, GraphInfoLine, % "Click on the map for a new location and then add it to the custom list."
       simpleMsgBoxWrapper(appName, faultu, 0, 1, 48)
       Return
    }
@@ -10456,7 +10446,6 @@ DetectUserGeoLocation() {
 
 detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
 ; Where this computer is, written the way a custom location entry is written:
-;
 ;    Name|latitude|longitude|GMT offset|DST offset|altitude
 ;
 ; The Windows location service is asked first and what it gives back is a true
@@ -10466,17 +10455,8 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
 ; guessed from the longitude, which is what a click on the map has to settle
 ; for; the machine already knows its own zone exactly, quarter hours and all.
 ;
-; Where the service has nothing to give, the keyboard layout being typed with
-; is read for the country in its language identifier and the capital of that
-; country stands in - a whole country wide of the mark at worst, but never
-; nothing at all. The country set under Settings > Time & language > Region is
-; the last resort, for a layout whose language names no country. Those two the
-; other way round would often be the better guess, since a good many people
-; type on a layout belonging to a country they have never lived in; it is left
-; this way because the keyboard is the fallback that was asked for.
-;
-; sourceu comes back saying where the answer came from, in a sentence fit for
-; the line above the map, and faultu saying why there is none.
+; As a fallback, the country set under Settings > Time & language > Region is
+; used or the keyboard layout to identify a country.
 
    sourceu := faultu := ""
    If !listedCountries
@@ -10497,36 +10477,38 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
       ; without one, being the level the horizon dip is reckoned from anyway
       altu := (isNumber(altu) && isInRange(altu, -500, 9000)) ? Round(altu) : 0
       withinu := (isNumber(accu) && accu>0) ? ", to within " Round(accu) " m" : ""
-      sourceu := "Windows places this computer at " latu " / " longu withinu ". Add to list keeps it."
+      sourceu := "Windows places this PC at " Round(latu, 1) " / " Round(longu ,1) withinu "."
       Return "Detected location|" latu "|" longu "|" gmtu "|" dstu "|" altu
    }
 
-   whyu := faultu
-   isou := WinGeoKeyboardCountry()
-   viau := "the language of the keyboard layout"
+   If faultu
+      simpleMsgBoxWrapper(appName, "Microsoft Windows failed to detect the location of the device.`n `n"  faultu "`n`nA fallback detection method will be used." , 0, 1, 16)
+
+   isou := WinGeoRegionCountry()
+   viau := "the country set in the system Control Panel"
    If !isou
    {
-      isou := WinGeoRegionCountry()
-      viau := "the country set in Windows"
+      isou := WinGeoKeyboardCountry()
+      viau := "the keyboard layout"
    }
 
    If !isou
    {
-      faultu := whyu "`n`nNeither the keyboard layout nor the Windows region settings name a country to fall back on."
+      faultu := "Failed to detect any possible location."
       Return ""
    }
 
    foundy := geoCapitalOfCountryCode(isou, ctrIdx, cityIdx)
    If !foundy
    {
-      faultu := whyu "`n`nFalling back on " viau " reached " isou ", and the location index holds no city in that country."
+      faultu := "Failed to detect a location matching hint: " isou "."
       Return ""
    }
 
    p := geoData[ctrIdx "|" cityIdx]
    cityu := LTrim(SubStr(p, 1, InStr(p, "|") - 1), "*")
-   thisu := (foundy=1) ? cityu ", the capital of " countriesArrayList[ctrIdx] : cityu ", in " countriesArrayList[ctrIdx]
-   sourceu := "Windows could not place this computer, so " thisu " was read off " viau " instead."
+   thisu := (foundy=1) ? cityu ", " countriesArrayList[ctrIdx] : cityu ", in " countriesArrayList[ctrIdx]
+   sourceu := "Based on " viau " the custom location edit field was filled."
    k := StrSplit(countriesArrayList[ctrIdx] ":" p, "|")   ; the very same format used by PanelEarthMap()
    Return k[1] "|" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6]
 }
