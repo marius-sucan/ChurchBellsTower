@@ -1790,13 +1790,13 @@ MixRGB(clrA, clrB, t) {
    Return Format("{1:02x}", R) Format("{1:02x}", G) Format("{1:02x}", B)
 }
 
-OSDmoonColorBitmap(thisBgrColor) {
+OSDmoonColorBitmap(thisBgrColor, datu:=0) {
    boxSize := imgW := imgH := 600
    cX := imgW*0.48
-   cY := -imgH*0.42
+   cY := -imgH*0.45
 
    newBitmap := Gdip_CreateBitmap(imgW, imgH, "0xE200B")
-   If StrLen(newBitmap)<3
+   If (StrLen(newBitmap)<3)
       Return
 
    G3 := Gdip_GraphicsFromImage(newBitmap)
@@ -1806,7 +1806,7 @@ OSDmoonColorBitmap(thisBgrColor) {
    If (swapColorAnalogClock=1)
       swapVars(brightColor, darkColor)
 
-   elevation := coreMoonPhaseDraw(brightColor, darkColor, cX, cY, boxSize*4.95, lastUsedGeoLocation, G3)
+   elevation := coreMoonPhaseDraw(brightColor, darkColor, cX, cY, boxSize*4.95, lastUsedGeoLocation, G3, datu)
    If (elevation<0)
    {
       br := Gdip_BrushCreateSolid("0x77" thisBgrColor)
@@ -1815,9 +1815,7 @@ OSDmoonColorBitmap(thisBgrColor) {
    }
 
    Gdip_DeleteGraphics(G3)
-   hBitmap := Gdip_CreateHBITMAPFromBitmap(newBitmap)
-   Gdip_DisposeImage(newBitmap, 1)
-   Return hBitmap
+   Return newBitmap
 }
 
 centerWindowScreen(hwnd, g, mX, mY, ByRef fx, ByRef fy) {
@@ -1939,11 +1937,20 @@ CreateOSDGUI(msg2Display, centerMsg:=0, noAdds:=0) {
     If (!InStr(msg2Display, "`n") && showMoonPhaseOSD=1)
     {
        Global TempusLol
-       moonPic := OSDmoonColorBitmap(thisBgrColor)
-       Gui, osdGuia: Add, Text, x0 y0 vTempusLol, .
-       GuiControl, osdGuia: Hide, TempusLol
-       pzay := clampInRange(OSDmarginTop + OSDmarginBottom - heightProgressu, 0, 1223349)
-       Gui, osdGuia: Add, Picture, x0 y%heightProgressu% w-1 hp+%pzay%, hBitmap:%moonPic%
+       moonPicBMP := OSDmoonColorBitmap(thisBgrColor)
+       If moonPicBMP
+       {
+          moonPic := Gdip_CreateHBITMAPFromBitmap(moonPicBMP)
+          Gdip_DisposeImage(moonPicBMP, 1)
+       }
+
+       If moonPic
+       {
+          Gui, osdGuia: Add, Text, x0 y0 vTempusLol, .
+          GuiControl, osdGuia: Hide, TempusLol
+          pzay := clampInRange(OSDmarginTop + OSDmarginBottom - heightProgressu, 0, 1223349)
+          Gui, osdGuia: Add, Picture, x0 y%heightProgressu% w-1 hp+%pzay%, hBitmap:%moonPic%
+       }
     }
 
     Gui, osdGuia: Add, Text, x%OSDmarginSides% y%OSDmarginTop% hwndhOSDtxt vosdGuiaTXT +BackgroundTrans, %msg2Display%
@@ -7666,7 +7673,7 @@ PanelEarthMap(modus:=0) {
     If !listedExtendedLocations
        loadExtendedGeoData()
 
-    txtW := (PrefsLargeFonts=1) ? lstWid - 105 : lstWid - 100
+    txtW := (PrefsLargeFonts=1) ? lstWid - 95 : lstWid - 90
     graphW := lstWid - 10  ; (PrefsLargeFonts=1) ? 640 : 380
     graphH := (PrefsLargeFonts=1) ? 310 : 195
     If (modus="search")
@@ -10202,6 +10209,17 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
  
      clru := (todaySunMoonGraphMode=1) ? "0xff112222" : "0xff112233"
      Gdip_GraphicsClear(G, clru)
+     If (todaySunMoonGraphMode=1)
+     {
+        moonPicBMP := OSDmoonColorBitmap(SubStr(clru, 5), timi)
+        pPath := Gdip_CreatePath()
+        pPath := Gdip_AddPathEllipse(pPath, w - 44, 11, 34, 34)
+        Gdip_SetClipPath(G, pPath)
+        Gdip_DrawImage(G, moonPicBMP, w - 44, 11, 34, 34)
+        Gdip_DisposeImage(moonPicBMP, 1)
+        Gdip_DeletePath(pPath)
+        Gdip_ResetClip(G)
+     }
 
      bu := hasDrawn := 0
      lineBrush := Gdip_BrushCreateSolid("0xAAeeEEee")
@@ -10216,7 +10234,6 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
      darkBrush := Gdip_BrushCreateSolid("0xff001122")
      dBrush := Gdip_BrushCreateSolid("0x44aaeeaa")
      startZeit := SubStr(timi, 1, 8) . "000001"
-
      pu := (timeSpanInSeconds(timi, startZeit) / 86400) * 360
      If (pu<3.1)
         pu := 3.1
@@ -10228,7 +10245,8 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
      m := (PrefsLargeFonts=1) ? 30 : 20
      Gdip_FillRectangle(G, darkBrush, w/2, 0, 3, h)
      pPath := Gdip_CreatePath()
-     hc := (PrefsLargeFonts=1) ? 10:8
+     hc := (PrefsLargeFonts=1) ? 10 : 8
+
      Loop, 48
      {
         If (todaySunMoonGraphMode=1)
@@ -10263,7 +10281,7 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
         startZeit += 30, Minutes
       }
       Gdip_FillRectangle(G, dBrush, 0, h/2, w, 3)
-     
+
       ; azimuth indicator
       timeus := uiUserFullDateUTC
       If (todaySunMoonGraphMode=1)
@@ -10431,14 +10449,18 @@ DetectUserGeoLocation() {
 
    Gui, SettingsGUIA: Default
    GuiControl, SettingsGUIA: Disable, btn6
+   ToolTip, Detecting device location...
+   Sleep, 5
    stringu := detectThisComputerLocation(sourceu, faultu)
    GuiControl, SettingsGUIA: Enable, btn6
    If !stringu
    {
+      ToolTip
       simpleMsgBoxWrapper(appName, faultu, 0, 1, 48)
       Return
    }
 
+   ToolTip
    GuiControl, SettingsGUIA:, newGeoDataLocationUserEdit, % stringu
    GuiControl, SettingsGUIA:, GraphInfoLine, % sourceu
    SoundBeep 900, 100
@@ -10507,7 +10529,6 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
 
    p := geoData[ctrIdx "|" cityIdx]
    cityu := LTrim(SubStr(p, 1, InStr(p, "|") - 1), "*")
-   thisu := (foundy=1) ? cityu ", " countriesArrayList[ctrIdx] : cityu ", in " countriesArrayList[ctrIdx]
    sourceu := "Based on " viau " the custom location edit field was filled."
    k := StrSplit(countriesArrayList[ctrIdx] ":" p, "|")   ; the very same format used by PanelEarthMap()
    Return k[1] "|" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6]
@@ -11693,7 +11714,6 @@ UItodayInfosYear() {
 
   thisTime := testValid ? timi : uiUserFullDateUTC
   FormatTime, longu, % thisTime, LongDate
-
   FormatTime, isoYWeek, % thisTime, YWeek
   isoYWeek := SubStr(isoYWeek, 5)
   FormatTime, gyd, % thisTime, Yday
@@ -13050,7 +13070,6 @@ Class TZI_SYSTEMTIME {
 }
 
 MoonPhaseCalculator(t:=0, gmtOffset:=0, latu:=0, longu:=0) {
-
   Static phaseNames := {1:"New moon", 2:"Waxing Crescent", 3:"First Quarter"
            , 4: "Waxing Gibbous", 5:"Full moon", 6:"Waning Gibbous"
            , 7:"Last Quarter", 8:"Waning Crescent"}

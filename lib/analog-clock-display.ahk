@@ -306,26 +306,35 @@ swapVars(ByRef a, ByRef b) {
    tempus := a,   a := b,   b := tempus
 }
 
-coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup) {
+coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup, datu:=0) {
      Static moonPhase := [], elevu := 1, lastCalcZeit := 1, lastCoords := 0, lastAngleMoon := 0
      If (swapColorAnalogClock=1)
         swapVars(bgrColor, itemColor)
 
-     If (A_TickCount - lastCalcZeit>98501) || (lastCoords!=givenGeoLocation)
+     thisCoords := givenGeoLocation "|" SubStr(datu, 1, StrLen(datu) - 3)
+     If (A_TickCount - lastCalcZeit>98501) || (lastCoords!=thisCoords)
      {
+        If !datu
+           datu := A_NowUTC
+
         If InStr(givenGeoLocation, "|")
+        {
            w := StrSplit(givenGeoLocation, "|")
+           yearu := SubStr(datu, 1, 4)
+           FormatTime, gyd, % datu, Yday
+           gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
+        }
 
         If (w.Count()>5)
-           getMoonElevation(A_NowUTC, w[2], w[3], 0, azii, elevu)
+           getMoonElevation(datu, w[2], w[3], gmtOffset, azii, elevu)
         Else
            elevu := 20
 
-        moonPhase := MoonPhaseCalculator()
+        moonPhase := MoonPhaseCalculator(datu, gmtOffset, w[2], w[3])
         lastCalcZeit := A_TickCount
         ; lastAngleMoon := getMoonLichtAngle(A_NowUTC, w[2], w[3], w[6])
-        ; ToolTip, % lastAngleMoon , , , 2
-        lastCoords := givenGeoLocation
+        ; ToolTip, % thisCoords , , , 2
+        lastCoords := thisCoords
      }
 
      o_moonCycle := Round(moonPhase[3], 3)
