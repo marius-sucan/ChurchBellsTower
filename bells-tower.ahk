@@ -41,6 +41,7 @@
 #Include, Lib\Class_CtlColors.ahk
 #Include, Lib\hashtable.ahk
 #Include, Lib\Class_ImageButton.ahk
+#Include, Lib\windows-geolocation.ahk
 ; #Include, Lib\direct-sound-wrapper.ahk
 
 DetectHiddenWindows, On
@@ -7677,6 +7678,7 @@ PanelEarthMap(modus:=0) {
     Gui, Add, Text, x+10 y+10 w%txtW% Section -wrap gInfosDummy vGraphInfoLine, Click on the map for a new location and then add it to the custom list.
     widu := (PrefsLargeFonts=1) ? 190 : 120
     GuiAddDropDownList("xp y+5 w" widu " -wrap AltSubmit Choose" showEarthSunMapModus " gToggleEarthSunMap vshowEarthSunMapModus", "Show indexed cities|Show sunlight map|Show moonlight map", "Earth map data")
+    GuiAddButton("x+5 w" btnWid " hp gDetectUserGeoLocation vbtn6", "&Detect location", "Detect location", "Ask Windows where this computer is and put the answer in the field below.")
     widu := (PrefsLargeFonts=1) ? 40 : 32
     GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<", "Previous 6 hours")
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate vbtn5 +hwndhTemp, &Now
@@ -10421,6 +10423,191 @@ locateClickOnEarthMap() {
     GuiControl, SettingsGUIA:, newGeoDataLocationUserEdit, % stringu
 }
 
+DetectUserGeoLocation() {
+; The Detect location button of PanelEarthMap(). Whatever Windows knows of where
+; this computer stands is dropped into the same field a click on the map fills,
+; so that the answer is read over before Add to list writes it down.
+
+   Static busy := 0
+   If busy   ; the wait below sleeps, and sleeping lets a second click through
+      Return
+
+   Gui, SettingsGUIA: Default
+   busy := 1
+   GuiControl, SettingsGUIA: Disable, btn6
+   GuiControl, SettingsGUIA:, GraphInfoLine, % "Asking Windows where this computer is..."
+   stringu := detectThisComputerLocation(sourceu, faultu)
+   busy := 0
+   If (AnyWindowOpen!=8)   ; the panel was closed while Windows was still thinking
+      Return
+
+   GuiControl, SettingsGUIA: Enable, btn6
+   If !stringu
+   {
+      GuiControl, SettingsGUIA:, GraphInfoLine, % "Click on the map for a new location and then add it to the custom list."
+      simpleMsgBoxWrapper(appName, faultu, 0, 1, 48)
+      Return
+   }
+
+   GuiControl, SettingsGUIA:, newGeoDataLocationUserEdit, % stringu
+   GuiControl, SettingsGUIA:, GraphInfoLine, % sourceu
+   SoundBeep 900, 100
+}
+
+detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
+; Where this computer is, written the way a custom location entry is written:
+;
+;    Name|latitude|longitude|GMT offset|DST offset|altitude
+;
+; The Windows location service is asked first and what it gives back is a true
+; fix - a few metres where the machine carries a GPS receiver, a few kilometres
+; where it is placed by the Wi-Fi networks in range or by its network address.
+; The offsets are then taken from the time zone the computer keeps rather than
+; guessed from the longitude, which is what a click on the map has to settle
+; for; the machine already knows its own zone exactly, quarter hours and all.
+;
+; Where the service has nothing to give, the keyboard layout being typed with
+; is read for the country in its language identifier and the capital of that
+; country stands in - a whole country wide of the mark at worst, but never
+; nothing at all. The country set under Settings > Time & language > Region is
+; the last resort, for a layout whose language names no country. Those two the
+; other way round would often be the better guess, since a good many people
+; type on a layout belonging to a country they have never lived in; it is left
+; this way because the keyboard is the fallback that was asked for.
+;
+; sourceu comes back saying where the answer came from, in a sentence fit for
+; the line above the map, and faultu saying why there is none.
+
+   sourceu := faultu := ""
+   If !listedCountries
+      loadGeoData()
+
+   If WinGeoPosition(latu, longu, accu, altu, faultu)
+   {
+      latu := Round(latu, 4)
+      longu := Round(longu, 4)
+      If !WinGeoTimeZoneOffsets(gmtu, dstu)
+      {
+         gmtu := Round(longu/15) ".0"   ; the same guess the map makes of a click
+         dstu := gmtu
+      }
+
+      ; only a real fix carries an altitude, and the map settles for 135 m when
+      ; it has none; zero is the honest stand-in for a position that arrived
+      ; without one, being the level the horizon dip is reckoned from anyway
+      altu := (isNumber(altu) && isInRange(altu, -500, 9000)) ? Round(altu) : 0
+      withinu := (isNumber(accu) && accu>0) ? ", to within " Round(accu) " m" : ""
+      sourceu := "Windows places this computer at " latu " / " longu withinu ". Add to list keeps it."
+      Return "Detected location|" latu "|" longu "|" gmtu "|" dstu "|" altu
+   }
+
+   whyu := faultu
+   isou := WinGeoKeyboardCountry()
+   viau := "the language of the keyboard layout"
+   If !isou
+   {
+      isou := WinGeoRegionCountry()
+      viau := "the country set in Windows"
+   }
+
+   If !isou
+   {
+      faultu := whyu "`n`nNeither the keyboard layout nor the Windows region settings name a country to fall back on."
+      Return ""
+   }
+
+   foundy := geoCapitalOfCountryCode(isou, ctrIdx, cityIdx)
+   If !foundy
+   {
+      faultu := whyu "`n`nFalling back on " viau " reached " isou ", and the location index holds no city in that country."
+      Return ""
+   }
+
+   p := geoData[ctrIdx "|" cityIdx]
+   cityu := LTrim(SubStr(p, 1, InStr(p, "|") - 1), "*")
+   thisu := (foundy=1) ? cityu ", the capital of " countriesArrayList[ctrIdx] : cityu ", in " countriesArrayList[ctrIdx]
+   sourceu := "Windows could not place this computer, so " thisu " was read off " viau " instead."
+   k := StrSplit(countriesArrayList[ctrIdx] ":" p, "|")   ; the very same format used by PanelEarthMap()
+   Return k[1] "|" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6]
+}
+
+geoCapitalOfCountryCode(isou, ByRef ctrIdx, ByRef cityIdx) {
+; The capital the location index holds for an ISO 3166-1 alpha-2 country code.
+; Gives back 1 for a capital found, 2 for a country that is indexed but carries
+; no capital of its own - the first city in it stands in, which is the case for
+; Israel and for Palestine - and 0 for a country the index does not reach.
+
+   ctrIdx := cityIdx := 0
+   nameu := geoCountryNameOfCode(isou)
+   If !nameu
+      Return 0
+
+   Loop, % countriesArrayList.Count()
+   {
+      If (countriesArrayList[A_Index]=nameu)
+      {
+         ctrIdx := A_Index
+         Break
+      }
+   }
+   If !ctrIdx
+      Return 0
+
+   fallbacku := 0
+   Loop, % geoData[ctrIdx "|-1"]
+   {
+      p := geoData[ctrIdx "|" A_Index]
+      If !p
+         Continue
+
+      If !fallbacku
+         fallbacku := A_Index
+
+      ; loadGeoData() marks a capital with a star on the name and a 1 in the
+      ; last field; the ones whose names open on a bracket are overseas capitals
+      ; filed under the parent country and are not what is being asked for
+      k := StrSplit(p, "|")
+      If (k[7]=1 && SubStr(LTrim(k[1], "*"), 1, 1)!="(")
+      {
+         cityIdx := A_Index
+         Return 1
+      }
+   }
+
+   cityIdx := fallbacku
+   Return cityIdx ? 2 : 0
+}
+
+geoCountryNameOfCode(isou) {
+; The country name resources\country-codes.txt gives for an ISO code, put right
+; where the location index spells the country its own way. The index hyphenates
+; the names joined by an "and", and it files the British Isles under their
+; constituent countries - what stands under United Kingdom there is the overseas
+; territories, whose first capital is Anguilla's rather than London.
+
+   Static codes := 0
+        , spelled := {"AG":"Antigua-Barbuda", "BA":"Bosnia-Herzegovina", "ST":"São Tomé-Principe", "TT":"Trinidad-Tobago", "GB":"England (UK)"}
+
+   If !IsObject(codes)
+   {
+      codes := {}
+      FileRead, content, %A_ScriptDir%\resources\country-codes.txt
+      Loop, Parse, content, `n, `r
+      {
+         p := Trim(A_LoopField, Chr(65279) . " `t")   ; a byte order mark may lead the first line
+         z := InStr(p, "|")
+         If (z=3)
+            codes[SubStr(p, 1, 2)] := SubStr(p, z + 1)
+      }
+   }
+
+   isou := Trim(isou)
+   If spelled.HasKey(isou)
+      Return spelled[isou]
+
+   Return codes.HasKey(isou) ? codes[isou] : ""
+}
+
 generateSunlightEarthMap(modus) {
     If !pToken
        pToken := Gdip_Startup()
@@ -10514,7 +10701,7 @@ generateEarthMap() {
    GuiControl, SettingsGUIA:, UIastroInfoSet, Please wait, generating earth map...
    GuiControl, SettingsGUIA: Disable, showEarthSunMapModus
    GuiControl, SettingsGUIA: Disable, newGeoDataLocationUserEdit
-   Loop, 5
+   Loop, 6
        GuiControl, SettingsGUIA: Disable, btn%A_Index%
 
    generatingEarthMapNow := 1
@@ -10532,6 +10719,7 @@ generateEarthMap() {
    GuiControl, % actu, btn5
    GuiControl, SettingsGUIA: Enable, btn3
    GuiControl, SettingsGUIA: Enable, btn4
+   GuiControl, SettingsGUIA: Enable, btn6
    GuiControl, SettingsGUIA: Enable, newGeoDataLocationUserEdit
    FormatTime, brr, % uiUserFullDateUTC, yyyy/MM/dd, HH:mm
    p := geoData.Count()- countriesArrayList.Count() + listedExtendedLocations
