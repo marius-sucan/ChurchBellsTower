@@ -313,12 +313,12 @@ coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup, d
      If (swapColorAnalogClock=1)
         swapVars(bgrColor, itemColor)
 
+     If !datu
+        datu := A_NowUTC
+
      thisCoords := givenGeoLocation "|" SubStr(datu, 1, StrLen(datu) - 3)
      If (A_TickCount - lastCalcZeit>98501) || (lastCoords!=thisCoords)
      {
-        If !datu
-           datu := A_NowUTC
-
         If InStr(givenGeoLocation, "|")
         {
            w := StrSplit(givenGeoLocation, "|")

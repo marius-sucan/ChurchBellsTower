@@ -5,6 +5,11 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
+v3.6.1 - 2026 / 08 / **
+  - [new] automatically detect device location, useful for the astronomy panels
+  - improved accuracy for the moon phase calculation and moon rise and moon set times
+  - various bug fixes related to the astronomy panels
+
 v3.6.0 - 2026 / 08 / 12
   - bug fixes and minor improvements
 

@@ -3469,6 +3469,10 @@ coreSettingsContextMenu(modus:=0) {
        If (AnyWindowOpen=6)
        {
           Menu, ContextMenu, Add
+          Menu, ContextMenu, Add, &Detect device location, MenuDetectDeviceLocation
+          If (uiUserCountry=1)
+             Menu, ContextMenu, Add, &Rename custom location, MenuRenameUserLocation
+
           Menu, ContextMenu, Add, Altitude based &solar times, toggleLocationSolarInfluence
           Menu, ContextMenu, Add, &Observe DST changes, toggleDSTchanges
           If (allowDSTchanges=1)
@@ -7579,18 +7583,23 @@ geoLocationAlreadyInUserList(nameu) {
    Return 0
 }
 
-btnUIaddTodayGeoLocation() {
+btnUIaddTodayGeoLocation(modus:=0, strExtern:=0) {
 ; the PanelTodayInfos() counterpart of btnUIaddNewGeoLocation()
 ; it adds the location currently selected in the uiUserCountry / uiUserCity lists to the custom locations list
+   isExtern := (modus="given" && InStr(strExtern, "|")) ? 1 : 0
+   If !isExtern
+   {
+      Gui, SettingsGUIA: Default
+      GuiControlGet, uiUserCountry
+      GuiControlGet, uiUserCity
+      If (uiUserCountry=1) ; already a custom location, nothing to add
+         Return
+ 
+      p := geoData[uiUserCountry "|" uiUserCity]
+   }
 
-   Gui, SettingsGUIA: Default
-   GuiControlGet, uiUserCountry
-   GuiControlGet, uiUserCity
-   If (uiUserCountry=1) ; already a custom location, nothing to add
-      Return
-
-   p := geoData[uiUserCountry "|" uiUserCity]
-   k := StrSplit(countriesArrayList[uiUserCountry] ":" p, "|") ; the very same format used by PanelEarthMap()
+   dstr := isExtern ? strExtern : countriesArrayList[uiUserCountry] ":" p
+   k := StrSplit(dstr, "|") ; the very same format used by PanelEarthMap()
    If (k.Count()<6 || StrLen(k[1])<4
       || !isNumber(k[2]) || !isInRange(k[2], -90, 90)
       || !isNumber(k[3]) || !isInRange(k[3], -180, 180)
@@ -7682,8 +7691,8 @@ PanelEarthMap(modus:=0) {
     Gui, Tab, 1
     Gui, Add, Text, x+10 y+10 w%txtW% Section -wrap gInfosDummy vGraphInfoLine, Click on the map for a new location and then add it to the custom list.
     widu := (PrefsLargeFonts=1) ? 190 : 120
-    GuiAddDropDownList("xp y+5 w" widu " -wrap AltSubmit Choose" showEarthSunMapModus " gToggleEarthSunMap vshowEarthSunMapModus", "Show indexed cities|Show sunlight map|Show moonlight map", "Earth map data")
-    Gui, Add, Button, x+5 w%btnWid% hp gDetectUserGeoLocation vbtn6 +hwndhTemp, &Detect location
+    GuiAddDropDownList("xp y+5 w" widu " -wrap AltSubmit Choose" showEarthSunMapModus " gUIsetEarthSunMapMode vshowEarthSunMapModus", "Show indexed cities|Show sunlight map|Show moonlight map", "Earth map data")
+    Gui, Add, Button, x+5 w%btnWid% hp gBtnDetectUserLocation vbtn6 +hwndhTemp, &Detect location
     ToolTip2ctrl(hTemp, "The identified location will be put in the field below.`nClick «Add to list» to store it.")
     widu := (PrefsLargeFonts=1) ? 40 : 32
     GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<", "Previous 6 hours")
@@ -7705,7 +7714,7 @@ PanelEarthMap(modus:=0) {
     btnW := (PrefsLargeFonts=1) ? 80 : 55
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     thisu := StrReplace(countriesArrayList[uiUserCountry] ":" geoData[uiUserCountry "|" uiUserCity], "Custom locations:")
-    GuiAddEdit("xm+0 y+10 w" ww " -wrap vnewGeoDataLocationUserEdit", thisu, "New custom location to be added")
+    GuiAddEdit("xm+0 y+10 w" ww " -wrap vnewGeoDataLocationUserEdit", thisu, "Custom location to be added format:`nName|N°|E°|GMT offset|DST GMT offset|Altitude (meters)|0")
     Gui, Add, Button, x+5 hp vbtn4 gbtnUIaddNewGeoLocation +hwndhTemp, &Add to list
     ToolTip2ctrl(hTemp, "Add selected location to the list of custom user-defined locations.")
 
@@ -7721,7 +7730,7 @@ PanelEarthMap(modus:=0) {
     generateEarthMap()
 }
 
-ToggleEarthSunMap() {
+UIsetEarthSunMapMode() {
   Gui, SettingsGUIA: Default
   GuiControlGet, showEarthSunMapModus
   generateEarthMap()
@@ -10442,11 +10451,31 @@ locateClickOnEarthMap() {
     GuiControl, SettingsGUIA:, newGeoDataLocationUserEdit, % stringu
 }
 
-DetectUserGeoLocation() {
-; The Detect location button of PanelEarthMap(). Whatever Windows knows of where
-; this computer stands is dropped into the same field a click on the map fills,
-; so that the answer is read over before Add to list writes it down.
+MenuRenameUserLocation() {
+    Gui, SettingsGUIA: Default
+    GuiControlGet, uiUserCountry
+    GuiControlGet, uiUserCity
+    InputBox, newName, % appName, Type the new name for: %uiUserCity%, HIDE, Width, Height, X, Y, Font, Timeout, Default]
+    ; finish this feature 
+}
 
+MenuDetectDeviceLocation() {
+   ToolTip, Detecting device location...
+   Sleep, 5
+   stringu := detectThisComputerLocation(sourceu, faultu)
+   If !stringu
+   {
+      ToolTip
+      simpleMsgBoxWrapper(appName, faultu, 0, 1, 48)
+      Return
+   }
+
+   btnUIaddTodayGeoLocation("given", stringu)
+   ; after this, make it auto-select this new custom location
+   ToolTip
+}
+
+BtnDetectUserLocation() {
    Gui, SettingsGUIA: Default
    GuiControl, SettingsGUIA: Disable, btn6
    ToolTip, Detecting device location...
@@ -10619,7 +10648,7 @@ generateSunlightEarthMap(modus) {
        Return
 
     mainBitmap := Gdip_CreateBitmapFromFileSimplified(A_ScriptDir "\resources\earth-surface-map.jpg")
-    fnOutputDebug(gdiplasterror "==" mainBitmap)
+    ; fnOutputDebug(gdiplasterror "==" mainBitmap)
     If !mainBitmap
        Return
 
@@ -11124,7 +11153,7 @@ UIcityChooser() {
             GuiControl, SettingsGUIA:, UIastroInfoRise, % noonValue
             GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Set: 0°
             GuiControl, SettingsGUIA:, UIastroInfoNoon, % sau
-         } else
+         } Else
          {
             GuiControl, SettingsGUIA:, UIastroInfoSet, % noonValue
             GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, % noonLabel
@@ -11133,7 +11162,7 @@ UIcityChooser() {
             GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Set: 0°
             GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Rise: 0°
          }
-      } else
+      } Else
       {
          GuiControl, SettingsGUIA:, UIastroInfoNoon, % noonValue
          GuiControl, SettingsGUIA:, UIastroInfoElevNoon, % noonLabel
@@ -11297,10 +11326,12 @@ helpTodayElevationNow() {
 }
 
 helpPanelTodayNoon() {
+  Gui, SettingsGUIA: Default
+  GuiControlGet, UIastroInfoElevNoon
   mouseTurnOFFtooltip()
   If (userAstroInfodMode=1)
      mouseCreateOSDinfoLine("Sun's altitude at solar noon, at the meridian passage.")
-  Else
+  Else If InStr(UIastroInfoElevNoon, "peak")
      mouseCreateOSDinfoLine("The meridian passage (the culminant of the moon).`nIt is the peak altitude of the moon on the sky during the given day.")
 }
 
