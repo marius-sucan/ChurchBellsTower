@@ -324,11 +324,14 @@ coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup, d
            FormatTime, gyd, % datu, Yday
            k := TZI_GetTimeZoneInformation(yearu, gyd)
            gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
+
         }
 
         If (w.Count()>5)
+        {
+           datu += gmtOffset, Hours
            getMoonElevation(datu, w[2], w[3], gmtOffset, azii, elevu)
-        Else
+        } Else
            elevu := 20
 
         moonPhase := MoonPhaseCalculator(datu, gmtOffset, w[2], w[3])
