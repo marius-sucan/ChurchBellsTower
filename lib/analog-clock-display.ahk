@@ -307,6 +307,8 @@ swapVars(ByRef a, ByRef b) {
 }
 
 coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup, datu:=0) {
+; datu is an UTC time stamp; it defaults to the present moment. The offset of the
+; place named by givenGeoLocation is applied below, before the moon is asked for.
      Static moonPhase := [], elevu := 1, lastCalcZeit := 1, lastCoords := 0, lastAngleMoon := 0
      If (swapColorAnalogClock=1)
         swapVars(bgrColor, itemColor)
@@ -324,14 +326,12 @@ coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup, d
            FormatTime, gyd, % datu, Yday
            k := TZI_GetTimeZoneInformation(yearu, gyd)
            gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
-
+           datu += gmtOffset, Hours   ; getMoonElevation() and MoonPhaseCalculator() both subtract it back
         }
 
         If (w.Count()>5)
-        {
-           datu += gmtOffset, Hours
            getMoonElevation(datu, w[2], w[3], gmtOffset, azii, elevu)
-        } Else
+        Else
            elevu := 20
 
         moonPhase := MoonPhaseCalculator(datu, gmtOffset, w[2], w[3])

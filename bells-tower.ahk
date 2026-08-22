@@ -10209,7 +10209,9 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
      Gdip_GraphicsClear(G, clru)
      If (todaySunMoonGraphMode=1)
      {
-        moonPicBMP := OSDmoonColorBitmap(SubStr(clru, 5), timi)
+        moonZeit := timi   ; timi is local to the mapped place; the moon is asked in UTC
+        moonZeit += -1*gmtOffset, Hours
+        moonPicBMP := OSDmoonColorBitmap(SubStr(clru, 5), moonZeit)
         pPath := Gdip_CreatePath()
         Gdip_AddPathEllipse(pPath, w - 44, 11, 34, 34)
         Gdip_SetClipPath(G, pPath)
