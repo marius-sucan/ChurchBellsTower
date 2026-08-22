@@ -7085,7 +7085,7 @@ PanelSunYearGraphTable() {
     Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
     Gui, Add, Text, xs y+10 w%graphW% -wrap vGraphInfoLine, Hover graph for more information.`n-
     Gui, Add, Text, xs y+10 w1 h1, Sunlight duration graph for entire year
-    Gui, Add, Text, xp yp w%graphW% h%graphH% Section +0x1000 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
+    Gui, Add, Text, xp yp w%graphW% h%graphH% Section +0x8 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
 
     Gui, Tab
     btnW := (PrefsLargeFonts=1) ? 80 : 55
@@ -7147,7 +7147,7 @@ PanelMoonYearGraphTable() {
     Gui, Add, Button, x+5 hp gbtnUIremoveUserGeoLocation vUIbtnRemGeoLoc, &Remove
     Gui, Add, Text, xs y+10 w%graphW% -wrap vGraphInfoLine, Hover graph for more information.`n-
     Gui, Add, Text, xs y+10 w1 h1, Moonlight duration graph for entire year
-    Gui, Add, Text, xp yp w%graphW% h%graphH% Section +0x1000 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
+    Gui, Add, Text, xp yp w%graphW% h%graphH% Section +0x8 +0xE +hwndhSolarGraphPic gBtnToggleYearGraphMode, Preview area
 
     Gui, Tab, 3
     GuiAddListView("x+5 y+10 w" lstWid " r15 -multi +ReadOnly Grid vLViewMuna", "Day|Date|Lunar phase|Age|Constellation", "Entire year moon phases")
@@ -7737,14 +7737,14 @@ PanelEarthMap(modus:=0) {
     Gui, Add, Button, x+5 w%btnWid% hp gBtnDetectUserLocation vbtn6 +hwndhTemp, &Detect location
     ToolTip2ctrl(hTemp, "The identified location will be put in the field below.`nClick «Add to list» to store it.")
     widu := (PrefsLargeFonts=1) ? 40 : 32
-    GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<", "Previous 6 hours")
+    GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<", "Previous 2 hours")
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate vbtn5 +hwndhTemp, &Now
     ToolTip2ctrl(hTemp, "Reset to current time and date")
-    GuiAddButton("x+5 wp-10 hp gNextTodayBTN vbtn2", ">", "Next 6 hours")
+    GuiAddButton("x+5 wp-10 hp gNextTodayBTN vbtn2", ">", "Next 2 hours")
 
     ; Gui, -DPIScale
     Gui, Add, Text, xs y+10 w1 h1, Earth map illustration
-    Gui, Add, Text, xp yp w%graphW% h%graphH% Section glocateClickOnEarthMap +0x1000 +0xE +hwndhSolarGraphPic, Preview area
+    Gui, Add, Text, xp yp w%graphW% h%graphH% Section glocateClickOnEarthMap +0x8 +0xE +hwndhSolarGraphPic, Preview area
     ; Gui, +DPIScale
     Gui, Tab, 2
     ww := (PrefsLargeFonts=1) ? lstWid - 70 : lstWid - 48
@@ -10768,14 +10768,6 @@ generateSunlightEarthMap(modus) {
     If !mainBitmap
        Return
 
-    Gdip_GetImageDimensions(mainBitmap, imgW, imgH)
-    xbmp := Gdip_ResizeBitmap(mainBitmap, Round(imgW/2), Round(imgH/2), 0, 7)
-    If xbmp
-    {
-       Gdip_DisposeImage(mainBitmap)
-       mainBitmap := xbmp
-    }
-
     cbmp := Gdip_CloneBitmap(mainBitmap)
     Gdip_GetImageDimensions(mainBitmap, imgW, imgH)
     G := Gdip_GraphicsFromImage(mainBitmap, 5, 3)
@@ -10793,7 +10785,6 @@ generateSunlightEarthMap(modus) {
        Gdip_DisposeImage(pLight, 1)
     }
     Gdip_DrawImage(G, cbmp, ,,,,,,,, 0.35)
-
     Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
     Gdip_DeleteGraphics(G)
     Gdip_DisposeImage(mainBitmap, 1)
@@ -11763,7 +11754,7 @@ NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0) {
    If ((A_TickCount - lastLooped<250) && luping!=1)
       Return
 
-   If (A_TickCount - lastInvoked<450)
+   If (A_TickCount - lastInvoked<450 && AnyWindowOpen!=8)
       tz++
    Else tz := 0
 
@@ -11778,7 +11769,7 @@ NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0) {
       f := 2
 
    If (AnyWindowOpen=8)
-      f *= 3
+      f *= 2
 
    If (diru=-1)
       f *= -1
