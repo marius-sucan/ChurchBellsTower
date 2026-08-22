@@ -10753,6 +10753,11 @@ geoCountryNameOfCode(isou) {
 }
 
 generateSunlightEarthMap(modus) {
+; The earth map with the sunlight (modus=2) or the moonlight (modus=3) at
+; uiUserFullDateUTC laid over it, for PanelEarthMap(): the night side darkened and
+; the day side let in over two steps. The light itself is painted by
+; earthMapLightLayer(); the untouched map is then laid back over the whole at 35%
+; opacity, to soften it.
     If !pToken
        pToken := Gdip_Startup()
 
@@ -10760,7 +10765,6 @@ generateSunlightEarthMap(modus) {
        Return
 
     mainBitmap := Gdip_CreateBitmapFromFileSimplified(A_ScriptDir "\resources\earth-surface-map.jpg")
-    ; fnOutputDebug(gdiplasterror "==" mainBitmap)
     If !mainBitmap
        Return
 
@@ -10778,66 +10782,235 @@ generateSunlightEarthMap(modus) {
     If !G
     {
        Gdip_DisposeImage(mainBitmap, 1)
+       Gdip_DisposeImage(cbmp, 1)
        Return
     }
 
-    x := 0
-    dotBrush9 := Gdip_BrushCreateSolid("0xaaffeeff") ; 0xdd
-    dotBrush8 := Gdip_BrushCreateSolid("0xaaffeeff") ; 0xaa
-    dotBrush7 := Gdip_BrushCreateSolid("0xaaffeeff") ; 0x77
-    dotBrush6 := Gdip_BrushCreateSolid("0xaaffeeff") ; 0x44
-    dotBrush5 := Gdip_BrushCreateSolid("0x33ffeeff") ; 0x22
-
-    dotBrush4 := Gdip_BrushCreateSolid("0x33001100")
-    dotBrush3 := Gdip_BrushCreateSolid("0xaa001100")
-    dotBrush2 := Gdip_BrushCreateSolid("0xaa001100")
-    dotBrush1 := Gdip_BrushCreateSolid("0xaa001100")
-    dotBrush0 := Gdip_BrushCreateSolid("0xaa001100")
-    ; dotBrush := Gdip_BrushCreateSolid("0xBBffeeff")
-    ; bgrBrush := Gdip_BrushCreateSolid("0x99001100")
-    ; Gdip_FillRectangle(G, bgrBrush, 0, 0, imgW, imgH)
-    dx := 0,  dy := -2
-    timeus := uiUserFullDateUTC
-    ; ToolTip, % timeus , , , 2
-    Loop, % imgW//2
+    pLight := earthMapLightLayer(modus, uiUserFullDateUTC, imgW, imgH)
+    If pLight
     {
-        dy := -2
-        Loop, % imgH//2
-        {
-             dy += 2
-             px := dx/imgW
-             py := 1 - dy/imgH
-             zx := Round(px*360 - 180, 3)
-             zy := Round(py*180 - 90, 3)
-             If (modus=3)
-             {
-                getMoonElevation(timeus, zy, zx, 0, azii, elevu)
-                If (elevu<-0.5)
-                   elevu := -85
-                ; brushu := (elevu>0.5) ? dotBrush7 : dotBrush2
-             } Else
-                getSunAzimuthElevation(timeus, zy, zx, 0, azii, elevu)
-
-             pv := Floor(((elevu + 90)/195)*10)
-             pv := SubStr(pv, 1, 1)
-             brushu := dotBrush%pv%
-             If brushu
-                Gdip_FillRectangle(G, brushu, dx, dy, 2)
-        }
-        dx += 2
+       Gdip_DrawImage(G, pLight, 0, 0, imgW, imgH)
+       Gdip_DisposeImage(pLight, 1)
     }
     Gdip_DrawImage(G, cbmp, ,,,,,,,, 0.35)
-    mm := ""
 
     Gdip_SetPbitmapCtrl(hSolarGraphPic, mainBitmap)
     Gdip_DeleteGraphics(G)
-    Loop, 10
-    {
-        i := A_Index - 1
-        Gdip_DeleteBrush(dotBrush%i%)
-    }
     Gdip_DisposeImage(mainBitmap, 1)
     Gdip_DisposeImage(cbmp, 1)
+}
+
+earthMapLightLayer(modus, timeus, imgW, imgH) {
+; The sunlight (modus=2) or the moonlight (modus=3) at timeus, a UTC time stamp,
+; painted as a 32-ARGB bitmap of imgW by imgH - the size of the earth map that
+; generateSunlightEarthMap() lays it over. Four bands of apparent elevation,
+; refraction included, as the DLL reports it: the map is darkened below the lowest
+; threshold and the light comes in over two steps. The thresholds are the ones the
+; map has always drawn: -12° for the sun, where nautical twilight ends, and -0.5°
+; for the moon, where its disk is entirely under the horizon, then 7.5° and 27° for
+; both. Returns 0 when the DLL could not say where the body stands.
+;
+; Where the body stands over the earth is all that the time decides, so that is
+; established once, and the bands are then drawn one row of pixels at a time. Along
+; a parallel the elevation falls away evenly either side of the longitude the body
+; stands over, so on one row each band is one interval of longitude, whose
+; half-width is a single acos() away. The thresholds are first taken back to the
+; geocentric elevation the acos() works in, which is what keeps the refraction, and
+; the moon's parallax, without computing either for every pixel. This used to ask
+; the DLL for the elevation at every second pixel - 32768 calls - and took seconds.
+   If !earthMapBodySubpoint(modus, timeus, decl, lonSub, sinPar)
+      Return 0
+
+   pBitmap := Gdip_CreateBitmap(imgW, imgH)
+   If !pBitmap
+      Return 0
+
+   G := Gdip_GraphicsFromImage(pBitmap)
+   If !G
+   {
+      Gdip_DisposeImage(pBitmap, 1)
+      Return 0
+   }
+
+   ; The bands are nested, each inside the one below it, and they are painted from the
+   ; outermost in. With the compositing set to overwrite, each pixel is left with the
+   ; one colour of its band, to be blended onto the map only once.
+   Gdip_SetCompositingMode(G, 1)
+   Gdip_GraphicsClear(G, "0xaa001100")
+   brushes := [Gdip_BrushCreateSolid("0x33001100"), Gdip_BrushCreateSolid("0x33ffeeff"), Gdip_BrushCreateSolid("0xaaffeeff")]
+   thresholds := (modus=3) ? [-0.5, 7.5, 27] : [-12, 7.5, 27]
+   rad := 0.017453292519943295, deg := 57.29577951308232
+   sinT := []
+   Loop, 3
+       sinT[A_Index] := Sin(earthMapGeoElevation(thresholds[A_Index], sinPar)*rad)
+
+   sd := Sin(decl*rad), cd := Cos(decl*rad)
+   xSub := (lonSub + 180)*imgW/360   ; the column the body stands over, fractional
+   Loop, % imgH
+   {
+      y := A_Index - 1
+      lat := (90 - (y + 0.5)*180/imgH)*rad   ; the parallel through the middle of the row
+      sl := Sin(lat), cl := Cos(lat)
+      Loop, 3
+      {
+         k := A_Index
+         ; the cosine of the hour angle at which the elevation crosses this threshold
+         ; along this parallel: sin(h) = sin(lat)*sin(decl) + cos(lat)*cos(decl)*cos(H)
+         c := (sinT[k] - sl*sd)/(cl*cd)
+         If (c>=1)    ; the body never gets this high along this parallel, let alone higher
+            Break
+
+         If (c<=-1)   ; it stays above the threshold all the way round
+         {
+            Gdip_FillRectangle(G, brushes[k], 0, y, imgW, 1)
+            Continue
+         }
+
+         half := ACos(c)*deg*imgW/360     ; half the width of the band, in pixels
+         x1 := Ceil(xSub - half - 0.5)    ; the first and the last pixel whose centre falls inside it
+         x2 := Ceil(xSub + half - 0.5) - 1
+         n := x2 - x1 + 1
+         If (n<1)
+            Break
+
+         If (n>=imgW)
+         {
+            Gdip_FillRectangle(G, brushes[k], 0, y, imgW, 1)
+            Continue
+         }
+
+         x1 := Mod(x1, imgW)
+         If (x1<0)
+            x1 += imgW
+
+         If (x1 + n<=imgW)
+            Gdip_FillRectangle(G, brushes[k], x1, y, n, 1)
+         Else   ; the band runs off the right edge and comes back in on the left
+         {
+            Gdip_FillRectangle(G, brushes[k], x1, y, imgW - x1, 1)
+            Gdip_FillRectangle(G, brushes[k], 0, y, x1 + n - imgW, 1)
+         }
+      }
+   }
+
+   Loop, 3
+       Gdip_DeleteBrush(brushes[A_Index])
+   Gdip_DeleteGraphics(G)
+   Return pBitmap
+}
+
+earthMapBodySubpoint(modus, timeus, ByRef decl, ByRef lonSub, ByRef sinPar) {
+; Where the sun (modus=2) or the moon (modus=3) stands over the earth at timeus, a UTC
+; time stamp: the latitude right under it, which is its declination, and the longitude
+; under it, both in degrees, and for the moon the sine of its horizontal parallax, 0
+; for the sun. Returns 0 when the DLL does not answer.
+;
+; These are read back out of the DLL's own elevation function, probed at the poles and
+; on the equator, rather than computed here afresh, so that the map agrees with every
+; other reading in the app whatever ephemeris the DLL runs on, now or later. At a pole
+; the sun stands exactly as high as its declination. The moon stands a little lower
+; than that at either pole, by its parallax, and the two poles between them give away
+; both the declination and the parallax. On the equator, at 0° and at 90° east, the
+; two elevations are the cosine and the sine of the hour angle at Greenwich, up to a
+; common factor, and that hour angle is the longitude the body stands over with the
+; sign turned. The refraction the DLL adds is taken off each probe first.
+   decl := lonSub := sinPar := ""
+   rad := 0.017453292519943295, deg := 57.29577951308232
+   If (modus=3)
+   {
+      If !(getMoonElevation(timeus, 90, 0, 0, azi, hN) && getMoonElevation(timeus, -90, 0, 0, azi, hS)
+        && getMoonElevation(timeus, 0, 0, 0, azi, h0) && getMoonElevation(timeus, 0, 90, 0, azi, h90))
+         Return 0
+
+      ; At the poles the DLL's observer stands on the axis, 0.99664719 earth radii out,
+      ; and sees the moon at atan((sin(decl) - 0.99664719*sinPar)/cos(decl)) from the
+      ; north pole, and at the same with the parallax added, and upside down, from the
+      ; south pole.
+      a := Tan(earthMapGeoElevation(hN, 0)*rad)
+      b := Tan(-earthMapGeoElevation(hS, 0)*rad)
+      decl := ATan((a + b)/2)*deg
+      sinPar := (b - a)*Cos(decl*rad)/2/0.99664719
+
+      ; On the equator the observer stands one radius out and sees the moon lower than
+      ; it is from the centre by the parallax in altitude, whose sine is sinPar times
+      ; the sine of the zenith distance it is seen at.
+      z := (90 - earthMapGeoElevation(h0, 0))*rad
+      s0 := Cos(z - ASin(sinPar*Sin(z)))
+      z := (90 - earthMapGeoElevation(h90, 0))*rad
+      s90 := Cos(z - ASin(sinPar*Sin(z)))
+   } Else
+   {
+      If !(getSunAzimuthElevation(timeus, 90, 0, 0, azi, hN) && getSunAzimuthElevation(timeus, 0, 0, 0, azi, h0)
+        && getSunAzimuthElevation(timeus, 0, 90, 0, azi, h90))
+         Return 0
+
+      decl := earthMapGeoElevation(hN, 0)
+      sinPar := 0
+      s0 := Sin(earthMapGeoElevation(h0, 0)*rad)
+      s90 := Sin(earthMapGeoElevation(h90, 0)*rad)
+   }
+
+   ; On the equator sin(h) = cos(decl)*cos(H), and the hour angle is 90° further on at
+   ; 90° east, so s0 and s90 are cos(decl)*cos(H) and -cos(decl)*sin(H) for the hour
+   ; angle H at Greenwich. The body stands over the longitude where the hour angle is
+   ; nought, which is -H, brought into the half turn either side of Greenwich.
+   lonSub := -atan2(-s90, s0)*deg
+   lonSub := Mod(lonSub + 540, 360) - 180
+   Return 1
+}
+
+earthMapApparentElevation(hGeo, sinPar) {
+; The apparent elevation the DLL reports for a body that stands hGeo degrees above
+; the horizon of a place as reckoned from the centre of the earth. For the moon -
+; sinPar being the sine of its horizontal parallax - the observer on the surface sees
+; it lower by the parallax: with the observer one earth radius out and the moon
+; 1/sinPar out, the zenith distance seen is atan2(sin(z), cos(z) - sinPar) for the
+; geocentric z. The refraction then lifts whatever is left. sinPar=0 is the sun, whose
+; parallax the DLL does not reckon either.
+   h := hGeo
+   If sinPar
+   {
+      z := (90 - hGeo)*0.017453292519943295
+      h := 90 - atan2(Sin(z), Cos(z) - sinPar)*57.29577951308232
+   }
+   Return h + calcRefractionDegs(h)
+}
+
+earthMapGeoElevation(hApp, sinPar) {
+; The geocentric elevation at which the body is seen hApp degrees high: the inverse
+; of earthMapApparentElevation(), which only ever grows with its elevation, found by
+; bisection to well under a millionth of a degree.
+   lo := -90, hi := 90
+   Loop, 40
+   {
+      mid := (lo + hi)/2
+      If (earthMapApparentElevation(mid, sinPar)<hApp)
+         lo := mid
+      Else
+         hi := mid
+   }
+   Return (lo + hi)/2
+}
+
+calcRefractionDegs(elev) {
+; Atmospheric refraction in degrees for a geometric elevation in degrees: the same two
+; formulas the DLL adds to every elevation it gives back - Zimmerman (1981) below
+; -0.575°, Sæmundsson (1986) from there up - and to be kept in step with
+; calcRefraction() in cpp-dll\SolarCalculator.cpp, so that the DLL's answers can be
+; taken back to the geometry here.
+   If (elev<-0.575)
+      Return -20.774/Tan(elev*0.017453292519943295)/3600
+   Return 1.02/Tan((elev + 10.3/(elev + 5.11))*0.017453292519943295)/60
+}
+
+atan2(y, x) {
+; The full-circle arc tangent AutoHotkey v1 lacks: the angle of the point (x, y) from
+; the positive x axis, in radians, like the C function of the same name.
+   If (x>0)
+      Return ATan(y/x)
+   If (x<0)
+      Return (y<0) ? ATan(y/x) - 3.141592653589793 : ATan(y/x) + 3.141592653589793
+   Return (y>0) ? 1.5707963267948966 : (y<0) ? -1.5707963267948966 : 0
 }
 
 generateEarthMap() {

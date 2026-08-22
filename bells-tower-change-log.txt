@@ -10,6 +10,7 @@ v3.6.1 - 2026 / 08 / **
   - [new] custom locations can now be renamed
   - improved accuracy for the moon phase calculation and moon rise and moon set times
   - various bug fixes related to the astronomy panels
+  - the sunlight and the moonlight earth maps are now drawn in an instant, where they used to take seconds
 
 v3.6.0 - 2026 / 08 / 12
   - bug fixes and minor improvements
