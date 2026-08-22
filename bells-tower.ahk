@@ -7372,17 +7372,15 @@ btnUIremoveUserGeoLocation() {
    FileDelete, %WinStorePath%\resources\geo-locations-userlist.txt
    Sleep, 50
    FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %WinStorePath%\resources\geo-locations-userlist.txt, UTF-8
-   p := clampInRange(uiUserCity - 1, 1, cities)
-   If (AnyWindowOpen=7)
-      UIcountryGraphChooser()
-   Else
-      UIcountryChooser()
-   GuiControl, SettingsGUIA: Choose, uiUserCity, % p
-   uiUserCity := p
-   INIaction(1, "uiUserCity", "SavedSettings")
+   uiSelectUserGeoLocation(uiUserCity - 1)   ; the entry that took the place of the one just removed
 }
 
 btnUIupdateUserGeoLocation(idu, strA, str) {
+; Rewrites in the custom locations file the entry whose line carries idu - the name it goes by,
+; with the country and the pipe on either side of it - and puts strA in its place in the loaded
+; index. It gives back the position that entry holds in the list, or 0 when the file has no such
+; line, which leaves the caller free to say so rather than to assume the change went through.
+
    FileRead, userlist, %WinStorePath%\resources\geo-locations-userlist.txt
    newu := "",  thisIndex := 0, thisIDu := 0
    Loop, Parse, userlist, `n, `r
@@ -7400,7 +7398,7 @@ btnUIupdateUserGeoLocation(idu, strA, str) {
    }
 
    If !thisIDu
-      Return
+      Return 0
 
    geoData["1|" thisIDu] := strA
    Sleep, 50
@@ -7408,6 +7406,33 @@ btnUIupdateUserGeoLocation(idu, strA, str) {
    Sleep, 50
    FileAppend, % "`n" Trim(newu, "`n`r") "`n" , %WinStorePath%\resources\geo-locations-userlist.txt, UTF-8
    SoundBeep , 900, 100
+   Return thisIDu
+}
+
+uiSelectUserGeoLocation(cityIdx) {
+; Brings the custom locations list up to date wherever it is on display and picks one of its
+; entries out. The country and the city lists stand on the Today panel and on the two year graph
+; panels alike, and whichever of them is open, its own chooser has to run afterwards: everything
+; that hangs off the selection - the panel readings, the graphs, the tables, the Add and the
+; Remove buttons and the location written down in the settings - is settled there and nowhere else.
+
+   cities := geoData["1|-1"]
+   If (!cities || !isVarEqualTo(AnyWindowOpen, 6, 7, 9))
+      Return
+
+   cityIdx := clampInRange(Round(cityIdx), 1, cities)
+   Gui, SettingsGUIA: Default
+   uiUserCountry := 1   ; the custom locations always stand first in the countries list
+   uiUserCity := cityIdx
+   GuiControl, SettingsGUIA: Choose, uiUserCountry, 1
+   GuiControl, SettingsGUIA:, uiUserCity, % "|" getCitiesList(1)
+   GuiControl, SettingsGUIA: Choose, uiUserCity, % cityIdx
+   INIaction(1, "uiUserCountry", "SavedSettings")
+   INIaction(1, "uiUserCity", "SavedSettings")
+   If (AnyWindowOpen=6)
+      UIcityChooser()
+   Else
+      UIcityGraphChooser()
 }
 
 simpleMsgBoxWrapper(winTitle, msg, buttonz:=0, defaultBTN:=1, iconz:=0, modality:=0, optionz:=0, guiu:="SettingsGUIA") {
@@ -7585,7 +7610,9 @@ geoLocationAlreadyInUserList(nameu) {
 
 btnUIaddTodayGeoLocation(modus:=0, strExtern:=0) {
 ; the PanelTodayInfos() counterpart of btnUIaddNewGeoLocation()
-; it adds the location currently selected in the uiUserCountry / uiUserCity lists to the custom locations list
+; it adds the location currently selected in the uiUserCountry / uiUserCity lists to the custom locations list,
+; or the entry handed over in strExtern, and gives back the position it holds in that list; 0 says nothing
+; was added and that the reason has already been put in front of the user
    isExtern := (modus="given" && InStr(strExtern, "|")) ? 1 : 0
    If !isExtern
    {
@@ -7616,9 +7643,23 @@ btnUIaddTodayGeoLocation(modus:=0, strExtern:=0) {
    FileRead, userlist, %WinStorePath%\resources\geo-locations-userlist.txt
    If (geoLocationAlreadyInUserList(k[1]) || InStr(userlist, "`nCustom locations|" k[1] "|"))
    {
+      If isExtern
+      {
+         ; an entry that arrived from elsewhere carries the name of whatever produced it rather than
+         ; a name the user chose, so the one a former detection left behind is its own to correct
+         msgResult := simpleMsgBoxWrapper(appName, "The custom locations list already contains " k[1] ". Do you want it updated?", 4, 1, 32)
+         If (msgResult!="Yes")
+            Return 0
+
+         thisIDu := btnUIupdateUserGeoLocation("Custom locations|" k[1] "|", strA, str)
+         If !thisIDu
+            simpleMsgBoxWrapper(appName, "The custom locations list could not be updated. " k[1] " was not found in:`n`n" WinStorePath "\resources\geo-locations-userlist.txt", 0, 1, 16)
+         Return thisIDu
+      }
+
       GuiControl, SettingsGUIA: Disable, UIbtnAddGeoLoc
       simpleMsgBoxWrapper(appName, "The custom locations list already contains " k[1] ".", 0, 1, 64)
-      Return
+      Return 0
    }
 
    FileAppend, % "`n" str "`n", %WinStorePath%\resources\geo-locations-userlist.txt, UTF-8
@@ -7633,6 +7674,7 @@ btnUIaddTodayGeoLocation(modus:=0, strExtern:=0) {
    geoData["1|-1"] := cities
    GuiControl, SettingsGUIA: Disable, UIbtnAddGeoLoc ; prevents adding the very same location twice
    SoundBeep 900, 100
+   Return cities
 }
 
 UiLVgeoSearch() {
@@ -10452,27 +10494,97 @@ locateClickOnEarthMap() {
 }
 
 MenuRenameUserLocation() {
-    Gui, SettingsGUIA: Default
-    GuiControlGet, uiUserCountry
-    GuiControlGet, uiUserCity
-    InputBox, newName, % appName, Type the new name for: %uiUserCity%, HIDE, Width, Height, X, Y, Font, Timeout, Default]
-    ; finish this feature 
+; The name a custom location goes by is the user's own and nothing is ever reckoned from it, so it
+; may be changed freely: the entry keeps its coordinates, its offsets, its altitude and its place in
+; the list, and only the word standing for it in the city list is written anew - on the disk and in
+; the loaded index alike, since a name that changed in the one and not in the other would be found
+; by neither the next time it is looked for.
+
+   If !isVarEqualTo(AnyWindowOpen, 6, 7, 9)   ; the panels carrying the country and the city lists
+      Return
+
+   Gui, SettingsGUIA: Default
+   GuiControlGet, uiUserCountry
+   GuiControlGet, uiUserCity
+   If (uiUserCountry!=1)   ; the indexed locations are not the user's to rename
+      Return
+
+   p := geoData["1|" uiUserCity]
+   w := StrSplit(p, "|")
+   oldName := LTrim(w[1], "*")
+   If (w.Count()<6 || StrLen(oldName)<2)
+   {
+      simpleMsgBoxWrapper(appName, "The selected custom location is incomplete and cannot be renamed.", 0, 1, 48)
+      Return
+   }
+
+   Gui, SettingsGUIA: +OwnDialogs
+   InputBox, newName, % appName, % "Type the new name for this custom location:`n`n" oldName, , , , , , , , % oldName
+   If ErrorLevel   ; the box was cancelled or closed
+      Return
+
+   ; the pipe parts one field of an entry from the next and the star marks a capital in the loaded
+   ; index; neither may stand in a name that has to survive a trip through the list on the disk
+   newName := LTrim(Trim(StrReplace(newName, "|", " ")), "* ")
+   If (newName==oldName)
+      Return
+
+   If (StrLen(newName)<2)
+   {
+      simpleMsgBoxWrapper(appName, "Please define a name at least two characters long for the custom location.", 0, 1, 48)
+      Return
+   }
+
+   thisIDu := geoLocationAlreadyInUserList(newName)
+   If (thisIDu && thisIDu!=uiUserCity)   ; an entry may still be renamed to another casing of its own name
+   {
+      simpleMsgBoxWrapper(appName, "The custom locations list already contains " newName ".", 0, 1, 64)
+      Return
+   }
+
+   strA := newName "|" w[2] "|" w[3] "|" w[4] "|" w[5] "|" w[6]
+   thisIDu := btnUIupdateUserGeoLocation("Custom locations|" oldName "|", strA, "Custom locations|" strA)
+   If !thisIDu
+   {
+      simpleMsgBoxWrapper(appName, "The custom locations list could not be updated. " oldName " was not found in:`n`n" WinStorePath "\resources\geo-locations-userlist.txt", 0, 1, 16)
+      Return
+   }
+
+   uiSelectUserGeoLocation(thisIDu)
 }
 
 MenuDetectDeviceLocation() {
+; Where this computer stands, put on the custom locations list and then selected on the panel at
+; hand, so that everything on display is reckoned for the place the user actually is.
+;
+; The entry keeps the name of what found it rather than the name of a place, which leaves a second
+; detection - after the machine has travelled, or once the location service has settled on something
+; better than the network address it started from - an entry of its own to correct instead of a near
+; duplicate to stand beside. A detection worth keeping is worth renaming.
+
+   If !isVarEqualTo(AnyWindowOpen, 6, 7, 9)   ; the panels carrying the country and the city lists
+      Return
+
    ToolTip, Detecting device location...
    Sleep, 5
    stringu := detectThisComputerLocation(sourceu, faultu)
+   ToolTip
    If !stringu
    {
-      ToolTip
       simpleMsgBoxWrapper(appName, faultu, 0, 1, 48)
       Return
    }
 
-   btnUIaddTodayGeoLocation("given", stringu)
-   ; after this, make it auto-select this new custom location
-   ToolTip
+   idu := btnUIaddTodayGeoLocation("given", stringu)
+   If !idu   ; whatever stood in the way has already been put in front of the user
+      Return
+
+   uiSelectUserGeoLocation(idu)
+   If sourceu
+   {
+      ToolTip, % sourceu
+      SetTimer, removeTooltip, -4000
+   }
 }
 
 BtnDetectUserLocation() {
@@ -10558,7 +10670,7 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
 
    p := geoData[ctrIdx "|" cityIdx]
    cityu := LTrim(SubStr(p, 1, InStr(p, "|") - 1), "*")
-   sourceu := "Based on " viau " the custom location edit field was filled."
+   sourceu := cityu " was picked from " viau "."
    k := StrSplit(countriesArrayList[ctrIdx] ":" p, "|")   ; the very same format used by PanelEarthMap()
    Return k[1] "|" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6]
 }
