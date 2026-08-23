@@ -11410,12 +11410,25 @@ UItodayPanelNoDateInfos(NextYear) {
    GuiControl, SettingsGUIA:, UIastroInfoTotalDiffLight, ---
 }
 
-findNextMoonPhaseZeit(timeUTC, gmtOffset, ByRef phaseName) {
-; When the next new or full moon falls, asked of the DLL outright: chapter 49 of Meeus
-; places the principal phases within a few seconds of where they are, so there is
-; nothing left here to search for.
+nextMoonPhaseZeit(timeUTC, ByRef phaseName) {
+; The UTC time stamp, to the minute, of the next new or full moon - whichever comes first -
+; after the minute that timeUTC falls in; blank where there is no DLL to ask. phaseName is
+; handed which of the two it is. Chapter 49 of Meeus places the principal phases within a few
+; seconds of where they are, so there is nothing to search for: the DLL is asked outright.
+;
+; A phase falling inside that very minute does not count as «next». When the panel jumps to
+; a phase it lands on it to the minute, and from there the phase to be named next is the one
+; after it; this is what lets a click on «Next phase» walk from phase to phase.
    phaseName := ""
-   If (!timeUTC || !getNextMoonPhases(timeUTC, toNew, toFirstQ, toFull, toLastQ))
+   If (StrLen(timeUTC)!=14)
+      Return ""
+
+   FormatTime, testValid, % timeUTC, yyyy/MM/dd
+   If !testValid
+      Return ""
+
+   fromZeit := SubStr(timeUTC, 1, 12) "59"   ; the last second of the minute in hand
+   If !getNextMoonPhases(fromZeit, toNew, toFirstQ, toFull, toLastQ)
       Return ""
 
    ; only these two are named on this panel, as the New-to-Full bar beside it implies;
@@ -11430,11 +11443,23 @@ findNextMoonPhaseZeit(timeUTC, gmtOffset, ByRef phaseName) {
       phaseName := "Full moon"
    }
 
-   ; the DLL counts from the moment it was asked about, so the shift into local time
-   ; rides along with it - in seconds, for the sake of the half hour time zones - and
-   ; the half minute on the end leaves the display on the nearer of the two minutes
-   zeit := timeUTC
-   zeit += Round(secsu + gmtOffset*3600 + 30), Seconds
+   ; the DLL counts from the moment it was asked about; the half minute on the end and the
+   ; seconds cut off afterwards leave the stamp on the nearer of the two minutes
+   zeit := fromZeit
+   zeit += Round(secsu + 30), Seconds
+   Return SubStr(zeit, 1, 12) "00"
+}
+
+findNextMoonPhaseZeit(timeUTC, gmtOffset, ByRef phaseName) {
+; When the next new or full moon falls, written the way the panel shows it: in the local time
+; of the place, to the minute. The instant itself is settled by nextMoonPhaseZeit(), which is
+; also what a click on the «Next phase» label jumps the panel to.
+   zeit := nextMoonPhaseZeit(timeUTC, phaseName)
+   If !zeit
+      Return ""
+
+   ; the shift into local time is made in seconds, for the sake of the half hour time zones
+   zeit += Round(gmtOffset*3600), Seconds
    FormatTime, hitZeit, % zeit, MM/dd HH:mm
    Return hitZeit
 }
@@ -11820,12 +11845,31 @@ BtnToggleYearGraphMode() {
 }
 
 helpPanelTodayTotalLight() {
+; The click on the «Total light» controls of the Today panel. With the sun on the panel they
+; explain themselves; with the moon on it they read «Next phase» and name the next new or
+; full moon, and the click takes the panel there.
   mouseTurnOFFtooltip()
   If (userAstroInfodMode!=1)
-     Return 
+  {
+     UItodayPanelJumpNextMoonPhase()
+     Return
+  }
 
   mouseCreateOSDinfoLine("Total light is sunlight plus civil twilight")
   ; SetTimer, removeTooltip, -2000
+}
+
+UItodayPanelJumpNextMoonPhase() {
+; Moves the panel onto the next new or full moon, the one named next to «Next phase». It is
+; the phase after the minute the panel is on - the very one the label names - so that every
+; click walks on to the phase that follows.
+  If (AnyWindowOpen!=6 || A_PtrSize!=8)
+     Return
+
+  Gui, SettingsGUIA: Default
+  GuiControlGet, uiUserFullDateUTC
+  p := nextMoonPhaseZeit(uiUserFullDateUTC, phaseName)
+  UItodayPanelJumpTo(p, 0)   ; the stamp is already in UTC, there is nothing to shift
 }
 
 helpTodayElevationNow() {
@@ -12206,6 +12250,10 @@ UItodayPanelJumpTo(p, lgmt) {
   If (StrLen(p)!=14)
      Return
 
+  ; the moment jumped to is the user's choice, as the one set on the date control or with the
+  ; Prev / Next buttons is; regularUpdaterTodayPanel() would otherwise move the panel back to
+  ; the present moment at the next turn of the minute, undoing the jump
+  allowAutoUpdateTodayPanel := 0
   GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
   UIcityChooser()
 }
