@@ -225,6 +225,7 @@ Global CSthin := "░"   ; light gray
 , ClockVisibility := 0, quoteDisplayTime := 100
 , stopAdditionalStrikez := 0, lastAudioPlayed := 1
 , strikingBellsNow := 0, generatingEarthMapNow := 0
+, yearTableMemo := ""     ; see yearTableMemoKey()
 , DoGuiFader := 1, showEarthSunMapModus := 1
 , lastFaded := 1, geoData := new hashtable()
 , cutVolumeHalf := 0, listedCountries := 0, countriesList
@@ -8960,17 +8961,21 @@ initDLLhack() {
 }
 
 initCBTdll() {
+; Loads cbt-main.dll once and hands back its module handle on every later call.
+; hCbtDLL used to be a plain local here, so it was blank on every entry and each of the
+; thousands of DLL calls a year table makes went through FileGetSize and LoadLibraryW
+; again; those two alone cost more than the calculations they were wrapping.
+   Static hCbtDLL := 0
+   If hCbtDLL
+      Return hCbtDLL
+
    DllPath := A_ScriptDir "\cbt-main.dll"
    If (!A_IsCompiled && InStr(A_ScriptDir, "\sucan twins\"))
       DllPath := A_ScriptDir "\cpp-dll\cbt-main.dll"
 
    FileGetSize, OutputVar, % DllPath , K
    gDllType := (OutputVar<300) ? 1 : 0
-   If !hCbtDLL
-      hCbtDLL := DllCall("LoadLibraryW", "WStr", DllPath, "UPtr")
-   Else
-      Return hCbtDLL
-
+   hCbtDLL := DllCall("LoadLibraryW", "WStr", DllPath, "UPtr")
    Return hCbtDLL
 }
 
@@ -8991,6 +8996,15 @@ getSunAzimuthElevation(t, latu, longu, gmtOffset, ByRef azimuth, ByRef elevation
    If (!initCBTdll() || !t)
       Return
 
+   memoKey := yearTableMemoKey("A", t "|" latu "|" longu "|" gmtOffset)
+   If (memoKey && IsObject(yearTableMemo[memoKey]))
+   {
+      memoObj := yearTableMemo[memoKey]
+      azimuth := memoObj[2]
+      elevation := memoObj[3]
+      Return memoObj[1]
+   }
+
    t += -1*gmtOffset, Hours
    FormatTime, yr, % t, yyyy
    FormatTime, mo, % t, M
@@ -9004,6 +9018,9 @@ getSunAzimuthElevation(t, latu, longu, gmtOffset, ByRef azimuth, ByRef elevation
       elevation := Round(elevation, 2)
       azimuth := Round(azimuth, 2)
    }
+
+   If memoKey
+      yearTableMemo[memoKey] := [r, azimuth, elevation]
    Return r
 }
 
@@ -9078,6 +9095,10 @@ calculateSunMoonRiseSet(t, rt, latu, longu, gmtOffset:=0, obju:=1, altitudeBonus
       Return
    if !t
       t := A_NowUTC
+
+   memoKey := yearTableMemoKey("R", t "|" rt "|" latu "|" longu "|" gmtOffset "|" obju "|" altitudeBonus "|" allowAltitudeSolarChanges)
+   If (memoKey && IsObject(yearTableMemo[memoKey]))
+      Return yearTableMemo[memoKey]
 
    ot := t
    rot := rt
@@ -9162,6 +9183,8 @@ calculateSunMoonRiseSet(t, rt, latu, longu, gmtOffset:=0, obju:=1, altitudeBonus
    resObj.twR := twRise
    resObj.twS := twSet
    ; fnOutputDebug(r "=" nrise "=" nsetu)
+   If memoKey
+      yearTableMemo[memoKey] := resObj
    Return resObj
 }
 
@@ -9203,6 +9226,10 @@ getTwilightDuration(timeus, latu, longu, gmtOffset, degs:=6.1) {
    If !initCBTdll()
       Return
 
+   memoKey := yearTableMemoKey("T", timeus "|" latu "|" longu "|" gmtOffset "|" degs)
+   If (memoKey && yearTableMemo.HasKey(memoKey))
+      Return yearTableMemo[memoKey]
+
    twDur := ""
    If gmtOffset
       timeus += -1*gmtOffset, Hours
@@ -9216,7 +9243,21 @@ getTwilightDuration(timeus, latu, longu, gmtOffset, degs:=6.1) {
       degs -= 0.4
       r := DllCall(callCBTdllFunc("getTwilightDuration"), "double", timeus, "double", latu, "double", longu, "double", degs, "double*", twDur, "Int")
    }
+
+   If memoKey
+      yearTableMemo[memoKey] := twDur*2
    Return twDur*2
+}
+
+yearTableMemoKey(kind, argsu) {
+; The year tables walk a whole year a day at a time, and for each of those days the sun
+; wrappers ask about that day, the day before it and the day after it, then ask again
+; for the neighbouring days of the next day; the same date and place are computed up to
+; six times over. The answers depend on nothing but their arguments, so while a year
+; table is being built - and only then - they are kept in yearTableMemo, keyed by those
+; arguments. Everywhere else the memo is not an object and the key comes back blank, so
+; nothing is cached and nothing is looked up.
+   Return IsObject(yearTableMemo) ? kind "|" argsu : ""
 }
 
 getMoonElevation(timeus, latu, longu, gmtOffset, ByRef azimuth, ByRef eleva) {
@@ -9296,6 +9337,11 @@ SolarCalculator(t, latu, longu, gmtOffset:=0, altitudeBonus:=0) {
    If (!initCBTdll() || A_PtrSize!=8)
       Return
 
+   ; the answer depends on the date alone, not on the time of day of t
+   memoKey := yearTableMemoKey("S", SubStr(t, 1, 8) "|" latu "|" longu "|" gmtOffset "|" altitudeBonus "|" allowAltitudeSolarChanges)
+   If (memoKey && IsObject(yearTableMemo[memoKey]))
+      Return yearTableMemo[memoKey]
+
    FormatTime, y, % t, yyyy
    FormatTime, m, % t, M
    FormatTime, d, % t, d
@@ -9369,6 +9415,8 @@ SolarCalculator(t, latu, longu, gmtOffset:=0, altitudeBonus:=0) {
    obju.RawS := nsetu
    obju.RawDu := ndusk
    ; fnOutputDebug(fnrise "=" nrise "=" nsetu)
+   If memoKey
+      yearTableMemo[memoKey] := obju
    Return obju
 }
 
@@ -9518,6 +9566,7 @@ uiPopulateTableYearSolarData() {
      Return
 
   generatingEarthMapNow := 1
+  yearTableMemo := {}      ; see yearTableMemoKey()
   ToolTip, % "Please wait..."
   startoperation := A_TickCount
   p := geoData[uiUserCountry "|" uiUserCity]
@@ -9567,7 +9616,6 @@ uiPopulateTableYearSolarData() {
       FormatTime, gyd, % timeus, Yday
       gmtOffset := pickSeasonalGmtOffset(gyd, k, w[4], w[5])
       obj := wrapCalcSunInfos(timeus, w[2], w[3], gmtOffset, w[6], simplifiedMode, dstInfo)
-      FormatTime, f, % timeus, MM/dd
       timis := timeus
       timis += gmtOffset, Hours
       FormatTime, testToday, % timis, yyyy/MM/dd
@@ -9660,6 +9708,7 @@ uiPopulateTableYearSolarData() {
       timeus += 1, Days
   }
 
+  tickWalked := A_TickCount
   graphArrayTimes := []
   timis := timeus := otimeus
   Loop, % loopsu + 1
@@ -9704,6 +9753,7 @@ uiPopulateTableYearSolarData() {
       timeus += 1, Days
   }
 
+  tickListed := A_TickCount
   Loop, Parse, lviuws, |
   {
       If !A_LoopField
@@ -9715,6 +9765,7 @@ uiPopulateTableYearSolarData() {
       GuiControl, +Redraw, % A_LoopField
   }
 
+  tickColumns := A_TickCount
   diffSols := maxLichtu - minLichtu
   diffSols := transformSecondsReadable(diffSols, 2)
 
@@ -9738,10 +9789,12 @@ uiPopulateTableYearSolarData() {
   GuiControl, SettingsGUIA:, uiInfoGeoYear, % yearu
   debugMode := !A_IsCompiled
   ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
-  ; ToolTip, % A_TickCount - startoperation , , , 2
+  tickGraph := A_TickCount
   generateGraphYearSunData(graphArraySun, graphArrayElev, loopsu, graphArrayTimes, yearu)
+  yearTableMemo := ""
   generatingEarthMapNow := 0
   ToolTip
+  fnOutputDebug(A_ThisFunc "(): " (A_TickCount - startoperation) " ms in all; walking the year " (tickWalked - startoperation) ", the combined list " (tickListed - tickWalked) ", sizing the columns " (tickColumns - tickListed) ", the graph " (A_TickCount - tickGraph))
 }
 
 uiPopulateTableYearMoonData() {
@@ -9785,6 +9838,7 @@ uiPopulateTableYearMoonData() {
   timis := timeus
   otimeus := timeus
   lastPhaseZeit := ""
+  phasesAskedZeit := ""
   debugMode := 0
   graphArrayMoon := []
   graphArrayElev := []
@@ -9855,7 +9909,32 @@ uiPopulateTableYearMoonData() {
 
          phaseZeit := SubStr(timis, 1, 8) "000000"
          phaseZeit += -1*Round(gmtOffset*3600) - 1, Seconds
-         If getNextMoonPhases(phaseZeit, toNew, toFirstQ, toFull, toLastQ)
+
+         ; The four spans the DLL hands back lead to four fixed instants, and those only
+         ; change once one of them has gone by, about once a week. On the days in between
+         ; they are the same moments seen from a day later, so the spans are carried
+         ; forward by the time elapsed since the DLL was last asked, and the DLL is asked
+         ; again only once a span has run out; that spares some three hundred calls a
+         ; year, each of which solves the four instants anew.
+         phasesKnown := 0
+         If (phasesAskedZeit!="" && phaseZeit>phasesAskedZeit)
+         {
+            elapsed := timeSpanInSeconds(phasesAskedZeit, phaseZeit)
+            If (toNew>elapsed && toFirstQ>elapsed && toFull>elapsed && toLastQ>elapsed)
+            {
+               toNew -= elapsed
+               toFirstQ -= elapsed
+               toFull -= elapsed
+               toLastQ -= elapsed
+               phasesKnown := 1
+            }
+         }
+
+         If !phasesKnown
+            phasesKnown := getNextMoonPhases(phaseZeit, toNew, toFirstQ, toFull, toLastQ)
+
+         phasesAskedZeit := phasesKnown ? phaseZeit : ""
+         If phasesKnown
          {
             ; the four stand a week apart, so at most one can land inside a single day
             phaseSecs := [toNew, toFirstQ, toFull, toLastQ]
@@ -9895,6 +9974,7 @@ uiPopulateTableYearMoonData() {
       timeus += 1, Days
   }
 
+  tickWalked := A_TickCount
   graphArrayTimes := []
   timis := timeus := otimeus
   Loop, % loopsu + 1
@@ -9927,6 +10007,7 @@ uiPopulateTableYearMoonData() {
       timeus += 1, Days
   }
 
+  tickListed := A_TickCount
   Loop, Parse, lviuws, |
   {
       If !A_LoopField
@@ -9938,6 +10019,7 @@ uiPopulateTableYearMoonData() {
       GuiControl, +Redraw, % A_LoopField
   }
 
+  tickColumns := A_TickCount
   maxLichtu := transformSecondsReadable(maxLichtu)
   minLichtu := transformSecondsReadable(minLichtu)
   infoPolarDays := polarDays ? "Polar moon days: " polarDays ". " : "Longest moonlight: " maxLichtu ". "
@@ -9955,10 +10037,11 @@ uiPopulateTableYearMoonData() {
   GuiControl, SettingsGUIA:, uiInfoGeoYear, % yearu
   debugMode := !A_IsCompiled
   ; listu .= "Total light (days): " Round(((allYearLight/60)/60)/24,1) "`n"
-  ; ToolTip, % A_TickCount - startoperation , , , 2
+  tickGraph := A_TickCount
   generateGraphYearMoonData(graphArrayMoon, graphArrayElev, loopsu, graphArrayTimes, intervalsList, yearu)
   generatingEarthMapNow := 0
   ToolTip
+  fnOutputDebug(A_ThisFunc "(): " (A_TickCount - startoperation) " ms in all; walking the year " (tickWalked - startoperation) ", the combined list " (tickListed - tickWalked) ", sizing the columns " (tickColumns - tickListed) ", the graph " (A_TickCount - tickGraph))
 }
 
 generateGraphYearSunData(graphArraySun, graphArrayElev, dayz, graphArrayTimes, yearu) {
@@ -10154,7 +10237,7 @@ generateGraphYearMoonData(graphArrayMoon, graphArrayElev, dayz, graphArrayTimes,
             ; minP := min(minP, p)
             findex++
             fIntervals[fIndex] := [p, s]
-            fnOutputDebug(s " | " x " / " y "=" p, 1)
+            fnOutputDebug(s " | " x " / " y "=" p)
             ; fnOutputDebug(p "/" s, 1)
        }
 

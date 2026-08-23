@@ -310,15 +310,21 @@ static void moonBlockFill(MoonDayBlock &b, long day) {
      b.filled = true;
 }
 
-// The blocks in hand, one slot per day of the month.  A search stays inside a day
-// or two and a phase is hunted over a few weeks, so nothing here is ever asked to
-// hold more than a handful at once; the slot a day lands in is the day itself, so
-// neighbouring days never turn each other out.
+// The blocks in hand.  A search stays inside a day or two and a phase is hunted
+// over a few weeks, so nothing here is ever asked to hold more than a handful at
+// once; the slot a day lands in is the day itself, so neighbouring days never turn
+// each other out.  Sixty-four slots rather than sixteen: a phase is solved on a
+// day up to a month away from the day in hand - the new moon an age is reckoned
+// from, the four phases ahead - and with sixteen slots a day sixteen days away
+// shared its slot with the day in hand, so the two kept turning each other out; in
+// the year tables a fifth of the moon's work went into refilling blocks that had
+// been in hand a moment before.  Which slot a day lands in changes nothing about
+// what the block holds, so the answers are the same to the bit.
 //
 // This is the one piece of state in the file, and it is not guarded: two threads
 // calling into the DLL at once could catch a slot half written.  The AutoHotkey
 // side calls it from one thread, which is what it was written for.
-static const int kMoonBlockCount = 16;
+static const int kMoonBlockCount = 64;
 static MoonDayBlock gMoonBlocks[kMoonBlockCount];
 
 static const MoonDayBlock &moonBlockFor(long day) {
