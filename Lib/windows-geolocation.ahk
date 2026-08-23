@@ -370,27 +370,39 @@ WinGeoProcAddress(wgDll, wgFunc) {
    Return wgModule ? DllCall("kernel32\GetProcAddress", "Ptr", wgModule, "AStr", wgFunc, "Ptr") : 0
 }
 
-WinGeoTimeZoneOffsets(ByRef wgStandard, ByRef wgDaylight) {
+WinGeoTimeZoneOffsets(ByRef wgJanuary, ByRef wgJuly) {
 ; The two offsets from UTC this computer's time zone keeps, in hours, written
-; the way the location index writes them: 2.0 and 3.0 for Romania, 4.5 twice
-; over for Afghanistan, which keeps no summer time.
+; the way the location index writes them: the offset in force on the 1st of
+; January and the one in force on the 1st of July - 2.0 and 3.0 for Romania,
+; 11.0 and 10.0 for Sydney, whose summer time runs over the new year, 4.5 twice
+; over for Afghanistan, which keeps no summer time. The index is kept by season
+; rather than by standard and daylight time, so that one rule serves both
+; hemispheres; handing over standard and daylight time here, as this used to,
+; had every location south of the equator an hour out all year round.
 ;
 ; TIME_ZONE_INFORMATION states its biases as the minutes to be added to local
 ; time to arrive at UTC, so an offset east of Greenwich is a negative bias and
 ; the sign has to be turned around here. A zone that never changes its clocks
 ; leaves DaylightDate.wMonth at zero, and then the one offset serves for both.
+; Where the clocks do change, the months the two dates fall in tell the
+; hemispheres apart: a zone whose daylight time begins later in the year than
+; it ends - October to April, say - is on daylight time in January.
 
-   wgStandard := wgDaylight := ""
+   wgJanuary := wgJuly := ""
    VarSetCapacity(wgTzi, 172, 0)
    If (DllCall("kernel32\GetTimeZoneInformation", "Ptr", &wgTzi, "UInt")=0xFFFFFFFF)
       Return 0
 
    wgBias := NumGet(wgTzi, 0, "Int")
+   wgStdMonth := NumGet(wgTzi, 70, "UShort")    ; StandardDate.wMonth
    wgStdBias := NumGet(wgTzi, 84, "Int")
    wgDstMonth := NumGet(wgTzi, 154, "UShort")   ; DaylightDate.wMonth
    wgDstBias := NumGet(wgTzi, 168, "Int")
    wgStandard := WinGeoTrimOffset(-(wgBias + wgStdBias)/60)
    wgDaylight := wgDstMonth ? WinGeoTrimOffset(-(wgBias + wgDstBias)/60) : wgStandard
+   wgSouthern := (wgDstMonth && wgStdMonth && wgDstMonth>wgStdMonth) ? 1 : 0
+   wgJanuary := wgSouthern ? wgDaylight : wgStandard
+   wgJuly := wgSouthern ? wgStandard : wgDaylight
    Return 1
 }
 

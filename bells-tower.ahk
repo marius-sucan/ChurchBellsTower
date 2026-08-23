@@ -543,7 +543,7 @@ analogClockStarter() {
 
 friendlyAlarmInfoz() {
     alarmInfos := ""
-    If (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours))
+    If (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins))
     {
        timeu := Format("{:02}:{:02}", userAlarmHours, userAlarmMins)
        If (userAlarmIsSnoozed=1)
@@ -714,21 +714,7 @@ InvokeBibleQuoteNow() {
   DoGuiFader := 1
   If (!bibleQuotesFile || (PrefOpen=1 && (A_TickCount - lastLoaded>2000)))
   {
-     If (BibleQuotesLang=2)
-        lang := "fra"
-     Else If (BibleQuotesLang=3)
-        lang := "esp"
-     Else If (BibleQuotesLang=1)
-        lang := "eng"
-     Else If (BibleQuotesLang=4)
-        lang := "lat"
-     Else If (BibleQuotesLang=5)
-        lang := "ger"
-     Else If (BibleQuotesLang=6)
-        lang := "grk"
-     Else If (BibleQuotesLang=7)
-        lang := "rus"
-
+     lang := bibleQuotesLangCode(BibleQuotesLang)
      Try FileRead, bibleQuotesFile, %A_ScriptDir%\resources\bible-quotes-%lang%.txt
      lastLoaded := A_TickCount
      If (ErrorLevel || !bibleQuotesFile || !lang)
@@ -743,8 +729,10 @@ InvokeBibleQuoteNow() {
      If !countLines
         countLines := ST_Count(bibleQuotesFile, "`n") + 1
 
-     Line2Read := clampInRange(userBibleStartPoint + 1, 1, countLines, 1)
-     userBibleStartPoint := Line2Read
+     ; the verse the start point names is the one shown; what is kept afterwards is the
+     ; verse to come next, so the field in the settings window always names the next verse
+     Line2Read := clampInRange(userBibleStartPoint, 1, countLines, 1)
+     userBibleStartPoint := clampInRange(Line2Read + 1, 1, countLines, 1)
      INIaction(1, "userBibleStartPoint", "SavedSettings")
      If (PrefOpen=1)
         GuiControl, SettingsGUIA:, userBibleStartPoint, % userBibleStartPoint
@@ -1238,23 +1226,23 @@ PlayAlarmedBell() {
    {
       bu := !bu
       If bu
-         MCXI_Play(SNDmedia_auxil_bell)
+         MCXI_Play(SNDmedia_auxil_bell, 1)
    } Else If (userAlarmSound=2)
    {
       indexu := clampInRange(indexu + 1, 1, 4, 1)
-      MCXI_Play(SNDmedia_quarters%indexu%)
+      MCXI_Play(SNDmedia_quarters%indexu%, 1)
    } Else If (userAlarmSound=3)
    {
       indexu := clampInRange(indexu + 1, 1, 4, 1)
-      MCXI_Play(SNDmedia_hours%indexu%)
+      MCXI_Play(SNDmedia_hours%indexu%, 1)
    } Else If (userAlarmSound=4)
    {
       bu := !bu
       If bu
-         MCXI_Play(SNDmedia_japan_bell)
+         MCXI_Play(SNDmedia_japan_bell, 1)
    } Else If (userAlarmSound=5)
    {
-      MCXI_Play(SNDmedia_beep)
+      MCXI_Play(SNDmedia_beep, 1)
    }
 }
 
@@ -1265,29 +1253,36 @@ PlayTimerBell() {
    {
       bu := !bu
       If bu
-         MCXI_Play(SNDmedia_auxil_bell)
+         MCXI_Play(SNDmedia_auxil_bell, 1)
    } Else If (userTimerSound=2)
    {
       indexu := clampInRange(indexu + 1, 1, 4, 1)
-      MCXI_Play(SNDmedia_quarters%indexu%)
+      MCXI_Play(SNDmedia_quarters%indexu%, 1)
    } Else If (userTimerSound=3)
    {
       indexu := clampInRange(indexu + 1, 1, 4, 1)
-      MCXI_Play(SNDmedia_hours%indexu%)
+      MCXI_Play(SNDmedia_hours%indexu%, 1)
    } Else If (userTimerSound=4)
    {
       bu := !bu
       If bu
-         MCXI_Play(SNDmedia_japan_bell)
+         MCXI_Play(SNDmedia_japan_bell, 1)
    } Else If (userTimerSound=5)
    {
-      MCXI_Play(SNDmedia_beep)
+      MCXI_Play(SNDmedia_beep, 1)
    }
 }
 
-MCXI_Play(hSND) {
+MCXI_Play(hSND, forced:=0) {
+; forced=1 is for the bells of the alarms and of the timers, which the user asked for outright:
+; they play through stopAdditionalStrikez and stopStrikesNow, the flags the tolling schedule
+; («keep silence in the defined interval»), the background sounds check and a click on the
+; tray icon raise to hold the tower bells back. A muted application stays silent either way.
     Critical, on
-    If (stopAdditionalStrikez=1 || stopStrikesNow=1 || userMuteAllSounds=1 || BeepsVolume<1)
+    If (userMuteAllSounds=1 || BeepsVolume<1)
+       Return
+
+    If ((stopAdditionalStrikez=1 || stopStrikesNow=1) && forced!=1)
        Return
 
     If (useDirectSound=1)
@@ -1579,6 +1574,34 @@ calcNextQuarter(tt:=15) {
   result := ((tt - Mod(A_Min, tt)) * 60 - A_Sec) * 1000 - A_MSec + 50
   ; formula provided by Bon [AHK forums]
   Return result
+}
+
+bibleQuotesLangCode(langIdx) {
+; The file name tag of the Bible the settings list names at the given position:
+; bible-quotes-<tag>.txt in the resources folder.
+   Static codes := {1:"eng", 2:"fra", 3:"esp", 4:"lat", 5:"ger", 6:"grk", 7:"rus"}
+   Return codes.HasKey(langIdx) ? codes[langIdx] : ""
+}
+
+countBibleVerses(langIdx) {
+; How many verses - lines - the Bible file of the given language holds, or 0 where the
+; file cannot be read. The Bibles differ by thousands of verses, so the start point of the
+; ordered display can only be allowed to reach as far as the chosen one goes. Counted once
+; per language and kept.
+   Static counts := {}
+   lang := bibleQuotesLangCode(langIdx)
+   If !lang
+      Return 0
+
+   If counts.HasKey(lang)
+      Return counts[lang]
+
+   FileRead, cnt, %A_ScriptDir%\resources\bible-quotes-%lang%.txt
+   If (ErrorLevel || !cnt)
+      Return 0
+
+   counts[lang] := ST_Count(cnt, "`n") + 1
+   Return counts[lang]
 }
 
 ST_Count(string, searchFor="`n") {
@@ -1973,7 +1996,7 @@ CreateOSDGUI(msg2Display, centerMsg:=0, noAdds:=0) {
           percu := Round(moonPhase[3] * 100)
        } Else If (showOSDprogressBar=4)
        {
-          percu := Round((A_MDay/31) * 100)
+          percu := Round((A_MDay/calendarDaysInMonth(A_Year, A_Mon)) * 100)   ; not every month has 31 days
        } Else If (showOSDprogressBar=5)
        {
           percu := Round(getPercentOfAstroSeason() * 100)
@@ -2320,7 +2343,8 @@ btnCopySolarData() {
 
    If !lvu 
    {
-      MsgBox, , % appName, No table is active to copy the data from. Please switch the window's tab to Summary, Rise, Set or Durations.
+      tabsu := (AnyWindowOpen=9) ? "Summary or Moon phases" : "Summary, Rise, Set or Durations"
+      MsgBox, , % appName, % "No table is active to copy the data from. Please switch the window's tab to " tabsu "."
       Return
    }
 
@@ -3885,7 +3909,7 @@ PanelShowSettings() {
     Gui, Add, UpDown, gVerifyTheOptions vFontSizeQuotes Range10-200, %FontSizeQuotes%
     Gui, Add, Button, x+10 hp w%wu% gInvokeBibleQuoteNow vBtn2, Preview verse
     GuiAddEdit("x+10 w" vu " r1 limit5 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF4", userBibleStartPoint, "Bible verse starting point")
-    Gui, Add, UpDown, gVerifyTheOptions vuserBibleStartPoint Range1-27400, % userBibleStartPoint
+    Gui, Add, UpDown, gVerifyTheOptions vuserBibleStartPoint Range1-35000, % userBibleStartPoint   ; VerifyTheOptions() narrows the range to the chosen Bible
     ml := (PrefsLargeFonts=1) ? 40 : 32
     GuiAddButton("x+5 hp w" ml " gBtnHelpOrderedDisplay vBtn5", " ?", "Help")
     Gui, Add, Text, xs+15 y+10 hp +0x200 vTxt4, Maximum line length (in characters):
@@ -4027,6 +4051,19 @@ VerifyTheOptions(EnableApply:=1,forceNoPreview:=0) {
     GuiControlGet, maxBibleLength
     GuiControlGet, BibleQuotesLang
     GuiControlGet, displayClock
+    ; the start point of the ordered verses may reach the last verse of the chosen Bible and no
+    ; further; the Bibles differ by thousands of verses, so the range follows the language
+    Static lastVersesRange := ""
+    GuiControlGet, hUpDownVerses, Hwnd, userBibleStartPoint
+    If (hUpDownVerses && BibleQuotesLang "|" hUpDownVerses!=lastVersesRange)
+    {
+       maxVerses := countBibleVerses(BibleQuotesLang)
+       If (maxVerses>1)
+       {
+          lastVersesRange := BibleQuotesLang "|" hUpDownVerses
+          SendMessage, 0x046F, 1, % maxVerses,, ahk_id %hUpDownVerses%   ; UDM_SETRANGE32
+       }
+    }
     GuiControlGet, showOSDprogressBar
     GuiControlGet, constantOSDvisible
     GuiControlGet, showTimeIdleAfter
@@ -4255,11 +4292,19 @@ ST_Insert(insert,input,pos=1) {
   Return output
 }
 
-calcEasterDate(ByRef aisHolidayToday, thisYDay) {
+calcEasterDate(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+; yearu is the year thisYDay belongs to. Without it, the year the celebrations list is
+; browsing, celebYear, is taken - the list is what that variable is for. The daily tests and
+; the calendar name their own year: celebYear is set on start-up and left there, so the Easter
+; cycle of the start-up year used to be laid over every other year, and over the new year of
+; an instance that stayed up past New Year's Eve.
+  If !yearu
+     yearu := celebYear
+
   If (UserReligion=1)
-     result := CatholicEaster(celebYear)
+     result := CatholicEaster(yearu)
   Else
-     result := OrthodoxEaster(celebYear)
+     result := OrthodoxEaster(yearu)
 
   FormatTime, lola, %result%, yday
   If (lola=thisYDay)
@@ -4312,8 +4357,8 @@ CatholicEaster(year) {
   Return Result
 }
 
-ashwednesday(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+ashwednesday(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, -46, days
 
   FormatTime, lola, %result%, yday
@@ -4323,8 +4368,8 @@ ashwednesday(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-palmSunday(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+palmSunday(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, -7, days
 
   FormatTime, lola, %result%, yday
@@ -4335,8 +4380,8 @@ palmSunday(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-goodFriday(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+goodFriday(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, -2, days
 
   FormatTime, lola, %result%, yday
@@ -4349,8 +4394,8 @@ goodFriday(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-MaundyT(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+MaundyT(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, -3, days
 
   FormatTime, lola, %result%, yday
@@ -4360,8 +4405,8 @@ MaundyT(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-HolySaturday(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+HolySaturday(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, -1, days
 
   FormatTime, lola, %result%, yday
@@ -4371,8 +4416,8 @@ HolySaturday(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-SecondDayEaster(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+SecondDayEaster(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, 1, days
 
   FormatTime, lola, %result%, yday
@@ -4382,8 +4427,8 @@ SecondDayEaster(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-DivineMercy(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+DivineMercy(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, 7, days
 
   FormatTime, lola, %result%, yday
@@ -4393,8 +4438,8 @@ DivineMercy(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-ascensionday(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+ascensionday(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, 39, days
 
   FormatTime, lola, %result%, yday
@@ -4404,8 +4449,8 @@ ascensionday(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-pentecost(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+pentecost(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, 49, days
 
   FormatTime, lola, %result%, yday
@@ -4415,8 +4460,8 @@ pentecost(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-holyTrinityOrthdox(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+holyTrinityOrthdox(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, 50, days
 
   FormatTime, lola, %result%, yday
@@ -4426,8 +4471,8 @@ holyTrinityOrthdox(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-TrinitySunday(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+TrinitySunday(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, 56, days
 
   FormatTime, lola, %result%, yday
@@ -4437,8 +4482,8 @@ TrinitySunday(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-corpuschristi(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+corpuschristi(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, 60, days
 
   FormatTime, lola, %result%, yday
@@ -4448,8 +4493,8 @@ corpuschristi(ByRef aisHolidayToday, thisYDay) {
   return result
 }
 
-lifeGivingSpring(ByRef aisHolidayToday, thisYDay) {
-  result := calcEasterDate(isHoliday, thisYDay)
+lifeGivingSpring(ByRef aisHolidayToday, thisYDay, yearu:=0) {
+  result := calcEasterDate(isHoliday, thisYDay, yearu)
   EnvAdd, result, 5, days
 
   FormatTime, lola, %result%, yday
@@ -4457,6 +4502,15 @@ lifeGivingSpring(ByRef aisHolidayToday, thisYDay) {
      aisHolidayToday := "The Life-Giving Spring - when Blessed Mary healed a blind man by having him drink water from a spring"
 
   return result
+}
+
+movableFeastsList() {
+; The feasts of the Easter cycle: the function that recognises each one, and the name it is
+; filed under in the Celebrations section when the user chooses to no longer observe it. The
+; celebrations list carries the very same names in the third column of its Easter tab, so
+; that a choice made there is the one acted upon here.
+   Static listu := "calcEasterDate|easter,SecondDayEaster|eastermonday,DivineMercy|divinemercy,palmSunday|palmsunday,MaundyT|maundythursday,HolySaturday|holysaturday,goodFriday|goodfriday,ashwednesday|ashwednesday,ascensionday|ascension,pentecost|pentecost,TrinitySunday|trinitysunday,corpuschristi|corpuschristi,lifeGivingSpring|lifegivingspring,holyTrinityOrthdox|holytrinity"
+   Return listu
 }
 
 testCelebrations(noSounds:=0) {
@@ -4475,20 +4529,20 @@ coreTestCelebrationz(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
   testFeast := thisMon "." thisMDay
   If (ObserveReligiousDays=1)
   {
-     calcEasterDate(aisHolidayToday, thisYDay)
-     SecondDayEaster(aisHolidayToday, thisYDay)
-     DivineMercy(aisHolidayToday, thisYDay)
-     palmSunday(aisHolidayToday, thisYDay)
-     MaundyT(aisHolidayToday, thisYDay)
-     HolySaturday(aisHolidayToday, thisYDay)
-     goodFriday(aisHolidayToday, thisYDay)
-     ashwednesday(aisHolidayToday, thisYDay)
-     ascensionday(aisHolidayToday, thisYDay)
-     pentecost(aisHolidayToday, thisYDay)
-     TrinitySunday(aisHolidayToday, thisYDay)
-     corpuschristi(aisHolidayToday, thisYDay)
-     lifeGivingSpring(aisHolidayToday, thisYDay)
-     holyTrinityOrthdox(aisHolidayToday, thisYDay)
+     ; The movable feasts, those of the Easter cycle, are each tried for the year of the date
+     ; in hand. The feast whose name is given second is the one it is filed under when the
+     ; user chooses to no longer observe it - see movableFeastsList() - since the date it
+     ; falls on changes from year to year; a feast so filed is dropped again right here.
+     Loop, Parse, % movableFeastsList(), `,
+     {
+        pairu := StrSplit(A_LoopField, "|")
+        prevu := aisHolidayToday
+        funcu := pairu[1]
+        %funcu%(aisHolidayToday, thisYDay, thisYear)
+        If (aisHolidayToday!=prevu && StrLen(INIactionNonGlobal(0, pairu[2] ".r", 0, "Celebrations"))>2)
+           aisHolidayToday := prevu
+     }
+
      If (testFeast="01.01" && UserReligion=1)
         q := "The commemoration of the Blessed Virgin Mary as Mother of God (Θεοτόκος) as proclaimed in the Council of Ephesus (431 A.D.). It is also the octave of Christmas traditionally commemorating the circumcision of the Lord Jesus Christ"
      Else If (testFeast="01.06")
@@ -4550,6 +4604,12 @@ coreTestCelebrationz(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
      Else If (testFeast="12.28" && UserReligion=1)
         q := "Feast of the Holy Innocents - in remembrance of the young children killed in Bethlehem by King Herod the Great in his attempt to kill the infant Jesus of Nazareth"
 
+     ; a fixed feast the user chose to no longer observe is filed under its date; the movable
+     ; ones were settled above, so only the fixed feast of this date is dropped here, where
+     ; the marker used to wipe out a movable feast landing on the same date as well
+     If (q && StrLen(INIactionNonGlobal(0, testFeast ".r", 0, "Celebrations"))>2)
+        q := ""
+
      If (q && aisHolidayToday)
         aisHolidayToday := aisHolidayToday ". | ✝ " q
      Else
@@ -4557,10 +4617,6 @@ coreTestCelebrationz(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
      If (StrLen(aisHolidayToday)>2)
         aTypeHolidayOccured := 1
   }
-
-  NoRelDay := INIactionNonGlobal(0, testFeast ".r", 0, "Celebrations")
-  If StrLen(NoRelDay)>2
-     aisHolidayToday := aTypeHolidayOccured := ""
 
   If (testWhat=1)
      Return [aTypeHolidayOccured, aisHolidayToday]
@@ -4883,18 +4939,20 @@ updateHolidaysLVs() {
 
   If (UserReligion=1 && ObserveReligiousDays=1)
   {
-     theList := "Ash Wednesday|" ashwednesdaydate "`n"
-        . "Palm Sunday|" palmdaydate "`n"
-        . "Maundy Thursday|" maundydate "`n"
-        . "Good Friday|" goodFridaydate "`n"
-        . "Holy Saturday|" HolySaturdaydate "`n"
-        . "Catholic Easter|" easterdate "`n"
-        . "Catholic Easter - Monday|" 2ndeasterdate "`n"
-        . "Divine Mercy|" divineMercyDate "`n"
-        . "Ascension of Jesus|" ascensiondaydate "`n"
-        . "Pentecost|" pentecostdate "`n"
-        . "Trinity Sunday|" TrinitySundaydate "`n"
-        . "Corpus Christi|" corpuschristidate
+     ; the third field names the feast - see movableFeastsList(); the user's choice to no
+     ; longer observe one of these is filed under that name, since the date changes every year
+     theList := "Ash Wednesday|" ashwednesdaydate "|ashwednesday`n"
+        . "Palm Sunday|" palmdaydate "|palmsunday`n"
+        . "Maundy Thursday|" maundydate "|maundythursday`n"
+        . "Good Friday|" goodFridaydate "|goodfriday`n"
+        . "Holy Saturday|" HolySaturdaydate "|holysaturday`n"
+        . "Catholic Easter|" easterdate "|easter`n"
+        . "Catholic Easter - Monday|" 2ndeasterdate "|eastermonday`n"
+        . "Divine Mercy|" divineMercyDate "|divinemercy`n"
+        . "Ascension of Jesus|" ascensiondaydate "|ascension`n"
+        . "Pentecost|" pentecostdate "|pentecost`n"
+        . "Trinity Sunday|" TrinitySundaydate "|trinitysunday`n"
+        . "Corpus Christi|" corpuschristidate "|corpuschristi"
 
      Gui, ListView, LViewEaster
      processHolidaysList(theList, ".r")
@@ -4929,17 +4987,19 @@ updateHolidaysLVs() {
      processHolidaysList(theList2, ".r")
   } Else If (UserReligion=2 && ObserveReligiousDays=1)
   {
-     theList3 := "Flowery Sunday|" palmdaydate "`n"
-        . "Maundy Thursday|" maundydate "`n"
-        . "Holy Friday|" goodFridaydate "`n"
-        . "Holy Saturday|" HolySaturdaydate "`n"
-        . "Orthodox Easter|" easterdate "`n"
-        . "Orthodox Easter - Monday|" 2ndeasterdate "`n"
-        . "Life-Giving Spring|" lifeSpringDate "`n"
-        . "Ascension of Jesus|" ascensiondaydate "`n"
-        . "Pentecost|" pentecostdate "`n"
-        . "Holy Trinity|" holyTrinityOrthdoxDate "`n"
-        . "All Saints' day|" TrinitySundaydate
+     ; the third field names the feast - see movableFeastsList(); the user's choice to no
+     ; longer observe one of these is filed under that name, since the date changes every year
+     theList3 := "Flowery Sunday|" palmdaydate "|palmsunday`n"
+        . "Maundy Thursday|" maundydate "|maundythursday`n"
+        . "Holy Friday|" goodFridaydate "|goodfriday`n"
+        . "Holy Saturday|" HolySaturdaydate "|holysaturday`n"
+        . "Orthodox Easter|" easterdate "|easter`n"
+        . "Orthodox Easter - Monday|" 2ndeasterdate "|eastermonday`n"
+        . "Life-Giving Spring|" lifeSpringDate "|lifegivingspring`n"
+        . "Ascension of Jesus|" ascensiondaydate "|ascension`n"
+        . "Pentecost|" pentecostdate "|pentecost`n"
+        . "Holy Trinity|" holyTrinityOrthdoxDate "|holytrinity`n"
+        . "All Saints' day|" TrinitySundaydate "|trinitysunday"
 
      Gui, ListView, LViewEaster
      processHolidaysList(theList3, ".r")
@@ -5148,9 +5208,13 @@ processHolidaysList(theList, typu) {
       If (StrLen(LongaData)<3)
          Continue
 
-      PersonalDay := INIactionNonGlobal(0, miniDate typu, 0, "Celebrations")
+      ; a movable feast is filed under its name, which the list hands over as a third field,
+      ; and a fixed one under its date; the third column of the list carries whichever it is,
+      ; and the double click on a row reads it back from there
+      idu := lineArr[3] ? lineArr[3] : miniDate
+      PersonalDay := INIactionNonGlobal(0, idu typu, 0, "Celebrations")
       byeFlag := (StrLen(PersonalDay)>2) ? "(*) " : ""
-      LV_Add(A_Index, byeFlag LongaData, lineArr[1], miniDate)
+      LV_Add(A_Index, byeFlag LongaData, lineArr[1], idu)
    }
 }
 
@@ -5171,7 +5235,7 @@ ActionListViewKBDs() {
 
      LV_GetText(dateSelected, A_EventInfo, 3)
      LV_GetText(eventusName, A_EventInfo, 2)
-     If (eventusName="Details" || !eventusName || !dateSelected || StrLen(dateSelected)>10)
+     If (eventusName="Details" || !eventusName || !dateSelected || StrLen(dateSelected)>24)
         Return
 
      DisableMsg := "default disabled"
@@ -5350,6 +5414,14 @@ wrapCalculateEquiSolsDates(givenDay) {
      Loop, 4
      {
          k := calculateEquiSols(A_Index, A_Year)
+         If (StrLen(k)!=14)
+         {
+            ; no DLL to ask - the 32 bits edition, or a library that failed to load; a blank
+            ; stamp would have FormatTime answer with today, and today would then pass for the
+            ; event, so the usual date the variable already carries is kept instead
+            Continue
+         }
+
          FormatTime, OutputVar, % k, Yday
          thisBias := isInDSTperiod(OutputVar, TZI.DaylightDateYday, TZI.StandardDateYday) ? TZI.Bias + TZI.DaylightBias + TZI.StandardBias : TZI.Bias + TZI.StandardBias
          thisBias := -1*thisBias
@@ -6156,14 +6228,17 @@ BtnChangeDateCalendar(a, b, c) {
 
    ControlGetText, t,, ahk_id %a%
    t := (b="given") ? c : Trimmer(t)
+   ; the months and the years are stepped on the calendar, not by 30 and 365 days: from a 31st,
+   ; thirty days back landed on the 1st of the very same month, from the end of January thirty
+   ; days on skipped February, and 365 days drifted by a day at every leap day crossed
    If InStr(t, "previous month")
-      uiUserFullDateUTC += -30, Days
+      uiUserFullDateUTC := calendarShiftMonths(uiUserFullDateUTC, -1)
    Else If InStr(t, "next month")
-      uiUserFullDateUTC += 30, Days
+      uiUserFullDateUTC := calendarShiftMonths(uiUserFullDateUTC, 1)
    Else If InStr(t, "previous year")
-      uiUserFullDateUTC += -365, Days
+      uiUserFullDateUTC := calendarShiftYears(uiUserFullDateUTC, -1)
    Else If InStr(t, "next year")
-      uiUserFullDateUTC += 365, Days
+      uiUserFullDateUTC := calendarShiftYears(uiUserFullDateUTC, 1)
    Else If InStr(t, "previous day")
       uiUserFullDateUTC += -1, Days
    Else If InStr(t, "next day")
@@ -6175,6 +6250,45 @@ BtnChangeDateCalendar(a, b, c) {
    uiPopulateCalendar()
    uiPopulateSelDate()
    ; ToolTip, % a "|" t "|" uiUserFullDateUTC , , , 2
+}
+
+calendarDaysInMonth(yearu, monu) {
+; How many days the given month of the given year has. The leap years are told by the
+; Gregorian rule itself rather than by asking the system to format the 29th of February,
+; which is what isLeapYear() does: this is called for every OSD with the month progress bar.
+   Static dayz := [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+   monu := monu + 0
+   yearu := yearu + 0
+   If (monu<1 || monu>12)
+      Return 31
+
+   If (monu=2 && ((Mod(yearu, 4)=0 && Mod(yearu, 100)!=0) || Mod(yearu, 400)=0))
+      Return 29
+
+   Return dayz[monu]
+}
+
+calendarBuildDate(yearu, monu, dayu, restu) {
+; Puts a YYYYMMDDHH24MISS stamp together out of its parts. The day of the month is kept where
+; the month has it and otherwise becomes the last day of that month; the years are held
+; within what the date functions accept.
+   yearu := clampInRange(yearu + 0, 1601, 9998)
+   monu := clampInRange(monu + 0, 1, 12)
+   dayu := clampInRange(dayu + 0, 1, calendarDaysInMonth(yearu, monu))
+   Return Format("{:04}{:02}{:02}", yearu, monu, dayu) . restu
+}
+
+calendarShiftMonths(datum, months) {
+; The time stamp moved by a number of calendar months, forwards or back, on the same day of
+; the month - or on the last day of the month reached, when it is a shorter one.
+   totalu := SubStr(datum, 1, 4)*12 + (SubStr(datum, 5, 2) - 1) + months
+   Return calendarBuildDate(totalu//12, Mod(totalu, 12) + 1, SubStr(datum, 7, 2), SubStr(datum, 9))
+}
+
+calendarShiftYears(datum, years) {
+; The time stamp moved by a number of calendar years, on the same month and day - the 29th of
+; February becomes the 28th where the year reached is not a leap year.
+   Return calendarBuildDate(SubStr(datum, 1, 4) + years, SubStr(datum, 5, 2), SubStr(datum, 7, 2), SubStr(datum, 9))
 }
 
 invokeCalendarMonthsMenu() {
@@ -6251,7 +6365,7 @@ givenDateTestCelebrations(givenDate) {
     }
 
     alarmInfos := ""
-    If (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours))
+    If (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins))
     {
        tipu := 0
        If InStr(listu, "✝")
@@ -6391,8 +6505,8 @@ BtnRecordStopWatchInterval() {
      Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
      SecB := SubStr(Sec, InStr(Sec, ".") + 1)
  
-     coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec)
-     HrzA := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Round(Sec))
+     coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec, 0)
+     HrzA := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Sec)
      valuePushable := (A_TickCount - stopWatchLapBeginZeit)/1000 + stopWatchLapPauseZeit/1000
      coreSecToHHMMSS(valuePushable, hrs, mins, sec)
      HrzB := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), SubStr(Sec, 1, InStr(Sec, ".") - 1))
@@ -6540,8 +6654,8 @@ uiStopWatchUpdater() {
   SecB := SubStr(Sec, InStr(Sec, ".") + 1)
   GuiControl, SettingsGUIA:, UIstopWatchLabel, %hrz%.%SecB% ; :%mins%:%sec%
 
-  coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec)
-  Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Round(Sec))
+  coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec, 0)
+  Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Sec)
   ; Mins := Format("{:02}", Mins)
   GuiControl, SettingsGUIA:, UIstopWatchInfos, %stopWatchHumanStartTime% - %hrz% ; :%mins%:%sec%
   
@@ -6595,19 +6709,24 @@ uiStopWatchPausedUpdater() {
 
   Gui, SettingsGUIA: Default
   GuiControlGet, stopWatchDoBeeps
-  coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec)
-  Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Round(Sec))
+  coreSecToHHMMSS((A_TickCount - stopWatchRealStartZeit)/1000, hrs, mins, sec, 0)
+  Hrz := Format("{:02}:{:02}:{:02}", Trim(Hrs), Trim(Mins), Sec)
   ; Mins := Format("{:02}", Mins)
   GuiControl, SettingsGUIA:, UIstopWatchInfos, %stopWatchHumanStartTime% - %hrz% ; :%mins%:%sec%
 }
 
-coreSecToHHMMSS(Seco, ByRef Hrs, ByRef Min, ByRef Sec) {
+coreSecToHHMMSS(Seco, ByRef Hrs, ByRef Min, ByRef Sec, decimals:=1) {
+; Splits a count of seconds into hours, minutes and seconds, the seconds rounded to the given
+; number of decimals. The total is rounded before it is split, so that 59.96 s comes out as
+; one minute rather than as «0 minutes and 60.0 seconds»: rounding the remainder on its own,
+; as this used to, had the stopwatch read :60 at every minute boundary.
+  Seco := Round(Seco, decimals)
   OldFormat := A_FormatFloat
   SetFormat, Float, 2.00
   Hrs := Seco//3600/1
   Min := Mod(Seco//60, 60)/1
   SetFormat, Float, %OldFormat%
-  Sec := Round(Mod(Seco, 60), 1)
+  Sec := Round(Mod(Seco, 60), decimals)
 }
 
 updateUIalarmsPanel() {
@@ -6749,7 +6868,7 @@ BtnApplyAlarms() {
      SetTimer, doUserTimerAlert, Off
   }
 
-  If (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours))
+  If (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins))
   {
      startAlarmTimer()
   } Else
@@ -6852,6 +6971,16 @@ doUserAlarmAlert() {
   INIaction(1, "userMustDoAlarm", "SavedSettings")
 }
 
+isValidAlarmTime(hours, minutes) {
+; Whether the two make up a time of day: both numbers, the hour within 0-23 and the minute
+; within 0-59. The callers used to test the two for being non-zero instead, which threw the
+; midnight alarm, 00:00, away - a time of day like any other.
+   If (hours="" || minutes="" || !isNumber(hours) || !isNumber(minutes))
+      Return 0
+
+   Return (hours>=0 && hours<=23 && minutes>=0 && minutes<=59) ? 1 : 0
+}
+
 startAlarmTimer(kpl:=0) {
   Static lastzz := 9871
   If (userAlarmIsSnoozed=1 || kpl="rr")
@@ -6860,7 +6989,7 @@ startAlarmTimer(kpl:=0) {
      Return
   }
 
-  canDo := (userMustDoAlarm=1 && (userAlarmMins || userAlarmHours)) ? 1 : 0
+  canDo := (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins)) ? 1 : 0
   If (canDo && userAlarmRepeated=1)
      canDo := InStr(userAlarmWeekDays, A_WDay) ? 1 : 0
 
@@ -7339,8 +7468,15 @@ btnUIremoveUserGeoLocation() {
    GuiControlGet, uiUserCountry
    GuiControlGet, uiUserCity
    cities := geoData["1|-1"]
-   If (uiUserCountry!=1 || cities<2)
+   If (uiUserCountry!=1)
       Return
+
+   If (cities<2)
+   {
+      ToolTip, The last custom location cannot be removed.
+      SetTimer, removeTooltip, -2000
+      Return
+   }
 
    thisu := []
    thisIndex := 0
@@ -7512,7 +7648,7 @@ btnUIaddNewGeoLocation() {
    k := StrSplit(newGeoDataLocationUserEdit, "|")
    If (k.Count()<6)
    {
-      simpleMsgBoxWrapper(appName, "This field needs to be at least six sections long to be valid, each separated by a pipe symbol: |. The sections are:`n`nLocation name|Latitude|Longitude|GMT offset|DST offset|Altitude (in meters)", 0, 1, 48)
+      simpleMsgBoxWrapper(appName, "This field needs to be at least six sections long to be valid, each separated by a pipe symbol: |. The sections are:`n`nLocation name|Latitude|Longitude|GMT offset on the 1st of January|GMT offset on the 1st of July|Altitude (in meters)", 0, 1, 48)
       Return
    }
 
@@ -7536,13 +7672,13 @@ btnUIaddNewGeoLocation() {
 
    If (!isInRange(k[4], -14, 14) || !isNumber(k[4]))
    {
-      simpleMsgBoxWrapper(appName, "Please define a correct GMT time offset for the custom location. This can range from -14 to 14 hours.", 0, 1, 48)
+      simpleMsgBoxWrapper(appName, "Please define a correct GMT time offset for the custom location, the one it keeps on the 1st of January. This can range from -14 to 14 hours.", 0, 1, 48)
       Return
    }
 
    If (!isInRange(k[5], -14, 14) || !isNumber(k[5]))
    {
-      simpleMsgBoxWrapper(appName, "Please define a correct DST time offset for the custom location. This can range from -14 to 14 hours.`n`nIf no daylight saving time is to be observed, use the same value defined as the GMT offset.", 0, 1, 48)
+      simpleMsgBoxWrapper(appName, "Please define a correct GMT time offset for the custom location, the one it keeps on the 1st of July. This can range from -14 to 14 hours.`n`nThe two offsets are the ones in force in January and in July, which covers the daylight saving time of either hemisphere: north of the equator the July offset is the daylight saving one, south of it the January offset is. If no daylight saving time is to be observed, use the same value for both.", 0, 1, 48)
       Return
    }
 
@@ -7588,7 +7724,8 @@ nameGeoLocation2add(countryIndex, geoDataEntry) {
    If (z<2 || countryIndex=1)
       Return ""
 
-   Return countriesArrayList[countryIndex] ":" SubStr(geoDataEntry, 1, z - 1)
+   ; the star that marks a capital in the lists is not part of the name
+   Return countriesArrayList[countryIndex] ":" LTrim(SubStr(geoDataEntry, 1, z - 1), "*")
 }
 
 geoLocationAlreadyInUserList(nameu) {
@@ -7626,7 +7763,7 @@ btnUIaddTodayGeoLocation(modus:=0, strExtern:=0) {
       p := geoData[uiUserCountry "|" uiUserCity]
    }
 
-   dstr := isExtern ? strExtern : countriesArrayList[uiUserCountry] ":" p
+   dstr := isExtern ? strExtern : countriesArrayList[uiUserCountry] ":" LTrim(p, "*")   ; the star marks a capital in the lists; it is no part of the name
    k := StrSplit(dstr, "|") ; the very same format used by PanelEarthMap()
    If (k.Count()<6 || StrLen(k[1])<4
       || !isNumber(k[2]) || !isInRange(k[2], -90, 90)
@@ -7635,7 +7772,7 @@ btnUIaddTodayGeoLocation(modus:=0, strExtern:=0) {
       || !isNumber(k[5]) || !isInRange(k[5], -14, 14)
       || !isNumber(k[6]) || !isInRange(k[6], -5000, 13000))
    {
-      simpleMsgBoxWrapper(appName, "The selected location does not provide all the data required by a custom location entry:`n`nLocation name|Latitude|Longitude|GMT offset|DST offset|Altitude (in meters)", 0, 1, 48)
+      simpleMsgBoxWrapper(appName, "The selected location does not provide all the data required by a custom location entry:`n`nLocation name|Latitude|Longitude|GMT offset on the 1st of January|GMT offset on the 1st of July|Altitude (in meters)", 0, 1, 48)
       Return
    }
 
@@ -7685,7 +7822,7 @@ UiLVgeoSearch() {
    {
       p := Substr(OutputVar, 1, InStr(OutputVar, "|") -  1)
       j := countriesArrayList[p]
-      k := j "|" geoData[OutputVar]
+      k := j "|" LTrim(geoData[OutputVar], "*")   ; the star marks a capital in the lists; it is no part of the name
       k := StrSplit(k, "|")
    } Else k := extendedGeoData[OutputVar]
 
@@ -7754,8 +7891,8 @@ PanelEarthMap(modus:=0) {
     Gui, Tab
     btnW := (PrefsLargeFonts=1) ? 80 : 55
     btnH := (PrefsLargeFonts=1) ? 35 : 28
-    thisu := StrReplace(countriesArrayList[uiUserCountry] ":" geoData[uiUserCountry "|" uiUserCity], "Custom locations:")
-    GuiAddEdit("xm+0 y+10 w" ww " -wrap vnewGeoDataLocationUserEdit", thisu, "Custom location to be added format:`nName|Latitude (N)|Longitude (E)|GMT offset|DST GMT offset|Altitude (meters)|0")
+    thisu := StrReplace(countriesArrayList[uiUserCountry] ":" LTrim(geoData[uiUserCountry "|" uiUserCity], "*"), "Custom locations:")   ; the star marks a capital in the lists; it is no part of the name
+    GuiAddEdit("xm+0 y+10 w" ww " -wrap vnewGeoDataLocationUserEdit", thisu, "Custom location to be added format:`nName|Latitude (N)|Longitude (E)|GMT offset on 1 January|GMT offset on 1 July|Altitude (meters)|0")
     Gui, Add, Button, x+5 hp vbtn4 gbtnUIaddNewGeoLocation +hwndhTemp, &Add to list
     ToolTip2ctrl(hTemp, "Add selected location to the list of custom user-defined locations.")
 
@@ -8004,6 +8141,24 @@ uiBTNupdateExtendedGeoData() {
 updateExtendedGeoData(minPplLocation) {
    Tooltip, Please wait - processing update data...
    UnZipExtract2Folder(A_ScriptDir "\resources\cities5000.zip" , A_ScriptDir "\resources")
+
+   ; the shell's CopyHere() comes back before the extraction is over, and the file used to be
+   ; looked for at once - and missed; it is waited for instead, until its size holds still
+   ; between two looks, but for two seconds at the most
+   startZeit := A_TickCount
+   prevSize := -1
+   Loop
+   {
+      FileGetSize, thisSize, %A_ScriptDir%\resources\cities5000.txt
+      If (!ErrorLevel && thisSize>0 && thisSize=prevSize)
+         Break
+
+      prevSize := ErrorLevel ? -1 : thisSize
+      If (A_TickCount - startZeit>2000)
+         Break
+      Sleep, 100
+   }
+
    If FileExist(A_ScriptDir "\resources\cities5000.txt")
    {
       r := extractExtendedDataFromText(minPplLocation)
@@ -8019,6 +8174,10 @@ updateExtendedGeoData(minPplLocation) {
          Tooltip
          MsgBox, , %appName%, An error occured updating the locations list. Error code: %r%.
       }
+   } Else
+   {
+      Tooltip
+      MsgBox, , %appName%, An error occured updating the locations list. The downloaded archive could not be extracted.
    }
 
    FileDelete, %A_ScriptDir%\resources\cities5000.zip
@@ -8813,7 +8972,7 @@ transformSecondsReadable(p, friendly:=0) {
 
   If (friendly=2)
   {
-     coreSecToHHMMSS(p, Hrs, Min, Sec)
+     coreSecToHHMMSS(p, Hrs, Min, Sec, 0)
      If (hrs>0)
         Return format("{1:02}", Trim(hrs)) ":" format("{1:02}", Trim(min))
      Else If (Trim(min)>0)
@@ -10555,7 +10714,7 @@ locateClickOnEarthMap() {
     {
        p := Substr(k, 1, InStr(k, "|") -  1)
        j := countriesArrayList[p]
-       k := j "|" geoData[k]
+       k := j "|" LTrim(geoData[k], "*")   ; the star marks a capital in the lists; it is no part of the name
        k := StrSplit(k, "|")
     } Else k := extendedGeoData[k]
 
@@ -10677,7 +10836,7 @@ BtnDetectUserLocation() {
 
 detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
 ; Where this computer is, written the way a custom location entry is written:
-;    Name|latitude|longitude|GMT offset|DST offset|altitude
+;    Name|latitude|longitude|GMT offset on 1 January|GMT offset on 1 July|altitude
 ;
 ; The Windows location service is asked first and what it gives back is a true
 ; fix - a few metres where the machine carries a GPS receiver, a few kilometres
@@ -10685,6 +10844,9 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
 ; The offsets are then taken from the time zone the computer keeps rather than
 ; guessed from the longitude, which is what a click on the map has to settle
 ; for; the machine already knows its own zone exactly, quarter hours and all.
+; They are written the way the location index writes them, by season and not
+; by standard and daylight time: on a computer in Sydney the January offset is
+; the daylight saving one.
 ;
 ; As a fallback, the country set under Settings > Time & language > Region is
 ; used or the keyboard layout to identify a country.
@@ -10697,7 +10859,7 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
    {
       latu := Round(latu, 4)
       longu := Round(longu, 4)
-      If !WinGeoTimeZoneOffsets(gmtu, dstu)
+      If !WinGeoTimeZoneOffsets(gmtu, dstu)   ; the offsets of the 1st of January and of the 1st of July
       {
          gmtu := Round(longu/15) ".0"   ; the same guess the map makes of a click
          dstu := gmtu
@@ -10739,7 +10901,7 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
    p := geoData[ctrIdx "|" cityIdx]
    cityu := LTrim(SubStr(p, 1, InStr(p, "|") - 1), "*")
    sourceu := cityu " was picked from " viau "."
-   k := StrSplit(countriesArrayList[ctrIdx] ":" p, "|")   ; the very same format used by PanelEarthMap()
+   k := StrSplit(countriesArrayList[ctrIdx] ":" LTrim(p, "*"), "|")   ; the very same format used by PanelEarthMap(); the star of a capital is no part of the name
    Return k[1] "|" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6]
 }
 
@@ -11488,10 +11650,12 @@ UIcityChooser() {
       noonLabel := SubStr(coolminant.n, 6) ? "Peak: " Round(coolminant.maxu, 1) "°" : "Peak:"
       noonValue := SubStr(coolminant.n, 6) ? SubStr(coolminant.n, 6) : "--:--"
       ; GuiControl, SettingsGUIA:, UIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
-      mph := MoonPhaseCalculator(mobj.RawR, prevgmtOffset, w[2], w[3])
-      rizeAzim := ": " Round(mph[6]) "°"
-      mph := MoonPhaseCalculator(mobj.RawS, prevgmtOffset, w[2], w[3])
-      setAzim := ": " Round(mph[6]) "°"
+      ; the azimuths come from the DLL, which found them at the very moment of each event;
+      ; RawR/RawS still carry their 0/1 «nothing found» markers where there was no event, and
+      ; then no azimuth is printed - asking the moon's position anew for such a marker used to
+      ; put the azimuth of the present moment next to a «--:--»
+      rizeAzim := (StrLen(mobj.RawR)=14 && mobj.riseAz!="") ? ": " Round(mobj.riseAz) "°" : ":"
+      setAzim := (StrLen(mobj.RawS)=14 && mobj.setAz!="") ? ": " Round(mobj.setAz) "°" : ":"
       if (mobj.reverse=1)
       {
          If (coolminant.RawN<mobj.RawS)
@@ -11936,9 +12100,7 @@ UItodayPanelJumpDawn() {
 
   cobj := coreJumpSolarEventsToday()
   p := cobj.RawDa
-  p += -1*cobj.lgmt, Hours
-  GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
-  UIcityChooser()
+  UItodayPanelJumpTo(p, cobj.lgmt)
 }
 
 
@@ -11989,9 +12151,7 @@ UItodayPanelJumpRise() {
      p := mobj.RawR
   }
 
-  p += -1*cobj.lgmt, Hours
-  GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
-  UIcityChooser()
+  UItodayPanelJumpTo(p, cobj.lgmt)
 }
 
 UItodayPanelJumpNoon() {
@@ -12007,9 +12167,7 @@ UItodayPanelJumpNoon() {
      p := mobj.RawN
   }
 
-  p += -1*cobj.lgmt, Hours
-  GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
-  UIcityChooser()
+  UItodayPanelJumpTo(p, cobj.lgmt)
 }
 
 UItodayPanelJumpSet() {
@@ -12023,9 +12181,7 @@ UItodayPanelJumpSet() {
      p := mobj.RawS
   }
 
-  p += -1*cobj.lgmt, Hours
-  GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
-  UIcityChooser()
+  UItodayPanelJumpTo(p, cobj.lgmt)
 }
 
 UItodayPanelJumpDusk() {
@@ -12034,7 +12190,22 @@ UItodayPanelJumpDusk() {
 
   cobj := coreJumpSolarEventsToday()
   p := cobj.RawDu
-  p += -1*cobj.lgmt, Hours
+  UItodayPanelJumpTo(p, cobj.lgmt)
+}
+
+UItodayPanelJumpTo(p, lgmt) {
+; Moves the panel onto p, the local time stamp of a sun or moon event, by writing it into the
+; date control in UTC. Where the event does not exist, p is blank or one of the 0/1 markers
+; the wrappers leave behind, and nothing must happen: adding hours to a blank stamp would
+; silently produce one out of the current date and time, and a click on a «--:--» used to
+; send the panel there.
+  If (StrLen(p)!=14)
+     Return
+
+  p += -1*lgmt, Hours
+  If (StrLen(p)!=14)
+     Return
+
   GuiControl, SettingsGUIA:, uiUserFullDateUTC, % p
   UIcityChooser()
 }
@@ -12303,10 +12474,14 @@ PanelTodayInfos() {
     If (thisSeason ~= "i)(two|week|since|today|until|here|tomorrow|yesterday)")
        extras .= "`n`n" thisSeason
 
+    ; south of the equator the days lengthen towards the December solstice and shorten
+    ; towards the one of June, so the place shown on the Astronomy tab decides the wording
+    w := extractGeoLocationInfos(geoData[uiUserCountry "|" uiUserCity])
+    southern := (isNumber(w[2]) && w[2]<0) ? 1 : 0
     If isInRange(A_YDay, jSolsDay + 1, dSolsDay - 1)
-       extras .= "`n`nThe days are getting shorter until the December solstice."
+       extras .= "`n`nThe days are getting " (southern ? "longer" : "shorter") " until the December solstice."
     Else If (A_YDay>dSolsDay || A_YDay<jSolsDay)
-       extras .= "`n`nThe days are getting longer until the June solstice."
+       extras .= "`n`nThe days are getting " (southern ? "shorter" : "longer") " until the June solstice."
 
     If (A_YDay>354 && ObserveHolidays=1)
        extras .= "`n`nSeason's greetings! Enjoy the holidays! 😊"
@@ -14779,19 +14954,19 @@ FolderExist(filePath) {
       NextTodayBTN(1, 0, 1, 2, "days")
     Return 
 
-    vkBB::     ; -
+    vkBD::     ; -   (VK_OEM_MINUS)
       NextTodayBTN(-1, 0, 1, 5, "minutes")
     Return 
 
-    vkBD::     ; =
+    vkBB::     ; =   (VK_OEM_PLUS)
       NextTodayBTN(1, 0, 1, 5, "minutes")
     Return 
 
-    +vkBB::    ; Shift + -
+    +vkBD::    ; Shift + -
       NextTodayBTN(-1, 0, 1, 10, "minutes")
     Return 
 
-    +vkBD::    ; Shift + =
+    +vkBB::    ; Shift + =
       NextTodayBTN(1, 0, 1, 10, "minutes")
     Return 
 #If 
