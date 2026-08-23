@@ -7612,7 +7612,7 @@ btnUIaddTodayGeoLocation(modus:=0, strExtern:=0) {
 ; the PanelTodayInfos() counterpart of btnUIaddNewGeoLocation()
 ; it adds the location currently selected in the uiUserCountry / uiUserCity lists to the custom locations list,
 ; or the entry handed over in strExtern, and gives back the position it holds in that list; 0 says nothing
-; was added and that the reason has already been put in front of the user
+; was added
    isExtern := (modus="given" && InStr(strExtern, "|")) ? 1 : 0
    If !isExtern
    {
@@ -7645,15 +7645,13 @@ btnUIaddTodayGeoLocation(modus:=0, strExtern:=0) {
    {
       If isExtern
       {
-         ; an entry that arrived from elsewhere carries the name of whatever produced it rather than
-         ; a name the user chose, so the one a former detection left behind is its own to correct
          msgResult := simpleMsgBoxWrapper(appName, "The custom locations list already contains " k[1] ". Do you want it updated?", 4, 1, 32)
          If (msgResult!="Yes")
             Return 0
 
          thisIDu := btnUIupdateUserGeoLocation("Custom locations|" k[1] "|", strA, str)
          If !thisIDu
-            simpleMsgBoxWrapper(appName, "The custom locations list could not be updated. " k[1] " was not found in:`n`n" WinStorePath "\resources\geo-locations-userlist.txt", 0, 1, 16)
+            simpleMsgBoxWrapper(appName, "The custom locations list could not be updated. " k[1] " was not found in the list.", 0, 1, 16)
          Return thisIDu
       }
 
@@ -7756,7 +7754,7 @@ PanelEarthMap(modus:=0) {
     btnW := (PrefsLargeFonts=1) ? 80 : 55
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     thisu := StrReplace(countriesArrayList[uiUserCountry] ":" geoData[uiUserCountry "|" uiUserCity], "Custom locations:")
-    GuiAddEdit("xm+0 y+10 w" ww " -wrap vnewGeoDataLocationUserEdit", thisu, "Custom location to be added format:`nName|N°|E°|GMT offset|DST GMT offset|Altitude (meters)|0")
+    GuiAddEdit("xm+0 y+10 w" ww " -wrap vnewGeoDataLocationUserEdit", thisu, "Custom location to be added format:`nName|Latitude (N)|Longitude (E)|GMT offset|DST GMT offset|Altitude (meters)|0")
     Gui, Add, Button, x+5 hp vbtn4 gbtnUIaddNewGeoLocation +hwndhTemp, &Add to list
     ToolTip2ctrl(hTemp, "Add selected location to the list of custom user-defined locations.")
 
@@ -10262,7 +10260,7 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
      {
         moonZeit := timi   ; timi is local to the mapped place; the moon is asked in UTC
         moonZeit += -1*gmtOffset, Hours
-        moonPicBMP := OSDmoonColorBitmap(SubStr(clru, 5), moonZeit)
+        moonPicBMP := OSDmoonColorBitmap("224466", moonZeit)
         pPath := Gdip_CreatePath()
         Gdip_AddPathEllipse(pPath, w - 44, 11, 34, 34)
         Gdip_SetClipPath(G, pPath)
@@ -10297,7 +10295,6 @@ generateGraphTodaySolar(timi, lat, lon, gmtOffset) {
      Gdip_FillRectangle(G, darkBrush, w/2, 0, 3, h)
      pPath := Gdip_CreatePath()
      hc := (PrefsLargeFonts=1) ? 10 : 8
-
      Loop, 48
      {
         If (todaySunMoonGraphMode=1)
@@ -10494,12 +10491,6 @@ locateClickOnEarthMap() {
 }
 
 MenuRenameUserLocation() {
-; The name a custom location goes by is the user's own and nothing is ever reckoned from it, so it
-; may be changed freely: the entry keeps its coordinates, its offsets, its altitude and its place in
-; the list, and only the word standing for it in the city list is written anew - on the disk and in
-; the loaded index alike, since a name that changed in the one and not in the other would be found
-; by neither the next time it is looked for.
-
    If !isVarEqualTo(AnyWindowOpen, 6, 7, 9)   ; the panels carrying the country and the city lists
       Return
 
@@ -10532,6 +10523,7 @@ MenuRenameUserLocation() {
    If (StrLen(newName)<2)
    {
       simpleMsgBoxWrapper(appName, "Please define a name at least two characters long for the custom location.", 0, 1, 48)
+      SetTimer, MenuRenameUserLocation, -250
       Return
    }
 
@@ -10539,6 +10531,7 @@ MenuRenameUserLocation() {
    If (thisIDu && thisIDu!=uiUserCity)   ; an entry may still be renamed to another casing of its own name
    {
       simpleMsgBoxWrapper(appName, "The custom locations list already contains " newName ".", 0, 1, 64)
+      SetTimer, MenuRenameUserLocation, -250
       Return
    }
 
@@ -10546,7 +10539,7 @@ MenuRenameUserLocation() {
    thisIDu := btnUIupdateUserGeoLocation("Custom locations|" oldName "|", strA, "Custom locations|" strA)
    If !thisIDu
    {
-      simpleMsgBoxWrapper(appName, "The custom locations list could not be updated. " oldName " was not found in:`n`n" WinStorePath "\resources\geo-locations-userlist.txt", 0, 1, 16)
+      simpleMsgBoxWrapper(appName, "The custom locations list could not be updated. " oldName " was not found in the list.", 0, 1, 16)
       Return
    }
 
@@ -10554,14 +10547,6 @@ MenuRenameUserLocation() {
 }
 
 MenuDetectDeviceLocation() {
-; Where this computer stands, put on the custom locations list and then selected on the panel at
-; hand, so that everything on display is reckoned for the place the user actually is.
-;
-; The entry keeps the name of what found it rather than the name of a place, which leaves a second
-; detection - after the machine has travelled, or once the location service has settled on something
-; better than the network address it started from - an entry of its own to correct instead of a near
-; duplicate to stand beside. A detection worth keeping is worth renaming.
-
    If !isVarEqualTo(AnyWindowOpen, 6, 7, 9)   ; the panels carrying the country and the city lists
       Return
 
@@ -10875,8 +10860,9 @@ earthMapLightLayer(modus, timeus, imgW, imgH) {
             x1 += imgW
 
          If (x1 + n<=imgW)
+         {
             Gdip_FillRectangle(G, brushes[k], x1, y, n, 1)
-         Else   ; the band runs off the right edge and comes back in on the left
+         } Else   ; the band runs off the right edge and comes back in on the left
          {
             Gdip_FillRectangle(G, brushes[k], x1, y, imgW - x1, 1)
             Gdip_FillRectangle(G, brushes[k], 0, y, x1 + n - imgW, 1)
@@ -11419,15 +11405,19 @@ UIcityChooser() {
       noonLabel := SubStr(coolminant.n, 6) ? "Peak: " Round(coolminant.maxu, 1) "°" : "Peak:"
       noonValue := SubStr(coolminant.n, 6) ? SubStr(coolminant.n, 6) : "--:--"
       ; GuiControl, SettingsGUIA:, UIastroInfoProgressMoon, % "New {" CalcTextHorizPrev(Round(moonPhase[4] * 1000), 1009, 0, 24) "} Full"
+      mph := MoonPhaseCalculator(mobj.RawR, prevgmtOffset, w[2], w[3])
+      rizeAzim := ": " Round(mph[6]) "°"
+      mph := MoonPhaseCalculator(mobj.RawS, prevgmtOffset, w[2], w[3])
+      setAzim := ": " Round(mph[6]) "°"
       if (mobj.reverse=1)
       {
          If (coolminant.RawN<mobj.RawS)
          {
-            GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Rise: 0°
+            GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Rise%rizeAzim%
             GuiControl, SettingsGUIA:, UIastroInfoSet, % au
             GuiControl, SettingsGUIA:, UIastroInfoLabelRise, % noonLabel
             GuiControl, SettingsGUIA:, UIastroInfoRise, % noonValue
-            GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Set: 0°
+            GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Set%setAzim%
             GuiControl, SettingsGUIA:, UIastroInfoNoon, % sau
          } Else
          {
@@ -11435,15 +11425,15 @@ UIcityChooser() {
             GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, % noonLabel
             GuiControl, SettingsGUIA:, UIastroInfoRise, % sau
             GuiControl, SettingsGUIA:, UIastroInfoNoon, % au
-            GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Set: 0°
-            GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Rise: 0°
+            GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Set%setAzim%
+            GuiControl, SettingsGUIA:, UIastroInfoElevNoon, Rise%rizeAzim%
          }
       } Else
       {
          GuiControl, SettingsGUIA:, UIastroInfoNoon, % noonValue
          GuiControl, SettingsGUIA:, UIastroInfoElevNoon, % noonLabel
-         GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Rise: 0°
-         GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Set: 0°
+         GuiControl, SettingsGUIA:, UIastroInfoLabelRise, Rise%rizeAzim%
+         GuiControl, SettingsGUIA:, UIastroInfoLabelSetu, Set%setAzim%
          GuiControl, SettingsGUIA:, UIastroInfoRise, % au
          GuiControl, SettingsGUIA:, UIastroInfoSet, % sau
       }
