@@ -14,7 +14,7 @@ InitClockFace() {
    clockBgrClr := (swapColorAnalogClock=1) ? clockFgrColor : clockBgrColor
    If (!pToken := Gdip_Startup())
    {
-      constantAnalogClock := analogOSDclockDisplay := 0
+      constantAnalogClock := 0
       SoundBeep , 300, 900
       Return
    }
@@ -71,7 +71,6 @@ InitClockFace() {
    ; Gdip_TranslateWorldTransform(globalG, ClockWinSize/4, ClockWinSize/4s)
 
 ; Draw outer circle
-   Diameter := Round(ClockDiameter * 1.35, 4)
    pBrush := Gdip_BrushCreateSolid("0xFF" clockOutColor)      ; clock face background 
    If (transparentAnalogClock!=1 && coloredAnalogClockBgr!=0)
       Gdip_FillRectangle(globalG, pBrush, 0, 0, ClockWinSize*1.5, ClockWinSize*1.5)
@@ -115,10 +114,9 @@ InitClockFace() {
    R2 := (showAnalogHourLabels=1) ? Round(Diameter/2 - 1 - Diameter/2*0.15, 2) : Round(Diameter/2 - 1 - Diameter/2*0.2, 2) ; inner position
    pPen := Gdip_CreatePen("0xff" clockFgrClr, (ClockDiameter/100)*2.3) ; 2.3 % of total Diameter is our pen width
    DrawClockMarks(12, R1, R2, globalG, pPen)                  ; we have 12 hours
-   R2b := Round(Diameter/2 - 1 - Diameter/2*0.20, 4)
-   If (showAnalogHourLabels=1)
-      DrawHoursLabels(R1, R2b, globalG, clockFgrClr)
    Gdip_DeletePen(pPen)
+   ; the hour labels are not part of this base drawing; they sit inside the circle
+   ; UpdateEverySecond() erases and repaints every second, so it draws them itself
    
    Diameter := Round(ClockDiameter - ClockDiameter*0.17, 4)  ; inner circle is 17 % smaller than clock's Diameter
    R1 := Diameter/2-1                        ; outer position
@@ -135,32 +133,38 @@ InitClockFace() {
 }
 
 animateAnalogClockAppeareance() {
+; The caller must have painted the window at a (near) zero alpha before showing it,
+; otherwise the first frame of the fade-in is the fully opaque clock.
+   z := GetWindowPlacement(hFaceClock)
    Loop,
    {
       alphaLevel := A_Index*15
-      If (alphaLevel>analogClockOpacity)
+      If (alphaLevel>=analogClockOpacity)
          Break
 
-      z := GetWindowPlacement(hFaceClock)
       UpdateLayeredWindow(hFaceClock, globalhdc, , , z.w, z.h, alphaLevel)
       Sleep, 1
    }
+   ; land on the configured opacity instead of on the last multiple of 15 below it
+   UpdateLayeredWindow(hFaceClock, globalhdc, , , z.w, z.h, analogClockOpacity)
 }
 
 animateAnalogClockHiding() {
+   z := GetWindowPlacement(hFaceClock)
    Loop,
    {
       alphaLevel := analogClockOpacity - A_Index*15
       If (alphaLevel<2)
          Break
 
-      z := GetWindowPlacement(hFaceClock)
       UpdateLayeredWindow(hFaceClock, globalhdc, , , z.w, z.h, alphaLevel)
       Sleep, 1
    }
 }
 
-UpdateEverySecond() {
+UpdateEverySecond(alphaLevel:=0) {
+; alphaLevel overrides the opacity the frame is shown with; the timer calls this
+; without it, showAnalogClock() passes 1 so that the fade-in can start from nothing.
    CenterX := CenterY := ClockCenter
 
 ; prepare to empty previously drawn stuff
@@ -211,12 +215,8 @@ UpdateEverySecond() {
    laz := !laz
 
 ; draw hour labels
-   sDiameter := Round(ClockDiameter - ClockDiameter*0.08, 4)  ; inner circle is 8 % smaller than clock's Diameter
-   R1 := sDiameter/2-1                        ; outer position
-   R2b := Round(sDiameter/2 - 1 - sDiameter/2*0.20, 4)
-   ; ToolTip, % sDiameter "`n" R1 "`n" R2b , , , 2
    If (showAnalogHourLabels=1)
-      DrawHoursLabels(R1, R2b, globalG, clockFgrClr)
+      DrawHoursLabels(globalG, clockFgrClr)
 
 ; draw moon phase
    If (analogMoonPhases=1)
@@ -224,25 +224,31 @@ UpdateEverySecond() {
       coreMoonPhaseDraw(clockBgrClr, clockFgrClr, CenterX, CenterY, ClockDiameter, lastUsedGeoLocation, globalG)
    } Else If (analogMoonPhases=2)
    {
-      pBrush := Gdip_BrushCreateSolid("0xDD" clockFgrClr)
-      Gdip_FillRoundedRectangle(globalG, pBrush, CenterX - (ClockDiameter*0.175), CenterY*1.145, ClockDiameter/2.58, ClockDiameter*0.12, 4*analogClockScale)
-      Gdip_DeleteBrush(pBrush)
-      ppo := " x" CenterX - (ClockDiameter*0.185) " y" CenterY*1.155
-      txtOptions := ppo " Center vCenter cFF" clockBgrClr " Bold nowrap s" Round(CenterY*0.11)
       If (displayTimeFormat=1)
       {
          FormatTime, CurrentTime,, HH:mm:ss
       } Else
       {
          timeSuffix := (A_Hour<12) ? " AM" : " PM"
-         FormatTime, CurrentTime,, h:mm
+         FormatTime, CurrentTime,, h:mm:ss
       }
 
-      Gdip_TextToGraphics(globalG, CurrentTime timeSuffix, txtOptions, "Arial", ClockDiameter/2.49, ClockDiameter*0.12)
+      ; The box is sized to the text and centred below the hands. Every measure derives
+      ; from ClockDiameter, so the OSD margins (which only enlarge the window) cannot move
+      ; or resize it. The 12-hour text is longer, hence its smaller font, which keeps the
+      ; box clear of the VIII and IV labels.
+      txtOptions := "cFF" clockBgrClr " Bold nowrap s" Round(ClockDiameter * ((displayTimeFormat=1) ? 0.072 : 0.055))
+      m := StrSplit(Gdip_TextToGraphics(globalG, CurrentTime timeSuffix, "x0 y0 " txtOptions, "Arial", 0, 0, 1), "|")
+      boxW := Round(m[3] + ClockDiameter*0.05), boxH := Round(m[4] + ClockDiameter*0.025)
+      boxX := CenterX - boxW//2, boxY := Round(CenterY + ClockDiameter*0.095)
+      pBrush := Gdip_BrushCreateSolid("0xDD" clockFgrClr)
+      Gdip_FillRoundedRectangle(globalG, pBrush, boxX, boxY, boxW, boxH, 4*analogClockScale)
+      Gdip_DeleteBrush(pBrush)
+      Gdip_TextToGraphics(globalG, CurrentTime timeSuffix, "x" boxX " y" boxY " Center vCenter " txtOptions, "Arial", boxW, boxH)
    }
 
 ; Draw HoursPointer
-   t := (A_Hour*360//12) + ((A_Min//15*15)*360//60)//12 + 90
+   t := A_Hour*30 + (A_Min//5)*2.5 + 90    ; the hour hand advances in 5-minute steps, by design
    clrA := (transparentAnalogClock=1) ? "0x85" clockFgrClr : "0xFF" MixRGB(clockFgrClr, clockBgrClr, 0.6)
    R1 := Round(ClockDiameter/2 - (ClockDiameter/2)*0.50, 2) ; outer position
    pPen := Gdip_CreatePen(clrA, Round((ClockDiameter/100)*3.9, 4))
@@ -298,7 +304,7 @@ UpdateEverySecond() {
    Gdip_DeleteBrush(pBrush)
 
    z := GetWindowPlacement(hFaceClock)
-   UpdateLayeredWindow(hFaceClock, globalhdc, , , z.w, z.h, analogClockOpacity)
+   UpdateLayeredWindow(hFaceClock, globalhdc, , , z.w, z.h, alphaLevel ? alphaLevel : analogClockOpacity)
    Return
 }
 
@@ -421,33 +427,25 @@ DrawClockMarks(items, R1, R2, G, pPen) {
    }
 }
 
-DrawHoursLabels(rR1, R2, G, clockFgrClr) {
+DrawHoursLabels(G, itemColor) {
+; The labels sit on a ring just inside the hour marks. Every measure derives from
+; ClockDiameter, never from the window size: the OSD margins only enlarge the window
+; around the dial and must not move the labels. The ring, glyphs included, has to stay
+; inside the circle UpdateEverySecond() erases every second (radius 0.39 x ClockDiameter),
+; because that is where the labels are repainted each second and where a toggle of
+; the labels or of the numerals takes effect.
    Static zr := {1:"I", 2:"II", 3:"III", 4:"IV", 5:"V", 6:"VI", 7:"VII", 8:"VIII", 9:"IX", 10:"X", 11:"XI", 12:"XII"}
-        , zo := {1:9,2:10,3:11,4:12,5:1,6:2,7:3,8:4,9:5,10:6,11:7,12:8}
-        , zf := {1:0.17,2:0.2,3:0.25,4:0.3,5:0.21,6:0.3,7:0.24,8:0.29,9:0.25,10:0.2,11:0.15,12:0.15}
-        , zx := {1:1.00, 2:0.99, 3:1.01, 4:1.05, 5:1.00, 6:1, 7:1.00, 8:0.95, 9:0.97, 10:1.04, 11:1.05, 12:1.00}
-        , zy := {1:0.94, 2:0.90, 3:0.92, 4:0.97, 5:0.95, 6:1, 7:0.95, 8:0.96, 9:0.92, 10:0.91, 11:1.00, 12:1.03}
-        , zax := {1:0.99, 2:1.01, 3:1.02, 4:1.00, 6:1.00, 7:0.97, 8:0.92, 9:0.92, 10:1.02, 12:1.00}
-        , zay := {1:1.01, 2:1.01, 3:1.01, 4:1.01, 6:1.01, 7:1.01, 8:1.01, 9:1.01, 10:1.02, 12:0.98}
-
-   CenterX := CenterY := ClockCenter
-   sr := Round(R2*0.22)
+   R := ClockDiameter * 0.315
+   sr := Round(ClockDiameter * 0.075)
+   bw := sr*3, bh := sr*2      ; Gdip_TextToGraphics() centres the text only inside an explicit box
    Loop, 12
    {
-      R1 := rR1 - ClockCenter * zf[ zo[A_Index] ]
-      x1 := CenterX - Round(R1 * Cos(((A_Index - 1)*360/12) * Atan(1) * 4 / 180), 6)
-      y1 := CenterY - Round(R1 * Sin(((A_Index - 1)*360/12) * Atan(1) * 4 / 180), 6)
-      x1 := Round( x1 * zx[ zo[A_Index] ], 2 )
-      y1 := Round( y1 * zy[ zo[A_Index] ], 2 )
-      If (useArabNumeralsAnalogClock=1 && zax[ zo[A_Index] ])
-      {
-         x1 := Round( x1 * zax[ zo[A_Index] ], 2 )
-         y1 := Round( y1 * zay[ zo[A_Index] ], 2 )
-      }
-
-      txt := (useArabNumeralsAnalogClock=1) ? zo[A_Index] : zr[ zo[A_Index] ]
-      txtOptions := "x" x1 " y" y1 " Center vCenter cEE" clockFgrClr " Bold nowrap s" sr
-      Gdip_TextToGraphics(G, txt, txtOptions, "Arial")
+      a := A_Index * 30 * Atan(1) * 4 / 180      ; clockwise from twelve o'clock
+      x1 := Round(ClockCenter + R * Sin(a) - bw/2, 2)
+      y1 := Round(ClockCenter - R * Cos(a) - bh/2, 2)
+      txt := (useArabNumeralsAnalogClock=1) ? A_Index : zr[A_Index]
+      txtOptions := "x" x1 " y" y1 " Center vCenter cEE" itemColor " Bold nowrap s" sr
+      Gdip_TextToGraphics(G, txt, txtOptions, "Arial", bw, bh)
    }
 }
 
@@ -455,11 +453,11 @@ hideAnalogClock() {
   If (ClockVisibility!=1)
      Return
 
+  SetTimer, UpdateEverySecond, Off    ; a tick during the fade-out would repaint the clock at full opacity
   If (PrefOpen=0)
      animateAnalogClockHiding()
 
   Gui, ClockGui: Hide
-  SetTimer, UpdateEverySecond, Off
   ClockVisibility := 0
   Return
 }
@@ -469,24 +467,20 @@ showAnalogClock() {
      Return
 
   lastShowTime := A_TickCount
+  ; paint the current time before the window comes up; when it is going to fade in,
+  ; paint it (nearly) invisible, so that the fade-in does not start with an opaque frame
+  UpdateEverySecond((PrefOpen=0) ? 1 : 0)
   Gui, ClockGui: Show, NoActivate
-  UpdateEverySecond()
   SetTimer, UpdateEverySecond, 1000
   If (PrefOpen=0)
      animateAnalogClockAppeareance()
 
   ClockVisibility := 1
-  delayu := Ceil(DisplayTime * 1.25) + 2500
-  If (analogOSDclockDisplay=1 && constantAnalogClock=0 && PrefOpen=0)
-     SetTimer, hideAnalogClock, % -delayu
-
-  lastShowTime := A_TickCount
   Return
 }
 
 exitAnalogClock() {
-   If (PrefOpen=0)
-      animateAnalogClockHiding()
+   hideAnalogClock()     ; fades out and stops the timer; a no-op when the clock is already hidden
    SetTimer, UpdateEverySecond, Off
    Gui, ClockGui: Destroy
    ClockVisibility := 0
@@ -499,15 +493,6 @@ exitAnalogClock() {
 }
 
 ClockGuiGuiContextMenu(GuiHwnd, CtrlHwnd, EventInfo, IsRightClick, X, Y) {
-    lastInvoked := 1
-    ; If (CtrlHwnd && IsRightClick=1)
-    ; || ((A_TickCount-lastInvoked>250) && IsRightClick=0)
-    ; {
-    ;    lastInvoked := A_TickCount
-    ;    Return
-    ; }
-
-    ; lastInvoked := A_TickCount
     SetTimer, showContextMenuAnalogClock, -100
     Return
 }
@@ -583,7 +568,6 @@ MenuSetQuickTimer(aa:=0) {
 }
 
 showContextMenuAnalogClock() {
-    Static menuGenerated
     Menu, ContextMenu, UseErrorLevel
     Menu, ContextMenu, DeleteAll
     Try Menu, ClockOpacityMenu, DeleteAll
@@ -662,20 +646,32 @@ SynchSecTimer() {
 }
 
 ChangeMenuClockSize() {
+  If !analogClockMenuActionAllowed()
+     Return
+
   saveAnalogClockPosition()
   Try Menu, ClockSizesMenu, Uncheck, % nearestAnalogClockScale(analogClockScale) "x"
   StringLeft, newSize, A_ThisMenuItem, 4
   MenuChangeClockSizeScale(newSize)
 }
 
-ChangeMenuClockOpacity() {
+analogClockMenuActionAllowed() {
+; The customization handlers of the clock's context menu do nothing while the app is
+; suspended or the Settings window is open; in the latter case that window is brought up.
    If (A_IsSuspended || PrefOpen=1)
    {
       SoundBeep, 300, 900
       If (PrefOpen=1)
          WinActivate, ahk_id %hSetWinGui%
-      Return
+      Return 0
    }
+
+   Return 1
+}
+
+ChangeMenuClockOpacity() {
+   If !analogClockMenuActionAllowed()
+      Return
 
    newSize := ( StrReplace(A_ThisMenuItem, "%") /100 ) * 255
    analogClockOpacity := Round(newSize)
@@ -684,13 +680,8 @@ ChangeMenuClockOpacity() {
 }
 
 MenuChangeClockSizeScale(newSize) {
-   If (A_IsSuspended || PrefOpen=1)
-   {
-      SoundBeep, 300, 900
-      If (PrefOpen=1)
-         WinActivate, ahk_id %hSetWinGui%
+   If !analogClockMenuActionAllowed()
       Return
-   }
 
    analogClockScale := newSize
    INIaction(1, "analogClockScale", "OSDprefs")
@@ -698,13 +689,8 @@ MenuChangeClockSizeScale(newSize) {
 }
 
 MenuToggleSwapAnalogColors() {
-   If (A_IsSuspended || PrefOpen=1)
-   {
-      SoundBeep, 300, 900
-      If (PrefOpen=1)
-         WinActivate, ahk_id %hSetWinGui%
+   If !analogClockMenuActionAllowed()
       Return
-   }
 
    swapColorAnalogClock := !swapColorAnalogClock
    INIaction(1, "swapColorAnalogClock", "OSDprefs")
@@ -712,13 +698,8 @@ MenuToggleSwapAnalogColors() {
 }
 
 MenuToggleAnalogBgrClock() {
-   If (A_IsSuspended || PrefOpen=1)
-   {
-      SoundBeep, 300, 900
-      If (PrefOpen=1)
-         WinActivate, ahk_id %hSetWinGui%
+   If !analogClockMenuActionAllowed()
       Return
-   }
 
    coloredAnalogClockBgr := !coloredAnalogClockBgr
    INIaction(1, "coloredAnalogClockBgr", "OSDprefs")
@@ -726,13 +707,8 @@ MenuToggleAnalogBgrClock() {
 }
 
 MenuToggleTransparentClock() {
-   If (A_IsSuspended || PrefOpen=1)
-   {
-      SoundBeep, 300, 900
-      If (PrefOpen=1)
-         WinActivate, ahk_id %hSetWinGui%
+   If !analogClockMenuActionAllowed()
       Return
-   }
 
    transparentAnalogClock := !transparentAnalogClock
    INIaction(1, "transparentAnalogClock", "OSDprefs")
@@ -740,13 +716,8 @@ MenuToggleTransparentClock() {
 }
 
 MenuToggleArabNumeralz() {
-   If (A_IsSuspended || PrefOpen=1)
-   {
-      SoundBeep, 300, 900
-      If (PrefOpen=1)
-         WinActivate, ahk_id %hSetWinGui%
+   If !analogClockMenuActionAllowed()
       Return
-   }
 
    useArabNumeralsAnalogClock := !useArabNumeralsAnalogClock
    INIaction(1, "useArabNumeralsAnalogClock", "OSDprefs")
@@ -755,13 +726,8 @@ MenuToggleArabNumeralz() {
 
 
 MenuToggleLockClockAnalogPosition() {
-   If (A_IsSuspended || PrefOpen=1)
-   {
-      SoundBeep, 300, 900
-      If (PrefOpen=1)
-         WinActivate, ahk_id %hSetWinGui%
+   If !analogClockMenuActionAllowed()
       Return
-   }
 
    lockAnalogClockPosition := !lockAnalogClockPosition
    INIaction(1, "lockAnalogClockPosition", "OSDprefs")
