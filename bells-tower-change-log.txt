@@ -5,21 +5,14 @@
 ; Work began on this project in late August 2018.
 ; ======================================================
 
-v3.6.1 - 2026 / 08 / **
-  - [new] automatically detect device location, useful for the astronomy panel
-  - the location search on the Earth map panel no longer cares about diacritics and cedillas, in either the search terms or the place names; «chisinau», «Chişinău» and «Chișinău» now give the same results; apostrophes, hyphens, commas and extra spaces no longer skew the scores, and capital cities are no longer under-ranked
-  - when the Windows location service cannot answer, and on Windows 7, where it does not exist, the location is now inferred from the region and time zone settings of the system: the app picks the city from its location index that agrees best with the country and the clock the computer keeps, instead of always assuming the capital; overseas territories are found under their parent countries too
-  - [new] custom locations can now be renamed
-  - improved accuracy for the moon phase calculation and moon rise and moon set times
-  - various bug fixes related to the astronomy panel
-  - fixed the alarm and timer alerts with the «Auxilliary bell» or the «Gong» sound, which rang only every other time, the «Test» buttons included
-  - fixed changing the time of an alarm while it is snoozed; the new time was ignored
-  - fixed a religious feast being dropped on a date whose secular event the user no longer observes, when secular events are preferred
-  - the 29th of February can now be added as a yearly personal event; the date of a new event is checked for the year it is added to
-  - fixed «Restore defaults», which did nothing; it now keeps the personal events and the custom locations and says so
-  - the bell tolling interval can now run through midnight, e.g. toll only from 22:00 to 06:59
-  - the sunlight and the moonlight earth maps are now drawn in an instant, where they used to take seconds
-  - the year tables and graphs of the sun and of the moon come up noticeably faster, with the same figures as before
+v3.6.1 - 2026 / 08 / 24
+  - [new] automatically detect device location, in the Today panel
+  - [new] custom locations can now be renamed, accessible via Today panel
+  - improvement to Search location, accessible via Today panel
+  - improved accuracy for the moon phase calculations, and moon rise and moon set times
+  - various bug fixes related to the astronomy/Today panel
+  - the sunlight and the moonlight earth maps are now drawn in an instant
+  - many other fixes and improvements related to alarms, timers and others
 
 v3.6.0 - 2026 / 08 / 12
   - bug fixes and minor improvements

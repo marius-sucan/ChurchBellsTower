@@ -239,12 +239,12 @@ UpdateEverySecond(alphaLevel:=0) {
       ; box clear of the VIII and IV labels.
       txtOptions := "cFF" clockBgrClr " Bold nowrap s" Round(ClockDiameter * ((displayTimeFormat=1) ? 0.072 : 0.055))
       m := StrSplit(Gdip_TextToGraphics(globalG, CurrentTime timeSuffix, "x0 y0 " txtOptions, "Arial", 0, 0, 1), "|")
-      boxW := Round(m[3] + ClockDiameter*0.05), boxH := Round(m[4] + ClockDiameter*0.025)
+      boxW := Round(m[3] + ClockDiameter*0.05), boxH := Round(m[4] + ClockDiameter*0.015)
       boxX := CenterX - boxW//2, boxY := Round(CenterY + ClockDiameter*0.095)
       pBrush := Gdip_BrushCreateSolid("0xDD" clockFgrClr)
       Gdip_FillRoundedRectangle(globalG, pBrush, boxX, boxY, boxW, boxH, 4*analogClockScale)
       Gdip_DeleteBrush(pBrush)
-      Gdip_TextToGraphics(globalG, CurrentTime timeSuffix, "x" boxX " y" boxY " Center vCenter " txtOptions, "Arial", boxW, boxH)
+      Gdip_TextToGraphics(globalG, CurrentTime timeSuffix, "x" boxX " y" boxY + Ceil(boxH*0.05) " Center vCenter " txtOptions, "Arial", boxW, boxH)
    }
 
 ; Draw HoursPointer
