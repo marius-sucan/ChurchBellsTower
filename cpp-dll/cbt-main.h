@@ -4,7 +4,6 @@
 using namespace std;
 
 void fnOutputDebug(std::string input) {
-    std::stringstream ss;
-    ss << "qpv: " << input;
-    OutputDebugStringA(ss.str().data());
+    std::string line = "qpv: " + input;
+    OutputDebugStringA(line.c_str());
 }
