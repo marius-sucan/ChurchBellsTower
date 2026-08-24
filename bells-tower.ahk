@@ -10848,108 +10848,322 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
 ; by standard and daylight time: on a computer in Sydney the January offset is
 ; the daylight saving one.
 ;
-; As a fallback, the country set under Settings > Time & language > Region is
-; used or the keyboard layout to identify a country.
+; When the service cannot answer - switched off, denied to desktop programs,
+; or absent altogether, which on Windows 7 it always is - the fallback works
+; from what the computer knows about itself anyway: the countries named by the
+; Region setting, by the keyboard layout and by the language of Windows, and
+; the time zone its clock keeps. Each country, taken in that order, is turned
+; by geoNearestCityOfCountryCode() into the city of the location index that
+; suits it and the clock best, and the first country holding a city that keeps
+; this computer's clock settles the matter. If no country holds one, the first
+; country stands and its capital is taken, disagreeing clock and all. What is
+; handed back is always a real entry of the index - a city with its own
+; coordinates, offsets and altitude - never a guessed point.
 
    sourceu := faultu := ""
    If !listedCountries
       loadGeoData()
 
-   If WinGeoPosition(latu, longu, accu, altu, faultu)
+   If WinGeoRuntimeReady()   ; on Windows 7 there is no location service to ask, so no failure worth a message stands between here and the fallback
    {
-      latu := Round(latu, 4)
-      longu := Round(longu, 4)
-      If !WinGeoTimeZoneOffsets(gmtu, dstu)   ; the offsets of the 1st of January and of the 1st of July
+      If WinGeoPosition(latu, longu, accu, altu, faultu)
       {
-         gmtu := Round(longu/15) ".0"   ; the same guess the map makes of a click
-         dstu := gmtu
+         latu := Round(latu, 4)
+         longu := Round(longu, 4)
+         If !WinGeoTimeZoneOffsets(gmtu, dstu)   ; the offsets of the 1st of January and of the 1st of July
+         {
+            gmtu := Round(longu/15) ".0"   ; the same guess the map makes of a click
+            dstu := gmtu
+         }
+
+         ; only a real fix carries an altitude, and the map settles for 135 m when
+         ; it has none; zero is the honest stand-in for a position that arrived
+         ; without one, being the level the horizon dip is reckoned from anyway
+         altu := (isNumber(altu) && isInRange(altu, -500, 9000)) ? Round(altu) : 0
+         withinu := (isNumber(accu) && accu>0) ? ", to within " Round(accu) " m" : ""
+         sourceu := "Windows places this PC at " Round(latu, 1) " / " Round(longu ,1) withinu "."
+         Return "Detected location|" latu "|" longu "|" gmtu "|" dstu "|" altu
       }
 
-      ; only a real fix carries an altitude, and the map settles for 135 m when
-      ; it has none; zero is the honest stand-in for a position that arrived
-      ; without one, being the level the horizon dip is reckoned from anyway
-      altu := (isNumber(altu) && isInRange(altu, -500, 9000)) ? Round(altu) : 0
-      withinu := (isNumber(accu) && accu>0) ? ", to within " Round(accu) " m" : ""
-      sourceu := "Windows places this PC at " Round(latu, 1) " / " Round(longu ,1) withinu "."
-      Return "Detected location|" latu "|" longu "|" gmtu "|" dstu "|" altu
+      If faultu
+         simpleMsgBoxWrapper(appName, "Microsoft Windows failed to detect the location of the device.`n `n"  faultu "`n`nA fallback detection method will be used." , 0, 1, 16)
+
+      faultu := ""
    }
 
-   If faultu
-      simpleMsgBoxWrapper(appName, "Microsoft Windows failed to detect the location of the device.`n `n"  faultu "`n`nA fallback detection method will be used." , 0, 1, 16)
+   If !WinGeoTimeZoneOffsets(tzJan, tzJul)
+      tzJan := tzJul := ""
 
-   isou := WinGeoRegionCountry()
-   viau := "the country set in the system Control Panel"
-   If !isou
+   hintList := [[WinGeoRegionCountry(), "the country set in the system Control Panel"]
+              , [WinGeoKeyboardCountry(), "the keyboard layout"]
+              , [WinGeoUILanguageCountry(), "the language of Windows"]]
+   ctrIdx := cityIdx := exactu := 0
+   triedu := viau := ""
+   For i, hintu in hintList
    {
-      isou := WinGeoKeyboardCountry()
-      viau := "the keyboard layout"
+      isou := hintu[1]
+      If (!isou || InStr(triedu, "[" isou "]"))
+         Continue
+
+      triedu .= "[" isou "]"
+      If !geoNearestCityOfCountryCode(isou, tzJan, tzJul, thisCtr, thisCity, thisExact)
+         Continue
+
+      If (thisExact=1 || !ctrIdx)
+      {
+         ctrIdx := thisCtr, cityIdx := thisCity, viau := hintu[2], exactu := thisExact
+         If (thisExact=1)   ; a country holding a city that keeps this computer's clock settles it
+            Break
+      }
    }
 
-   If !isou
+   If !ctrIdx
    {
-      faultu := "Failed to detect any possible location."
-      Return ""
-   }
-
-   foundy := geoCapitalOfCountryCode(isou, ctrIdx, cityIdx)
-   If !foundy
-   {
-      faultu := "Failed to detect a location matching hint: " isou "."
+      faultu := (triedu="") ? "Failed to detect any possible location." : "Failed to detect a location matching hint: " StrReplace(Trim(triedu, "[]"), "][", ", ") "."
       Return ""
    }
 
    p := geoData[ctrIdx "|" cityIdx]
    cityu := LTrim(SubStr(p, 1, InStr(p, "|") - 1), "*")
-   sourceu := cityu " was picked from " viau "."
+   clocku := (tzJan="") ? "" : "UTC" ((tzJan<0) ? "" : "+") tzJan "/" ((tzJul<0) ? "" : "+") tzJul
+   If (clocku="")
+      sourceu := cityu " was picked from " viau "."
+   Else If exactu
+      sourceu := cityu " was picked from " viau " and this computer's " clocku " clock."
+   Else
+      sourceu := cityu " was picked from " viau ", although no city listed there keeps this computer's " clocku " clock."
+
    k := StrSplit(countriesArrayList[ctrIdx] ":" LTrim(p, "*"), "|")   ; the very same format used by PanelEarthMap(); the star of a capital is no part of the name
    Return k[1] "|" k[2] "|" k[3] "|" k[4] "|" k[5] "|" k[6]
 }
 
-geoCapitalOfCountryCode(isou, ByRef ctrIdx, ByRef cityIdx) {
-; The capital the location index holds for an ISO 3166-1 alpha-2 country code.
-; Gives back 1 for a capital found, 2 for a country that is indexed but carries
-; no capital of its own - the first city in it stands in, which is the case for
-; Israel and for Palestine - and 0 for a country the index does not reach.
+geoNearestCityOfCountryCode(isou, tzJan, tzJul, ByRef ctrIdx, ByRef cityIdx, ByRef exactu) {
+; The city of the location index that best answers an ISO 3166-1 alpha-2
+; country code and the clock this computer keeps - tzJan and tzJul being the
+; UTC offsets in force on the 1st of January and on the 1st of July, written
+; the way the index writes them, or empty when the time zone could not be
+; read. Gives back 1 with the two indices filled in and exactu saying whether
+; the city's clock agrees with the computer's, or 0 for a code the index has
+; nothing for.
+;
+; The city is settled in passes, each held only among cities keeping the
+; computer's clock: the capital first, so that a country of one time zone
+; answers with its capital exactly as this always has; then the city the IANA
+; time zone of that clock is named after, which is what places a Pacific
+; machine at Los Angeles rather than at Washington; then any city of the
+; country proper, and then any of its bracketed overseas dependencies - a
+; Spanish machine keeping UTC+0/+1 lands on the Canary Islands this way, and
+; an Australian one keeping UTC+7 on Christmas Island. When no city keeps the
+; clock, the nearest clock wins, capitals ahead of the rest, and when the
+; time zone is unknown the capital alone decides, which is the old behaviour.
+;
+; A code the index holds no country under may still name a dependency filed
+; in brackets beneath its parent - (Bermuda) Hamilton stands under United
+; Kingdom, (French Guiana) Cayenne under France (others) - or a city bearing
+; the territory's own name, as Hong Kong does under China; both are found by
+; searching the whole of the index, so such a code no longer comes back
+; empty-handed as it used to.
 
-   ctrIdx := cityIdx := 0
+   ctrIdx := cityIdx := exactu := 0
    nameu := geoCountryNameOfCode(isou)
    If !nameu
       Return 0
 
+   poolu := []
    Loop, % countriesArrayList.Count()
    {
-      If (countriesArrayList[A_Index]=nameu)
+      If (countriesArrayList[A_Index]=nameu || countriesArrayList[A_Index]=nameu . " (others)")   ; France (others) is where the overseas France stands
+         geoPoolCountryCities(poolu, A_Index)
+   }
+
+   If !poolu.Count()
+   {
+      Loop, % countriesArrayList.Count()   ; a dependency rather than a country: comb the whole index for it
       {
-         ctrIdx := A_Index
-         Break
+         c := A_Index
+         Loop, % geoData[c "|-1"]
+         {
+            p := geoData[c "|" A_Index]
+            If !p
+               Continue
+
+            k := StrSplit(p, "|")
+            town := LTrim(k[1], "*")
+            If (SubStr(town, 1, 1)="(")
+            {
+               z := InStr(town, ")")
+               If (z>3 && geoTerritoryAlike(SubStr(town, 2, z - 2), nameu))
+                  poolu.Push([c, A_Index, town, k[4], k[5], k[7], 1])
+            } Else If WinGeoNamesAlike(town, nameu)   ; Hong Kong and Gibraltar are cities carrying their territory's name
+               poolu.Push([c, A_Index, town, k[4], k[5], k[7], 1])
+         }
       }
    }
-   If !ctrIdx
+
+   If !poolu.Count()
       Return 0
 
-   fallbacku := 0
-   Loop, % geoData[ctrIdx "|-1"]
+   bestu := 0
+   If (tzJan!="")
    {
-      p := geoData[ctrIdx "|" A_Index]
+      For i, r in poolu   ; the capital, keeping the computer's clock
+      {
+         If (r[6]=1 && !r[7] && geoSameOffset(r[4], tzJan) && geoSameOffset(r[5], tzJul))
+         {
+            bestu := i
+            Break
+         }
+      }
+
+      If !bestu
+      {
+         tokens := geoZoneCityTokens(isou, tzJan, tzJul)
+         For j, tok in tokens   ; the city the time zone is named after
+         {
+            For i, r in poolu
+            {
+               If (geoSameOffset(r[4], tzJan) && geoSameOffset(r[5], tzJul) && geoCityCalled(r[3], tok))
+               {
+                  bestu := i
+                  Break
+               }
+            }
+            If bestu
+               Break
+         }
+      }
+
+      If !bestu
+      {
+         For i, r in poolu   ; any city of the country proper
+         {
+            If (!r[7] && geoSameOffset(r[4], tzJan) && geoSameOffset(r[5], tzJul))
+            {
+               bestu := i
+               Break
+            }
+         }
+      }
+
+      If !bestu
+      {
+         For i, r in poolu   ; any bracketed overseas dependency
+         {
+            If (r[7] && geoSameOffset(r[4], tzJan) && geoSameOffset(r[5], tzJul))
+            {
+               bestu := i
+               Break
+            }
+         }
+      }
+   }
+
+   If bestu
+   {
+      exactu := 1
+   } Else
+   {
+      scoreBest := 100000
+      For i, r in poolu   ; the nearest clock or, the time zone unknown, the capital ahead of the rest
+      {
+         scoru := (tzJan!="") ? Abs(r[4] - tzJan) + Abs(r[5] - tzJul) : 0
+         scoru += ((r[6]=1) ? 0 : 0.001) + (r[7] ? 0.002 : 0)
+         If (scoru<scoreBest)
+         {
+            scoreBest := scoru
+            bestu := i
+         }
+      }
+   }
+
+   ctrIdx := poolu[bestu][1]
+   cityIdx := poolu[bestu][2]
+   Return 1
+}
+
+geoPoolCountryCities(poolu, c) {
+; Every city the index files under country c, poured into the pool as
+; [country index, city index, name, January offset, July offset, capital,
+; bracketed] - the bracketed ones being the overseas dependencies whose names
+; open on a parenthesis and which never stand in for the country proper.
+
+   Loop, % geoData[c "|-1"]
+   {
+      p := geoData[c "|" A_Index]
       If !p
          Continue
 
-      If !fallbacku
-         fallbacku := A_Index
-
-      ; loadGeoData() marks a capital with a star on the name and a 1 in the
-      ; last field; the ones whose names open on a bracket are overseas capitals
-      ; filed under the parent country and are not what is being asked for
       k := StrSplit(p, "|")
-      If (k[7]=1 && SubStr(LTrim(k[1], "*"), 1, 1)!="(")
-      {
-         cityIdx := A_Index
-         Return 1
-      }
+      town := LTrim(k[1], "*")
+      poolu.Push([c, A_Index, town, k[4], k[5], k[7], (SubStr(town, 1, 1)="(") ? 1 : 0])
    }
+}
 
-   cityIdx := fallbacku
-   Return cityIdx ? 2 : 0
+geoSameOffset(a, b) {
+; Whether two UTC offsets are the same clock. They are compared as numbers
+; rather than text, so that 2 answers for 2.0, and anything within a minute
+; of each other is the same.
+
+   Return (b!="" && Abs(a - b)<0.02) ? 1 : 0
+}
+
+geoZoneCityTokens(isou, tzJan, tzJul) {
+; The cities the IANA time zones of a country are named after, kept to the
+; zones whose offsets are the two asked for: US and -8.0/-7.0 give only Los
+; Angeles. Read from resources\timezones.txt, which states every zone's
+; offsets on the 1st of January and on the 1st of July, the same convention
+; the location index keeps. The name is what stands after the last slash,
+; its underscores turned to spaces: America/Indiana/Indianapolis is
+; Indianapolis.
+
+   Static content := ""
+   If (content="")
+      FileRead, content, %A_ScriptDir%\resources\timezones.txt
+
+   tokens := []
+   Loop, Parse, content, `n, `r
+   {
+      k := StrSplit(A_LoopField, "|")
+      If (k.Count()<4 || k[1]!=isou)
+         Continue
+
+      If (geoSameOffset(k[3], tzJan) && geoSameOffset(k[4], tzJul))
+         tokens.Push(StrReplace(SubStr(k[2], InStr(k[2], "/", 0, 0) + 1), "_", " "))
+   }
+   Return tokens
+}
+
+geoCityCalled(town, tok) {
+; Whether a city of the index answers to the name a time zone carries. The
+; bracketed dependency a name may open on is no part of it, the comparing
+; forgives case and accents - Sao Paulo answers for São Paulo - and a name
+; may carry words beyond the token, New York City for New York, but never
+; mere letters: Knox does not answer for Knoxville.
+
+   If (SubStr(town, 1, 1)="(")
+      town := Trim(SubStr(town, InStr(town, ")") + 1))
+
+   If WinGeoNamesAlike(town, tok)
+      Return 1
+
+   lenu := StrLen(tok)
+   If (StrLen(town)>lenu + 1 && SubStr(town, lenu + 1, 1)=" " && WinGeoNamesAlike(SubStr(town, 1, lenu), tok))
+      Return 1
+
+   Return 0
+}
+
+geoTerritoryAlike(heldu, nameu) {
+; Whether the territory a bracketed city is filed under answers a country
+; name: Bermuda for Bermuda outright, Bailiwick Jersey for Jersey and Saint
+; Helena for Saint Helena, Ascension and Tristan da Cunha by the one name
+; containing the other, with the shorter asked to carry at least five letters
+; so that no scrap of a word matches.
+
+   If WinGeoNamesAlike(heldu, nameu)
+      Return 1
+
+   Return (StrLen(heldu)>4 && StrLen(nameu)>4 && (InStr(nameu, heldu) || InStr(heldu, nameu))) ? 1 : 0
 }
 
 geoCountryNameOfCode(isou) {
@@ -10957,10 +11171,13 @@ geoCountryNameOfCode(isou) {
 ; where the location index spells the country its own way. The index hyphenates
 ; the names joined by an "and", and it files the British Isles under their
 ; constituent countries - what stands under United Kingdom there is the overseas
-; territories, whose first capital is Anguilla's rather than London.
+; territories, whose first capital is Anguilla's rather than London. Svalbard
+; and the Northern Marianas are spelled the way their bracketed cities are
+; filed, so that the dependency search of geoNearestCityOfCountryCode() finds
+; them.
 
    Static codes := 0
-        , spelled := {"AG":"Antigua-Barbuda", "BA":"Bosnia-Herzegovina", "ST":"São Tomé-Principe", "TT":"Trinidad-Tobago", "GB":"England (UK)"}
+        , spelled := {"AG":"Antigua-Barbuda", "BA":"Bosnia-Herzegovina", "ST":"São Tomé-Principe", "TT":"Trinidad-Tobago", "GB":"England (UK)", "SJ":"Svalbard-Jan Mayen", "MP":"N. Mariana Islands"}
 
    If !IsObject(codes)
    {

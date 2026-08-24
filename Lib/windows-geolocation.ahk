@@ -13,17 +13,29 @@
 ; asks for. Whichever way it arrives, the reply is a true latitude and
 ; longitude and the metres of doubt that come with it.
 ;
-; Two poorer answers stand behind it, and both only name a country:
+; Poorer answers stand behind it. None of them needs anything newer than
+; Windows XP, so they are the whole story on Windows 7, and together they
+; still corner a place fairly well:
 ;
+;   - the country set under Settings > Time & language > Region - the same
+;     home region the WinRT GlobalizationPreferences.HomeGeographicRegion
+;     reports, read here through its classic equivalents GetUserGeoID and
+;     GetGeoInfoW so that Windows 7 answers too - which the user picked
+;     deliberately and which Windows always has an answer for;
 ;   - the language of the keyboard layout the user is typing with, which
 ;     carries a region in its language identifier: 0x0418 is Romanian as
 ;     spoken in Romania, 0x0809 is English as written in Britain;
-;   - the country set under Settings > Time & language > Region, which the
-;     user picked deliberately and which Windows always has an answer for.
+;   - the language Windows itself is displayed in, which carries a region
+;     the same way;
+;   - the time zone this computer keeps, which names no country but narrows
+;     one: a machine whose Region says United States and whose clock keeps
+;     UTC-8 in January and UTC-7 in July is on the Pacific coast, and that
+;     is worth three thousand kilometres over assuming the capital.
 ;
-; Turning either country into a place is the caller's business. Nothing here
-; reaches the network of its own accord, nothing here is written down, and
-; the location service is only ever asked when the user asks for it.
+; Turning those hints into a place is the caller's business, the caller being
+; the one holding a city index to match them against. Nothing here reaches
+; the network of its own accord, nothing here is written down, and the
+; location service is only ever asked when the user asks for it.
 ;
 ; The WinRT calls below are made straight against the ABI vtables rather than
 ; through a projection, since AutoHotkey has none. That is safe to do only
@@ -322,6 +334,23 @@ WinGeoKeyboardCountry() {
       Return ""
 
    Return WinGeoCountryOfLocale(wgLang)
+}
+
+WinGeoUILanguageCountry() {
+; The country carried by the language Windows itself is displayed in. A weak
+; hint - an English Windows is installed the world over - which is why the
+; caller asks for it last, but it costs nothing and it is never empty.
+
+   Return WinGeoCountryOfLocale(DllCall("kernel32\GetUserDefaultUILanguage", "UShort"))
+}
+
+WinGeoNamesAlike(wgA, wgB) {
+; Whether two names are the same word to a reader who minds neither case nor
+; accents: Sao Paulo answers for São Paulo, CHISINAU for Chișinău. That is
+; CompareStringW at the invariant locale, told to ignore case and nonspacing
+; marks - on every Windows this script could land on, XP included.
+
+   Return (DllCall("kernel32\CompareStringW", "UInt", 0x7F, "UInt", 0x3, "WStr", wgA, "Int", -1, "WStr", wgB, "Int", -1, "Int")=2)   ; LOCALE_INVARIANT, NORM_IGNORECASE|NORM_IGNORENONSPACE, CSTR_EQUAL
 }
 
 WinGeoCountryOfLocale(wgLcid) {
