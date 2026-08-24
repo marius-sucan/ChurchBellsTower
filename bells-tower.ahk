@@ -4611,7 +4611,7 @@ coreTestCelebrationz(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
      Else If (testFeast="10.12" && UserReligion=1)
         q := "Our Lady of the Pillar - Virgin Mary appeared to the Apostle James the Greater in AD 40, in Spain, while being alive in Jerusalem. It is considered the first Marian apparition and the only recorded instance of Mary exhibiting the mystical phenomenon of bilocation"
      Else If (testFeast="10.14" && UserReligion=2)
-        q := "Saint Paraskeva of the Balkans - an ascetic female saint of the 10th century of half Serbian and half Greek origins"
+        q := "Saint Paraskeva of the Balkans - an ascetic female saint of the 11th century, born in Epivates, Thrace, venerated as the protector of Moldavia"
      Else If (testFeast="10.31" && UserReligion=1)
         q := "All Hallows' Eve - the eve of the Solemnity of All Saints"
      Else If (testFeast="11.01" && UserReligion=1)
@@ -4627,7 +4627,7 @@ coreTestCelebrationz(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
      Else If (testFeast="12.24")
         q := "Christmas Eve"
      Else If (testFeast="12.25")
-        q := "Christmas day - the birth of Jesus Christ in Nazareth"
+        q := "Christmas day - the birth of Jesus Christ in Bethlehem"
      Else If (testFeast="12.26")
         q := (UserReligion=2) ? "Christmas - 2nd day" : "Saint Stephen's Day - a deacon honoured as the first Christian martyr who was stoned to death in 36 A.D. (Acts 7:55-60). Second day of Christmastide"
      Else If (testFeast="12.28" && UserReligion=1)
@@ -4667,12 +4667,12 @@ coreTestCelebrationz(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
         . "International Day of Light|05.16`n"
         . "World Environment Day|06.05`n"
         . "Nelson Mandela International Day - he was a South African anti-apartheid revolutionary, political leader, and philanthropist who served as President of South Africa|07.18`n"
-        . "International Friendship Day|08.02`n"
+        . "International Day of Friendship|07.30`n"
         . "International Youth Day|08.12`n"
         . "International Day for the Remembrance of the Slave Trade and its Abolition|08.23`n"
         . "International Literacy Day|09.08`n"
         . "International Day of Peace|09.21`n"
-        . "International Day for the Universal Access to Information [for people with disabilities]|09.28`n"
+        . "International Day for Universal Access to Information - the right of everyone to seek, receive and impart information|09.28`n"
         . "Armistice Day (also Remembrance Day or Veterans Day) - recalling the victims of World War I|11.11`n"
         . "International Day for Tolerance|11.16`n"
         . "International Day for the Elimination of Violence against Women|11.25`n"
@@ -5083,12 +5083,12 @@ updateHolidaysLVs() {
        . "International Day of Light|05.16`n"
        . "World Environment Day|06.05`n"
        . "Nelson Mandela International Day|07.18`n"
-       . "Friendship Day|08.02`n"
+       . "Friendship Day|07.30`n"
        . "International Youth Day|08.12`n"
        . "Remembrance of the Slave Trade and its Abolition|08.23`n"
        . "Literacy Day|09.08`n"
        . "International Day of Peace|09.21`n"
-       . "Day for the Universal Access to Information|09.28`n"
+       . "Universal Access to Information Day|09.28`n"
        . "Armistice Day / Remembrance Day / Veterans Day|11.11`n"
        . "Tolerance Day|11.16`n"
        . "Elimination of Violence Against Women|11.25`n"
