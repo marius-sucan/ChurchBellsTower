@@ -7314,6 +7314,69 @@ btnHelpYearMoonGraph() {
   simpleMsgBoxWrapper(appName, "The graph has two modes, switchable by clicking it.`n `n1. Moonlight duration per day: The X axis shows days 1–365. Y axis shows hours from 00:00 to 23:59. Taller yellow bars indicate longer moonlight duration. Bar shading is based on the day’s culminant angle: the higher the Moon rises, the brighter the bar.`n `n2. Moon rises and sets: The X axis shows days of the year. Y axis shows hours with 00:00 at the top and 23:59 at the bottom. Moonrise and moonset times are shown as dots. The brighter dots represent rises and darker dots represent sets.`n `nThe background uses a wave pattern calculated from the Moon’s illumination fraction.")
 }
 
+buildNoDiacriticsMap() {
+; builds the character map used by getNoDiacriticsStr(); it covers every accented Latin
+; letter found in the geo-locations lists, and the usual variants a user might type
+   charru := []
+   charru.a := "àáâãäåāăąǎạảấầẩẫậắằẳẵặəÀÁÂÃÄÅĀĂĄǍẠẢẤẦẨẪẬẮẰẲẴẶƏ"
+   charru.c := "çćĉċčÇĆĈĊČ"
+   charru.d := "ďđðḑḏḍĎĐÐḐḎḌ"
+   charru.e := "èéêëēĕėęěẹẻẽếềểễệÈÉÊËĒĔĖĘĚẸẺẼẾỀỂỄỆ"
+   charru.g := "ĝğġģǧĜĞĠĢǦ"
+   charru.h := "ĥħḥḩẖĤĦḤḨ"
+   charru.i := "ìíîïĩīĭįıịỉḯÌÍÎÏĨĪĬĮİỊỈḮ"
+   charru.j := "ĵĴ"
+   charru.k := "ķḵĶḴ"
+   charru.l := "ĺļľŀłĹĻĽĿŁ"
+   charru.n := "ñńņňŉṅÑŃŅŇṄ"
+   charru.o := "òóôõöøōŏőơǒọỏốồổỗộớờởỡợÒÓÔÕÖØŌŎŐƠǑỌỎỐỒỔỖỘỚỜỞỠỢ"
+   charru.r := "ŕŗřṛṟŔŖŘṚṞ"
+   charru.s := "śŝşšșṣŚŜŞŠȘṢ"
+   charru.t := "ţťŧțṭṯŢŤŦȚṬṮ"
+   charru.u := "ùúûüũūŭůűųưǔụủứừửữựÙÚÛÜŨŪŬŮŰŲƯǓỤỦỨỪỬỮỰ"
+   charru.w := "ŵẁẃẅŴẀẂẄ"
+   charru.y := "ýÿỳỵỷỹÝŸỲỴỶỸ"
+   charru.z := "źżžẑẓẕŹŻŽẐẒẔ"
+   charru.ae := "æÆ"
+   charru.oe := "œŒ"
+   charru.ss := "ß"
+   charru.th := "þÞ"
+
+   foldu := []
+   For basu, listu in charru
+   {
+       Loop, Parse, listu
+          foldu[A_LoopField] := basu
+   }
+
+   listu := "'’‘‛ʻʼ´" Chr(96)          ; apostrophes and their lookalikes vanish
+   Loop, Parse, listu
+      foldu[A_LoopField] := ""
+   listu := "-–—‐,./\()[]" Chr(0xA0)   ; separators become plain spaces
+   Loop, Parse, listu
+      foldu[A_LoopField] := A_Space
+   Loop, 112                           ; combining accents, U+0300 to U+036F;
+      foldu[Chr(0x2FF + A_Index)] := ""    ; some geonames entries come decomposed
+   Return foldu
+}
+
+getNoDiacriticsStr(str) {
+; folds a string for the location search: letters lose their diacritics and cedillas,
+; apostrophes are dropped, separators and whitespace runs become single spaces; the
+; result serves only the scorify* comparisons, what the user sees stays untouched
+   Static foldedChars := ""
+   If !IsObject(foldedChars)
+      foldedChars := buildNoDiacriticsMap()
+
+   If !RegExMatch(str, "[^0-9A-Za-z ]|  |^ | $")
+      Return str
+
+   nStr := ""
+   Loop, Parse, str
+      nStr .= foldedChars.HasKey(A_LoopField) ? foldedChars[A_LoopField] : A_LoopField
+   Return Trim(RegExReplace(nStr, "\s+", A_Space))
+}
+
 scorifyCompareWords(thisUserWord, siti) {
    score := 0
    If (siti=thisUserWord)
@@ -7374,90 +7437,96 @@ PerformGeoDataSearch() {
     Gui, SettingsGUIA: ListView, LViewOthers
     LV_Delete()
 
-    userQuery := Trim(GeoDataSearchField)
-    userQuery := StrReplace(userQuery, ", ", A_Space)
-    wuserQuery := StrReplace(userQuery, ",", A_Space)
+    Static normCache := []   ; city names folded once, reused across searches; keyed by name, so entries never go stale
+    wuserQuery := getNoDiacriticsStr(GeoDataSearchField)
     If StrLen(wuserQuery)<2
        Return
 
-    thisIndex := matches := score := 0
-    userQuery := StrSplit(wuserQuery, A_Space)
+    userQuery := []
+    Loop, Parse, wuserQuery, %A_Space%
+    {
+        If StrLen(A_LoopField)>1
+           userQuery.Push(A_LoopField)   ; a single letter cannot influence the score; keeping it would only raise the threshold
+    }
+
     userCountWords := userQuery.Count()
     If !userCountWords
        Return
 
+    multiWords := (userCountWords>1) ? 1 : 0
+    minScore := 13*userCountWords
     GuiControl, -Redraw, LViewOthers
+    cntryScore := 0
+    prevCntry := Chr(1)
     Loop, % listedExtendedLocations
     {
-        score := 0
-        cauntri := extendedGeoData[A_Index, 1]
-        siti := extendedGeoData[A_Index, 2]
-        Loop, % userCountWords
-        {
-           thisUserWord := userQuery[A_Index]
-           If StrLen(thisUserWord)<2
-              Continue
-
-           score += scorifyCompareWords(thisUserWord, cauntri)
-           score += scorifyCompareWords(thisUserWord, siti) + 5
-        }
-
-        If (userCountWords>1)
-        {
-           score += scorifyStrictCompareWords(wuserQuery, cauntri)
-           score += scorifyStrictCompareWords(wuserQuery, siti) + 5
-        }
-
-        If (score<13*userCountWords)
-           Continue
-        
-        thisIndex++
         k := extendedGeoData[A_Index]
-        LV_Add(thisIndex, cauntri, siti, k[3], k[4], k[5], k[7], score, A_Index)
+        cauntri := k[1]
+        If (cauntri!=prevCntry)   ; the list is grouped by country, so the country score carries over between rows
+        {
+           prevCntry := cauntri
+           ncauntri := (k[8]="") ? cauntri : k[8]
+           cntryScore := multiWords ? scorifyStrictCompareWords(wuserQuery, ncauntri) : 0
+           Loop, % userCountWords
+               cntryScore += scorifyCompareWords(userQuery[A_Index], ncauntri)
+        }
+
+        nsiti := (k[9]="") ? k[2] : k[9]
+        score := cntryScore
+        Loop, % userCountWords
+            score += scorifyCompareWords(userQuery[A_Index], nsiti) + 5
+
+        If (multiWords)
+           score += scorifyStrictCompareWords(wuserQuery, nsiti) + 5
+
+        If (score<minScore)
+           Continue
+
+        LV_Add("", cauntri, k[2], k[3], k[4], k[5], k[7], score, A_Index)
     }
 
     ctr := countriesArrayList.Count()
     Loop, % ctr
     {
-         zz := 0
          ctrIndex := A_Index
-         cities := geoData[A_Index "|-1"]
+         cities := geoData[ctrIndex "|-1"]
+         cauntri := countriesArrayList[ctrIndex]
+         ncauntri := getNoDiacriticsStr(cauntri)
+         cntryScore := multiWords ? scorifyStrictCompareWords(wuserQuery, ncauntri) : 0
+         Loop, % userCountWords
+             cntryScore += scorifyCompareWords(userQuery[A_Index], ncauntri)
+
          Loop, % cities
          {
              thisu := geoData[ctrIndex "|" A_Index]
-             elemu := StrSplit(thisu, "|")
-             siti := elemu[1]
-             cauntri := countriesArrayList[ctrIndex]
-             score := 0
-             Loop, % userCountWords
-             {
-                thisUserWord := userQuery[A_Index]
-                If StrLen(thisUserWord)<2
-                   Continue
-
-                score += scorifyCompareWords(thisUserWord, cauntri)
-                score += scorifyCompareWords(thisUserWord, siti) + 5
-             }
-
-             If (userCountWords>1)
-             {
-                score += scorifyStrictCompareWords(wuserQuery, cauntri)
-                score += scorifyStrictCompareWords(wuserQuery, siti) + 5
-             }
-
-             zz++
-             If (score<13*userCountWords)
+             If !thisu
                 Continue
 
-             thisIndex++
-             LV_Add(thisIndex, cauntri, siti, elemu[2], elemu[3], elemu[4], elemu[6], score, ctrIndex "|" zz)
+             elemu := StrSplit(thisu, "|")
+             siti := LTrim(elemu[1], "*")   ; the star marks a capital in the lists; it is no part of the name
+             nsiti := normCache[siti]
+             If (nsiti="")
+                normCache[siti] := nsiti := getNoDiacriticsStr(siti)
+
+             score := cntryScore
+             Loop, % userCountWords
+                score += scorifyCompareWords(userQuery[A_Index], nsiti) + 5
+
+             If (multiWords)
+                score += scorifyStrictCompareWords(wuserQuery, nsiti) + 5
+
+             If (score<minScore)
+                Continue
+
+             LV_Add("", cauntri, elemu[1], elemu[2], elemu[3], elemu[4], elemu[6], score, ctrIndex "|" A_Index)
          }
     }
 
-    Loop, 6
-        LV_ModifyCol(2 + A_Index, "Integer")
-
-    LV_ModifyCol(7, "SortDesc")
+    LV_ModifyCol(3, "Float")
+    LV_ModifyCol(4, "Float")
+    LV_ModifyCol(5, "Float")
+    LV_ModifyCol(6, "Integer")
+    LV_ModifyCol(7, "Integer SortDesc")
     Loop, 8
         LV_ModifyCol(A_Index, "AutoHdr Left")
     GuiControl, +Redraw, LViewOthers
@@ -7964,17 +8033,34 @@ loadGeoData() {
 }
 
 loadExtendedGeoData() {
+; fields 8 and 9 hold the country and the city stripped of diacritics, for PerformGeoDataSearch();
+; they are set only when the folded name differs from the displayed one
    FileRead, content, %A_ScriptDir%\resources\geo-locations-extended.txt
    listedExtendedLocations := 0
    extendedGeoData := []
+   ncauntri := ""
+   prevCntry := Chr(1)
    Loop, Parse, content, `n, `r
    {
       k := StrSplit(A_LoopField, "|")
       If StrLen(k[1])<2
         Continue
 
+      cauntri := Trim(k[1])
+      siti := Trim(k[2])
+      If (cauntri!=prevCntry)
+      {
+         prevCntry := cauntri
+         ncauntri := getNoDiacriticsStr(cauntri)
+      }
+
       listedExtendedLocations++
-      extendedGeoData[listedExtendedLocations] := [Trim(k[1]), Trim(k[2]), k[3], k[4], k[5], k[6], k[7]]
+      extendedGeoData[listedExtendedLocations] := [cauntri, siti, k[3], k[4], k[5], k[6], k[7]]
+      If (ncauntri!=cauntri)
+         extendedGeoData[listedExtendedLocations, 8] := ncauntri
+      nsiti := getNoDiacriticsStr(siti)
+      If (nsiti!=siti)
+         extendedGeoData[listedExtendedLocations, 9] := nsiti
    }
 
    ; ToolTip, % p "=l=" listedCountries , , , 2

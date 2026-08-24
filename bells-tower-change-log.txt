@@ -7,6 +7,7 @@
 
 v3.6.1 - 2026 / 08 / **
   - [new] automatically detect device location, useful for the astronomy panel
+  - the location search on the Earth map panel no longer cares about diacritics and cedillas, in either the search terms or the place names; «chisinau», «Chişinău» and «Chișinău» now give the same results; apostrophes, hyphens, commas and extra spaces no longer skew the scores, and capital cities are no longer under-ranked
   - when the Windows location service cannot answer, and on Windows 7, where it does not exist, the location is now inferred from the region and time zone settings of the system: the app picks the city from its location index that agrees best with the country and the clock the computer keeps, instead of always assuming the capital; overseas territories are found under their parent countries too
   - [new] custom locations can now be renamed
   - improved accuracy for the moon phase calculation and moon rise and moon set times
