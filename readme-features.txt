@@ -40,7 +40,7 @@ Church Bells Tower is a features rich application. The following is a summary of
 
 * - over 40000 searchable predefined locations
 
-* - user-definable custom geographic location
+* - user-definable custom geographic location and ability to auto-detect device location
 
 * - and much more
 
