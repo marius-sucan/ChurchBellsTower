@@ -2,7 +2,6 @@
 #include "math.h"
 #include "windows.h"
 #include <string>
-#include <sstream>
 #include <vector>
 #include <stack>
 #include <map>
