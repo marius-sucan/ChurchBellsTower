@@ -7432,6 +7432,9 @@ scorifyStrictCompareWords(thisUserWord, siti) {
 }
 
 PerformGeoDataSearch() {
+    If (AnyWindowOpen!=8)
+       Return
+
     Gui, SettingsGUIA: Default
     GuiControlGet, GeoDataSearchField
     Gui, SettingsGUIA: ListView, LViewOthers
@@ -7439,7 +7442,7 @@ PerformGeoDataSearch() {
 
     Static normCache := []   ; city names folded once, reused across searches; keyed by name, so entries never go stale
     wuserQuery := getNoDiacriticsStr(GeoDataSearchField)
-    If StrLen(wuserQuery)<2
+    If (StrLen(wuserQuery)<2)
        Return
 
     userQuery := []
@@ -7953,7 +7956,7 @@ PanelEarthMap(modus:=0) {
     ; Gui, +DPIScale
     Gui, Tab, 2
     ww := (PrefsLargeFonts=1) ? lstWid - 70 : lstWid - 48
-    GuiAddEdit("x+10 y+10 Section w" ww " -multi vGeoDataSearchField", "", "Search location")
+    GuiAddEdit("x+10 y+10 Section gUIeditSearchLocation w" ww " -multi vGeoDataSearchField", "", "Search location")
     Gui, Add, Button, x+5 hp Default gPerformGeoDataSearch, &Search
     GuiAddListView("xs y+10 w" lstWid " r12 Grid AltSubmit gUiLVgeoSearch vLViewOthers", "Country|City|Latitude|Longitude|GMT|Altitude|Score|Index", "Search results. Locations.")
 
@@ -7981,6 +7984,10 @@ UIsetEarthSunMapMode() {
   Gui, SettingsGUIA: Default
   GuiControlGet, showEarthSunMapModus
   generateEarthMap()
+}
+
+UIeditSearchLocation() {
+  SetTimer, PerformGeoDataSearch, -400
 }
 
 loadGeoData() {
@@ -10924,27 +10931,10 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
 ; Where this computer is, written the way a custom location entry is written:
 ;    Name|latitude|longitude|GMT offset on 1 January|GMT offset on 1 July|altitude
 ;
-; The Windows location service is asked first and what it gives back is a true
-; fix - a few metres where the machine carries a GPS receiver, a few kilometres
-; where it is placed by the Wi-Fi networks in range or by its network address.
-; The offsets are then taken from the time zone the computer keeps rather than
-; guessed from the longitude, which is what a click on the map has to settle
-; for; the machine already knows its own zone exactly, quarter hours and all.
-; They are written the way the location index writes them, by season and not
-; by standard and daylight time: on a computer in Sydney the January offset is
-; the daylight saving one.
-;
-; When the service cannot answer - switched off, denied to desktop programs,
-; or absent altogether, which on Windows 7 it always is - the fallback works
-; from what the computer knows about itself anyway: the countries named by the
-; Region setting, by the keyboard layout and by the language of Windows, and
-; the time zone its clock keeps. Each country, taken in that order, is turned
-; by geoNearestCityOfCountryCode() into the city of the location index that
-; suits it and the clock best, and the first country holding a city that keeps
-; this computer's clock settles the matter. If no country holds one, the first
-; country stands and its capital is taken, disagreeing clock and all. What is
-; handed back is always a real entry of the index - a city with its own
-; coordinates, offsets and altitude - never a guessed point.
+; The Windows location service is used first to identify the location.
+; When the service cannot answer or is switched off, denied to desktop programs,
+; or absent altogether, the fallback works from the user's Windows settings:
+; Region setting, keyboard layout, OS language, and the time zone of the clock.
 
    sourceu := faultu := ""
    If !listedCountries
@@ -10962,9 +10952,6 @@ detectThisComputerLocation(ByRef sourceu, ByRef faultu) {
             dstu := gmtu
          }
 
-         ; only a real fix carries an altitude, and the map settles for 135 m when
-         ; it has none; zero is the honest stand-in for a position that arrived
-         ; without one, being the level the horizon dip is reckoned from anyway
          altu := (isNumber(altu) && isInRange(altu, -500, 9000)) ? Round(altu) : 0
          withinu := (isNumber(accu) && accu>0) ? ", to within " Round(accu) " m" : ""
          sourceu := "Windows places this PC at " Round(latu, 1) " / " Round(longu ,1) withinu "."
