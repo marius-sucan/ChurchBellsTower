@@ -1219,8 +1219,15 @@ AdditionalStrikerPerformer() {
   lastInvoked := A_TickCount
 }
 
-PlayAlarmedBell() {
+PlayAlarmedBell(firstu:=0) {
+; The auxiliary bell and the gong ring long, so they are sounded on every other tick of the
+; repeat timer that calls this; bu keeps count of the ticks. firstu=1 marks the first call of
+; an alert, or a click on the Test button, and always rings: the count used to carry over from
+; one alert to the next, and every second alert - and every second Test - opened on a silent tick.
    Static indexu := 0, bu := 0
+   If (firstu=1)
+      bu := 0
+
    SetMyVolume(1)
    If (userAlarmSound=1)
    {
@@ -1246,8 +1253,12 @@ PlayAlarmedBell() {
    }
 }
 
-PlayTimerBell() {
+PlayTimerBell(firstu:=0) {
+; see PlayAlarmedBell() for firstu
    Static indexu := 0, bu := 0
+   If (firstu=1)
+      bu := 0
+
    SetMyVolume(1)
    If (userTimerSound=1)
    {
@@ -1373,10 +1384,10 @@ theChimer() {
   }
 
   startAlarmTimer()
-  If (isInRange(HoursIntervalTest, silentHoursA, silentHoursB) && silentHours=2)
+  If (hourInDefinedInterval(HoursIntervalTest, silentHoursA, silentHoursB) && silentHours=2)
      soundBells := 1
 
-  If (isInRange(HoursIntervalTest, silentHoursA, silentHoursB) && silentHours=3)
+  If (hourInDefinedInterval(HoursIntervalTest, silentHoursA, silentHoursB) && silentHours=3)
   || (soundBells!=1 && silentHours=2) || (mustEndNow=1)
   {
      If (mustEndNow!=1)
@@ -3154,19 +3165,42 @@ ReloadScript(silent:=1) {
 }
 
 DeleteSettings() {
-    r := simpleMsgBoxWrapper(appName, "Are you sure you want to delete the stored settings?", 0, 1, 4)
-    If (r="yes")
+; Puts every setting back to its default and restarts. The personal events are the user's own
+; work and are kept: they live in the Celebrations section next to the choices to no longer
+; observe a feast or a secular day - the «r» and «s» markers - which do go back to their
+; default of being observed; the message says so. The question used to be asked with an OK
+; button alone, so its answer was never «yes» and nothing was ever restored.
+    obju := listUserDefinedCelebrations()
+    keptEvents := obju[1]
+    countu := obju[2]
+    msgu := "Are you sure you want to restore the default settings?`n`nEvery option will go back to its default value. The feasts, holidays and events you chose to no longer observe will be observed again."
+    msgu .= countu ? "`n`nThe " countu " personal event" ((countu>1) ? "s" : "") " you defined will be kept, and so will the custom locations." : "`n`nThe custom locations will be kept."
+
+    r := simpleMsgBoxWrapper(appName, msgu, 4, 2, 32)
+    If (r!="Yes")
+       Return
+
+    If (storeSettingsREG=0)
     {
-       If (storeSettingsREG=0)
-       {
-          FileSetAttrib, -R, %IniFile%
-          FileDelete, %IniFile%
-       } Else RegWrite, REG_SZ, %APPregEntry%, FirstRun, 1  
-       Cleanup()
-       Try Reload
-       Sleep, 70
-       ExitApp
+       FileSetAttrib, -R, %IniFile%
+       FileDelete, %IniFile%
+    } Else
+    {
+       RegDelete, %APPregEntry%\Celebrations
+       RegWrite, REG_SZ, %APPregEntry%, FirstRun, 1
     }
+
+    Loop, Parse, keptEvents, `n, `r
+    {
+        p := InStr(A_LoopField, CSmid)
+        If (p>1)
+           INIactionNonGlobal(1, SubStr(A_LoopField, 1, p - 1), SubStr(A_LoopField, p + 1), "Celebrations")
+    }
+
+    Cleanup()
+    Try Reload
+    Sleep, 70
+    ExitApp
 }
 
 KillScript(showMSG:=1) {
@@ -3933,7 +3967,7 @@ PanelShowSettings() {
     GuiAddEdit("x+5 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF35", silentHoursA, "Start hour")
     Gui, Add, UpDown, gVerifyTheOptions vsilentHoursA Range0-23, %silentHoursA%
     Gui, Add, Text, x+2 hp +0x200 vtxt2, :00   to
-    GuiAddEdit("x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF36", silentHoursB, "End hour")
+    GuiAddEdit("x+10 w65 geditsOSDwin r1 limit2 -multi number -wantCtrlA -wantReturn -wantTab -wrap veditF36", silentHoursB, "End hour; an end before the start hour makes the interval run through midnight")
     Gui, Add, UpDown, gVerifyTheOptions vsilentHoursB Range0-23, %silentHoursB%
     Gui, Add, Text, x+1 hp +0x200 vtxt3, :59
     Gui, Add, Checkbox, xs y+15 gVerifyTheOptions Checked%noBibleQuoteMhidden% vnoBibleQuoteMhidden, Do not show Bible verses when the mouse cursor is hidden`n(e.g., when watching videos on full-screen)
@@ -4651,22 +4685,26 @@ coreTestCelebrationz(thisMon, thisMDay, thisYDay, isListMode, testWhat, thisYear
         . "Human Rights Day|12.10`n"
         . "World Arabic Language Day|12.18"
 
-     Loop, Parse, theList, `n, `r
+     ; a secular day the user chose to no longer observe is filed under its date with the «s»
+     ; marker - see ActionListViewKBDs(); it is left out here, before it can take the place of
+     ; the religious feast of the same date: it used to be dropped only afterwards, and the
+     ; feast it had replaced went with it
+     NoSecDay := INIactionNonGlobal(0, testFeast ".s", 0, "Celebrations")
+     If (StrLen(NoSecDay)<3)
      {
-        lineArr := StrSplit(A_LoopField, "|")
-        miniDate := lineArr[2]
-        If (miniDate=testFeast && (PreferSecularDays=1 || !aisHolidayToday))
+        Loop, Parse, theList, `n, `r
         {
-           aTypeHolidayOccured := 2
-           aisHolidayToday := lineArr[1]
-           Break
+           lineArr := StrSplit(A_LoopField, "|")
+           miniDate := lineArr[2]
+           If (miniDate=testFeast && (PreferSecularDays=1 || !aisHolidayToday))
+           {
+              aTypeHolidayOccured := 2
+              aisHolidayToday := lineArr[1]
+              Break
+           }
         }
      }
   }
-
-  NoSecDay := INIactionNonGlobal(0, testFeast ".s", 0, "Celebrations")
-  If (StrLen(NoSecDay)>2 && aTypeHolidayOccured=2)
-     aisHolidayToday := aTypeHolidayOccured := ""
 
   If (testWhat=2)
      Return [aTypeHolidayOccured, aisHolidayToday]
@@ -5173,9 +5211,12 @@ SaveNewEntryBtn() {
      wrongThis := 1
 
   newMonth := SubStr(newMonth, 1,2)
-  testDate := A_Year newMonth newDay "010101"
-  FormatTime, LongaData, %testDate%, LongDate
-  If (StrLen(LongaData)<3)
+  ; the date is checked in the year the entry is filed under: the one the list is browsing for
+  ; an event of a single year, and any leap year for a yearly one, so that the 29th of February
+  ; - a date that comes round every four years - is accepted whatever year it is now; it used
+  ; to be checked in the current year, which rejected it three years out of four
+  testYear := (uiCalendarNewAllYears=1) ? 2024 : celebYear
+  If (newDay<1 || newDay>calendarDaysInMonth(testYear, newMonth))
      wrongThis := 1
 
   If (wrongThis=1)
@@ -5945,13 +5986,13 @@ PanelSetAlarm() {
 BtnTestTimerAudio() {
     GuiControlGet, userTimerSound
     stopStrikesNow := 0
-    PlayTimerBell()
+    PlayTimerBell(1)
 }
 
 BtnTestAlarmAudio() {
     GuiControlGet, userAlarmSound
     stopStrikesNow := 0
-    PlayAlarmedBell()
+    PlayAlarmedBell(1)
 }
 
 PanelStopWatch() {
@@ -6700,6 +6741,19 @@ isInRange(value, inputA, inputB) {
     Return (value>=min(inputA, inputB) && value<=max(inputA, inputB)) ? 1 : 0
 }
 
+hourInDefinedInterval(hu, startu, endu) {
+; Whether the hour hu, 0 to 23, falls within the interval the tolling restriction names: from
+; startu:00 to endu:59, both included. An end hour before the start hour means the interval
+; runs through midnight - 22 to 6 covers 22:00 to 06:59 - which isInRange() cannot say, as it
+; only knows the stretch between the smaller and the larger of the two; the settings used to be
+; rewritten on save to keep the end after the start, and «toll only from 22 to 6» came out as
+; «toll only from 22 to 22».
+   If (startu<=endu)
+      Return (hu>=startu && hu<=endu) ? 1 : 0
+
+   Return (hu>=startu || hu<=endu) ? 1 : 0
+}
+
 uiStopWatchPausedUpdater() {
   If (AnyWindowOpen!=5)
   {
@@ -6870,6 +6924,12 @@ BtnApplyAlarms() {
 
   If (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins))
   {
+     ; the Apply replaces whatever is pending: the countdown of a snoozed alert is dropped
+     ; along with the snooze itself, or startAlarmTimer() would decline to arm the new time
+     ; for as long as the snooze lasted - the old time rang again and the new one never did
+     SetTimer, doUserAlarmAlert, Off
+     userAlarmIsSnoozed := 0
+     startAlarmTimer("rr")
      startAlarmTimer()
   } Else
   {
@@ -6891,7 +6951,7 @@ doUserTimerAlert() {
      ScreenBlocker(0, 1, 1, 1)
 
   ; WinSet, AlwaysOnTop, Off, ScreenShader
-  PlayTimerBell()
+  PlayTimerBell(1)
   showTimeNow()
   If (userTimerSound!=6)
      SetTimer, PlayTimerBell, % userTimerFreq * 1000
@@ -6939,7 +6999,7 @@ doUserAlarmAlert() {
      ScreenBlocker(0, 1, 1, 1)
 
   showTimeNow()
-  PlayAlarmedBell()
+  PlayAlarmedBell(1)
   If (userAlarmSound!=6)
      SetTimer, PlayAlarmedBell, % userAlarmFreq * 1000
 
@@ -7667,7 +7727,7 @@ simpleMsgBoxWrapper(winTitle, msg, buttonz:=0, defaultBTN:=1, iconz:=0, modality
 
 
     If (defaultBTN=2)
-       defaultBTN := 255
+       defaultBTN := 256
     Else If (defaultBTN=3)
        defaultBTN := 512
     Else
@@ -13383,16 +13443,8 @@ CheckSettings() {
     MinMaxVar(OSDastralMode, 1, 4, 1)
     MinMaxVar(analogMoonPhases, 0, 2, 0)
     MinMaxVar(analogClockOpacity, 70, 254, 230)
-    If (silentHoursB<silentHoursA && silentHours=3 && (silentHoursA - silentHoursB)>1)
-    {
-       silentHours := 2
-       swapVars(silentHoursA, silentHoursB)
-       silentHoursA++
-       silentHoursB--
-    }
-
-    If (silentHoursB<silentHoursA)
-       silentHoursB := silentHoursA
+    ; silentHoursA and silentHoursB are kept as given: an end hour before the start hour is an
+    ; interval that runs through midnight - see hourInDefinedInterval()
     If (ObserveHolidays=0)
        SemantronHoliday := 0
 

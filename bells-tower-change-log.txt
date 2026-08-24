@@ -12,6 +12,12 @@ v3.6.1 - 2026 / 08 / **
   - [new] custom locations can now be renamed
   - improved accuracy for the moon phase calculation and moon rise and moon set times
   - various bug fixes related to the astronomy panel
+  - fixed the alarm and timer alerts with the «Auxilliary bell» or the «Gong» sound, which rang only every other time, the «Test» buttons included
+  - fixed changing the time of an alarm while it is snoozed; the new time was ignored
+  - fixed a religious feast being dropped on a date whose secular event the user no longer observes, when secular events are preferred
+  - the 29th of February can now be added as a yearly personal event; the date of a new event is checked for the year it is added to
+  - fixed «Restore defaults», which did nothing; it now keeps the personal events and the custom locations and says so
+  - the bell tolling interval can now run through midnight, e.g. toll only from 22:00 to 06:59
   - the sunlight and the moonlight earth maps are now drawn in an instant, where they used to take seconds
   - the year tables and graphs of the sun and of the moon come up noticeably faster, with the same figures as before
 
