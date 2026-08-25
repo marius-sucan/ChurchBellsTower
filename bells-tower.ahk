@@ -639,8 +639,8 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
      Return
   }
 
-  If (storeSettingsREG=1 && lParam = 0x204)   ; r-button down: the tray menu follows on its release
-     StoreStartupRefreshMark()
+  ; If (storeSettingsREG=1 && lParam = 0x204)   ; r-button down: the tray menu follows on its release
+  ;    StoreStartupRefreshMark()
 
   If (lParam = 0x203) ; double-click
   {
