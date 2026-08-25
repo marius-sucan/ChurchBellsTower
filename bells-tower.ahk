@@ -186,6 +186,7 @@ Global displayTimeFormat := 1
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
 , LastNoonAudio := 0, appName := "Church Bells Tower"
 , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-1"
+, StoreStartupTaskId := "ChurchBellsTower"   ; the TaskId of the windows.startupTask extension in the Store package's AppxManifest.xml
 , appSettingsModified := 0
 
 If !A_IsCompiled
@@ -637,6 +638,9 @@ AHK_NOTIFYICON(wParam, lParam, uMsg, hWnd) {
         WinActivate, ahk_id %hSetWinGui%
      Return
   }
+
+  If (storeSettingsREG=1 && lParam = 0x204)   ; r-button down: the tray menu follows on its release
+     StoreStartupRefreshMark()
 
   If (lParam = 0x203) ; double-click
   {
@@ -2771,6 +2775,12 @@ SetStartUp() {
      Return
   }
 
+  If (storeSettingsREG=1)
+  {
+     StoreStartupToggle()
+     Return
+  }
+
   regEntry := """" A_ScriptFullPath """"
   StringReplace, regEntry, regEntry, .ahk", .exe"
   RegRead, currentReg, %StartRegPath%, %appName%
@@ -2791,6 +2801,337 @@ SetStartUp() {
      Menu, moreOpts, Uncheck, Start at boot
      CreateOSDGUI("Disabled Start at Boot", 0, 1)
   }
+}
+
+;================================================================
+; Start at boot for the Windows Store edition
+;
+; Inside an app package the Run registry key is a dead letter: the write
+; lands in the package's own virtualized hive and Windows never reads it at
+; logon. What Windows does read is the windows.startupTask extension of the
+; package manifest, the entry the user sees on the Start-up apps page of the
+; Task Manager and of the Windows Settings. Windows.ApplicationModel.StartupTask
+; is the programmatic door to that entry, open to packaged desktop apps since
+; Windows 10 version 1607, and for them RequestEnableAsync raises no consent
+; dialog. Windows keeps the user in charge though: an entry switched off in
+; the Task Manager reports DisabledByUser and the API may not overrule it,
+; so all the application can do then is walk the user to the Settings page.
+;
+; The calls go straight against the ABI vtables, with the helpers that
+; Lib\windows-geolocation.ahk already has for it: WinGeoRuntimeReady,
+; WinGeoInitApartment, WinGeoSlot, WinGeoRelease and WinGeoQueryInterface.
+; The slot numbers are the declaration order in the SDK's
+; windows.applicationmodel.idl, fixed for good once published, and the first
+; six slots of every interface belong to IInspectable.
+;================================================================
+
+StoreStartupStatics(ByRef stHr) {
+; The activation factory of Windows.ApplicationModel.StartupTask, as its
+; IStartupTaskStatics, to be released by the caller, or 0 with the HRESULT
+; in stHr. A -1 there says this Windows has no runtime to ask at all.
+
+   Static IID_IStartupTaskStatics := "{EE5B60BD-A148-41A7-B26E-E8B88A1E62F8}"
+        , stClass := "Windows.ApplicationModel.StartupTask"
+
+   stHr := -1
+   If (!WinGeoRuntimeReady() || !WinGeoInitApartment())
+      Return 0
+
+   VarSetCapacity(stGuid, 16, 0)
+   DllCall("ole32\CLSIDFromString", "WStr", IID_IStartupTaskStatics, "Ptr", &stGuid)
+   stString := 0
+   stHr := DllCall("combase.dll\WindowsCreateString", "WStr", stClass, "UInt", StrLen(stClass), "Ptr*", stString, "Int")
+   If stHr
+      Return 0
+
+   stStatics := 0
+   stHr := DllCall("combase.dll\RoGetActivationFactory", "Ptr", stString, "Ptr", &stGuid, "Ptr*", stStatics, "Int")
+   DllCall("combase.dll\WindowsDeleteString", "Ptr", stString)
+   Return (stHr || !stStatics) ? 0 : stStatics
+}
+
+StoreStartupTask(ByRef stTask, ByRef stFault, stTimeout) {
+; The startup task this app package declares, as an IStartupTask the caller
+; must release, giving back 1, or 0 with a sentence in stFault fit to put in
+; front of the user. The task is asked for by the name the package manifest
+; gives it, StoreStartupTaskId, and should Windows not know that name - a
+; package built under another id, say - by listing the package's tasks and
+; taking the first.
+
+   Static SLOT_GETFORCURRENTPACKAGE := 6, SLOT_GETASYNC := 7   ; IStartupTaskStatics
+        , SLOT_GETAT := 6, SLOT_SIZE := 7                     ; IVectorView
+
+   stTask := 0, stFault := ""
+   stStatics := StoreStartupStatics(stHr)
+   If !stStatics
+   {
+      stFault := StoreStartupFault(stHr)
+      Return 0
+   }
+
+   stAsync := 0, stString := 0, stStatus := 0
+   If (StoreStartupTaskId!="" && !DllCall("combase.dll\WindowsCreateString", "WStr", StoreStartupTaskId, "UInt", StrLen(StoreStartupTaskId), "Ptr*", stString, "Int"))
+   {
+      stHr := DllCall(WinGeoSlot(stStatics, SLOT_GETASYNC), "Ptr", stStatics, "Ptr", stString, "Ptr*", stAsync, "Int")
+      DllCall("combase.dll\WindowsDeleteString", "Ptr", stString)
+      If (!stHr && stAsync)
+         stStatus := StoreStartupAwaitObject(stAsync, stTimeout, stTask, stHr)
+   }
+
+   If (stStatus=1)
+   {
+      WinGeoRelease(stStatics)
+      Return 1
+   } Else If (stStatus=-1)
+   {
+      WinGeoRelease(stStatics)
+      stFault := "Windows did not find the startup task of this app package within " Round(stTimeout/1000) " seconds."
+      Return 0
+   }
+
+   stAsync := 0
+   stHr := DllCall(WinGeoSlot(stStatics, SLOT_GETFORCURRENTPACKAGE), "Ptr", stStatics, "Ptr*", stAsync, "Int")
+   WinGeoRelease(stStatics)
+   If (stHr || !stAsync)
+   {
+      stFault := StoreStartupFault(stHr)
+      Return 0
+   }
+
+   stList := 0
+   stStatus := StoreStartupAwaitObject(stAsync, stTimeout, stList, stHr)
+   If (stStatus=-1)
+   {
+      stFault := "Windows did not list the startup tasks of this app package within " Round(stTimeout/1000) " seconds."
+      Return 0
+   } Else If (stStatus!=1)
+   {
+      stFault := StoreStartupFault(stHr)
+      Return 0
+   }
+
+   stCount := 0
+   DllCall(WinGeoSlot(stList, SLOT_SIZE), "Ptr", stList, "UInt*", stCount, "Int")
+   stHr := stCount ? DllCall(WinGeoSlot(stList, SLOT_GETAT), "Ptr", stList, "UInt", 0, "Ptr*", stTask, "Int") : 0
+   WinGeoRelease(stList)
+   If !stCount
+   {
+      stFault := "This app package declares no startup task, so Windows has no entry to switch on or off."
+      Return 0
+   } Else If (stHr || !stTask)
+   {
+      stTask := 0
+      stFault := StoreStartupFault(stHr)
+      Return 0
+   }
+
+   Return 1
+}
+
+StoreStartupAwaitObject(stAsync, stTimeout, ByRef stObject, ByRef stHr) {
+; Waits for an asynchronous operation whose result is an object, releases
+; the operation and hands the object over. The AsyncStatus given back is
+; the one of StoreStartupAwait, with 3 standing also for a completed
+; operation that would not part with its result.
+
+   Static SLOT_GETRESULTS := 8   ; IAsyncOperation
+
+   stObject := 0
+   stStatus := StoreStartupAwait(stAsync, stTimeout, stHr)
+   If (stStatus=1)
+   {
+      stHr := DllCall(WinGeoSlot(stAsync, SLOT_GETRESULTS), "Ptr", stAsync, "Ptr*", stObject, "Int")
+      If (stHr || !stObject)
+         stStatus := 3, stObject := 0
+   }
+
+   WinGeoRelease(stAsync)
+   Return stStatus
+}
+
+StoreStartupAwait(stAsync, stTimeout, ByRef stHr) {
+; Waits up to stTimeout milliseconds for an asynchronous WinRT operation to
+; run its course and gives back its final AsyncStatus: 1 is Completed, 2
+; Canceled, 3 Error with the HRESULT of the failure in stHr, and -1 the
+; timeout, after which the operation has been cancelled. The work is done
+; on a thread of the runtime's own, so the status is simply watched, and
+; Sleep keeps the message queue running meanwhile.
+
+   Static IID_IAsyncInfo := "{00000036-0000-0000-C000-000000000046}"
+        , SLOT_STATUS := 7, SLOT_ERRORCODE := 8, SLOT_CANCEL := 9   ; IAsyncInfo
+
+   stHr := 0
+   stInfo := WinGeoQueryInterface(stAsync, IID_IAsyncInfo)
+   If !stInfo
+   {
+      stHr := 0x80004002   ; E_NOINTERFACE
+      Return 3
+   }
+
+   stDeadline := A_TickCount + stTimeout
+   stStatus := 0
+   Loop
+   {
+      stHr := DllCall(WinGeoSlot(stInfo, SLOT_STATUS), "Ptr", stInfo, "Int*", stStatus, "Int")
+      If stHr
+         stStatus := 3
+      If (stStatus!=0)   ; AsyncStatus.Started
+         Break
+
+      If (A_TickCount>stDeadline)
+      {
+         DllCall(WinGeoSlot(stInfo, SLOT_CANCEL), "Ptr", stInfo)
+         stStatus := -1
+         Break
+      }
+      Sleep, 15
+   }
+
+   If (stStatus=3 && !stHr)
+      DllCall(WinGeoSlot(stInfo, SLOT_ERRORCODE), "Ptr", stInfo, "Int*", stHr, "Int")
+
+   WinGeoRelease(stInfo)
+   Return stStatus
+}
+
+StoreStartupState(stTimeout := 2500) {
+; The state of the package's startup task: 0 Disabled, 1 DisabledByUser,
+; 2 Enabled, 3 DisabledByPolicy, 4 EnabledByPolicy, or -1 when Windows
+; would not say.
+
+   Static SLOT_STATE := 8   ; IStartupTask
+
+   If !StoreStartupTask(stTask, stFault, stTimeout)
+      Return -1
+
+   stState := -1
+   If DllCall(WinGeoSlot(stTask, SLOT_STATE), "Ptr", stTask, "Int*", stState, "Int")
+      stState := -1
+
+   WinGeoRelease(stTask)
+   Return stState
+}
+
+StoreStartupMenuMark(stState) {
+; The check mark beside Start at boot, made to agree with the task's state.
+
+   If (stState=2 || stState=4)   ; Enabled, EnabledByPolicy
+      Menu, moreOpts, Check, Start at boot
+   Else
+      Menu, moreOpts, Uncheck, Start at boot
+}
+
+StoreStartupRefreshMark(stForce := 0) {
+; Reads the task's state afresh and sets the check mark by it, since the user
+; may have changed the entry in the Task Manager meanwhile. Called when the
+; tray menu is built and again on the right-click that opens it, no more
+; than once every couple of seconds, and when Windows would not answer only
+; once a minute, so that a runtime that is not working never makes the tray
+; menu sluggish.
+
+   Static stNextLook := 0
+
+   If (storeSettingsREG!=1)
+      Return
+   If (!stForce && A_TickCount<stNextLook)
+      Return
+
+   stState := StoreStartupState(stForce ? 2500 : 1200)
+   stNextLook := A_TickCount + ((stState=-1) ? 60000 : 2000)
+   StoreStartupMenuMark(stState)
+}
+
+StoreStartupToggle() {
+; Start at boot for the Windows Store edition, switched the other way from
+; whatever Windows presently reports. Called by SetStartUp().
+
+   Static SLOT_REQUESTENABLE := 6, SLOT_DISABLE := 7, SLOT_STATE := 8   ; IStartupTask
+        , SLOT_GETRESULTS := 8   ; IAsyncOperation<StartupTaskState>
+        , stBusy := 0
+
+   If stBusy   ; the waits below let the message queue run, so a second click can arrive before the first is done
+      Return
+
+   stBusy := 1
+   If !StoreStartupTask(stTask, stFault, 4000)
+   {
+      stBusy := 0
+      simpleMsgBoxWrapper(appName, "The Start at boot setting could not be reached.`n`n" stFault "`n`nIt can still be switched by hand: open the Task Manager with Ctrl+Shift+Esc and look for " appName " on its Start-up apps page.", 0, 1, 48)
+      Return
+   }
+
+   stState := -1
+   DllCall(WinGeoSlot(stTask, SLOT_STATE), "Ptr", stTask, "Int*", stState, "Int")
+   StoreStartupMenuMark(stState)
+   If (stState=2)   ; Enabled: switch it off, and take Windows' word for the outcome rather than the call's
+   {
+      stHr := DllCall(WinGeoSlot(stTask, SLOT_DISABLE), "Ptr", stTask, "Int")
+      DllCall(WinGeoSlot(stTask, SLOT_STATE), "Ptr", stTask, "Int*", stState, "Int")
+      StoreStartupMenuMark(stState)
+      If (stState=2)
+         simpleMsgBoxWrapper(appName, "Windows kept the Start at boot entry switched on.`n`n" StoreStartupFault(stHr), 0, 1, 48)
+      Else
+         CreateOSDGUI("Disabled Start at Boot", 0, 1)
+   } Else If (stState=0)   ; Disabled: ask Windows to switch it on
+   {
+      stAsync := 0, stNew := -1, stStatus := 0
+      stHr := DllCall(WinGeoSlot(stTask, SLOT_REQUESTENABLE), "Ptr", stTask, "Ptr*", stAsync, "Int")
+      If (!stHr && stAsync)
+      {
+         stStatus := StoreStartupAwait(stAsync, 4000, stHr)
+         If (stStatus=1)
+            DllCall(WinGeoSlot(stAsync, SLOT_GETRESULTS), "Ptr", stAsync, "Int*", stNew, "Int")
+         WinGeoRelease(stAsync)
+      }
+
+      StoreStartupMenuMark(stNew)
+      If (stNew=2 || stNew=4)
+         CreateOSDGUI("Enabled Start at Boot", 0, 1)
+      Else If (stNew=1)
+         StoreStartupSwitchedOffByUser()
+      Else If (stStatus=-1)
+         simpleMsgBoxWrapper(appName, "Windows did not answer the request to start " appName " at boot within 4 seconds. Please try again.", 0, 1, 48)
+      Else
+         simpleMsgBoxWrapper(appName, "Windows did not switch on the Start at boot entry.`n`n" StoreStartupFault(stHr), 0, 1, 48)
+   } Else If (stState=1)   ; DisabledByUser
+      StoreStartupSwitchedOffByUser()
+   Else If (stState=3 || stState=4)   ; DisabledByPolicy, EnabledByPolicy
+      simpleMsgBoxWrapper(appName, "Whether " appName " starts at boot is decided by a system policy on this computer, and it cannot be changed from here.", 0, 1, 48)
+   Else
+      simpleMsgBoxWrapper(appName, "Windows would not say whether " appName " is set to start at boot. The entry can be checked on the Start-up apps page of the Task Manager, opened with Ctrl+Shift+Esc.", 0, 1, 48)
+
+   WinGeoRelease(stTask)
+   stBusy := 0
+}
+
+StoreStartupSwitchedOffByUser() {
+; An entry switched off on the Start-up apps page of the Task Manager or of
+; the Windows Settings is the user's decision, and Windows lets no
+; application overrule it. The most the application may do is bring the
+; user there.
+
+   stMsg := "Starting " appName " at boot was switched off from outside the application, on the Start-up apps page of the Task Manager or of the Windows Settings. Windows does not let an application overrule that choice, so the entry has to be switched back on from there.`n`nOpen the Start-up apps page of the Windows Settings now?"
+   If (simpleMsgBoxWrapper(appName, stMsg, 4, 1, 32)="Yes")
+      Try Run, ms-settings:startupapps
+}
+
+StoreStartupFault(stHr) {
+; The handful of failures worth naming plainly. Everything else is given back
+; as the bare HRESULT, which is at least something to search for.
+
+   stHr := stHr & 0xFFFFFFFF
+   If (stHr=0xFFFFFFFF)
+      Return "The Windows Runtime could not be started on this thread."
+   Else If (stHr=0x80040154 || stHr=0x80040111)   ; REGDB_E_CLASSNOTREG, CLASS_E_CLASSNOTAVAILABLE
+      Return "This edition of Windows knows nothing of startup tasks. Windows 10 version 1607 or newer is wanted."
+   Else If (stHr=0x80073D54)   ; APPMODEL_ERROR_NO_PACKAGE
+      Return "The application is running without a package identity, so Windows keeps no startup task for it."
+   Else If (stHr=0x80070005)   ; E_ACCESSDENIED
+      Return "Windows denied the application access to its startup task."
+   Else If !stHr
+      Return "Windows gave back nothing to work with."
+
+   Return "Windows startup task error code: " Format("0x{:08X}", stHr) "."
 }
 
 SuspendScriptNow() {
@@ -2881,12 +3222,16 @@ InitializeTrayMenu() {
     If (uiDarkMode=1)
        Menu, moreOpts, Check, Dar&k mode UI
 
-    If (storeSettingsREG=0)
-       Menu, moreOpts, Add, Start at boot, SetStartUp
-
-    RegRead, currentReg, %StartRegPath%, %appName%
-    If (StrLen(currentReg)>5 && storeSettingsREG=0)
-       Menu, moreOpts, Check, Start at boot
+    Menu, moreOpts, Add, Start at boot, SetStartUp
+    If (storeSettingsREG=1)
+    {
+       StoreStartupRefreshMark(1)
+    } Else
+    {
+       RegRead, currentReg, %StartRegPath%, %appName%
+       If (StrLen(currentReg)>5)
+          Menu, moreOpts, Check, Start at boot
+    }
 
     If FileExist(tickTockSound)
     {
