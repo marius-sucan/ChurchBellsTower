@@ -154,8 +154,6 @@ Global displayTimeFormat := 1
 , stopWatchDoBeeps   := 0
 
 ; Analog clock stuff
-, faceBgrColor  := "eeEEee"
-, faceElements  := "001100"
 , mainOSDopacity:= 230
 , faceOpacity   := 254
 , roundedClock  := 0
@@ -207,12 +205,9 @@ If (FirstRun=0)
 ; Initialization variables. Altering these may lead to undesired results.
 
 Global CSthin := "░"   ; light gray 
-, CSmid       := "▒"   ; gray 
-, CSdrk       := "▓"   ; dark gray
-, CSblk       := "█"   ; full block
+, CSmid       := "▒"   ; gray
 , DisplayTime := DisplayTimeUser*1000
 , OSDGuiaVisible := 0
-, bibleQuoteVisible := 0
 , DoNotRepeatTimer := 0
 , PrefOpen := 0, FontList := []
 , userIdleAfter := showTimeIdleAfter * 60000
@@ -240,7 +235,7 @@ Global CSthin := "░"   ; light gray
 , celebYear := A_Year, userAlarmIsSnoozed := 0
 , isHolidayToday := 0, stopWatchRecordsInterval := []
 , TypeHolidayOccured := 0, userTimerExpire := 0, SolarYearGraphMode := 0
-, hMain := A_ScriptHwnd, stopWatchIntervalInfos := []
+, stopWatchIntervalInfos := []
 , lastOSDredraw := 1, stopWatchHumanStartTime := 0
 , semtr2play := 0, stopWatchRealStartZeit := 0, attempts2Quit := 0
 , stopWatchBeginZeit := 0, stopWatchLapBeginZeit := 0, combosDarkModus := ""
@@ -251,7 +246,6 @@ Global CSthin := "░"   ; light gray
 , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
 , hWinOSD, hSetWinGui, hOSDtxt, hBibleOSD, hSetWinGui, ColorPickerHandles, hDatTime
-, CCLVO := "-E0x200 +Border -Hdr -Multi +ReadOnly Report AltSubmit gInvokeSetNewColor"
 , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
 , SNDmedia_ticktok, quartersTotalTime := 0, hoursTotalTime := 0
 , SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas, todaySunMoonGraphMode := 0
@@ -262,7 +256,7 @@ Global CSthin := "░"   ; light gray
 , SNDmedia_quarters1, SNDmedia_quarters2, SNDmedia_quarters3, SNDmedia_quarters4
 , SNDmedia_hours1, SNDmedia_hours2, SNDmedia_hours3, SNDmedia_hours4, SNDmedia_hours5
 , SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
-, hFaceClock, lastShowTime := 1, pToken, scriptStartZeit := A_TickCount
+, hFaceClock, pToken, scriptStartZeit := A_TickCount
 , globalG, globalhbm, globalhdc, globalobm, uiUserFullDateUTC
 , clockFgrClr, clockBgrClr, isAlarmTmrw := 0
 , moduleAnalogClockInit := 0, darkWindowColor := "0x202020", darkControlColor := "0xEDedED"
@@ -1878,7 +1872,6 @@ centerWindowScreen(hwnd, g, mX, mY, ByRef fx, ByRef fy) {
 
 CreateBibleGUI(msg2Display, centerMsg:=1, twoLinez:=0) {
     Critical, On
-    bibleQuoteVisible := 1
     FontSizeMin := FontSizeQuotes
     GuiFader("ChurchTowerBibleWin","hide", OSDalpha)
     Sleep, 2
