@@ -154,7 +154,6 @@ Global displayTimeFormat := 1
 , stopWatchDoBeeps   := 0
 
 ; Analog clock stuff
-, mainOSDopacity:= 230
 , faceOpacity   := 254
 , roundedClock  := 0
 , faceOpacityBgr:= Round(faceOpacity/1.25)

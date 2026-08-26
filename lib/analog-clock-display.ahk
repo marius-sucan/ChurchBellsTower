@@ -127,7 +127,7 @@ InitClockFace() {
    Gdip_DeletePen(pPen)
 
    z := GetWindowPlacement(hFaceClock)
-   UpdateLayeredWindow(hFaceClock, globalhdc, , , z.w, z.h, mainOSDopacity)
+   UpdateLayeredWindow(hFaceClock, globalhdc, , , z.w, z.h, faceOpacity)
    moduleAnalogClockInit := 1
    Return
 }
@@ -466,6 +466,7 @@ showAnalogClock() {
   If (ClockVisibility!=0)
      Return
 
+  lastShowTime := A_TickCount
   ; paint the current time before the window comes up; when it is going to fade in,
   ; paint it (nearly) invisible, so that the fade-in does not start with an opaque frame
   UpdateEverySecond((PrefOpen=0) ? 1 : 0)
