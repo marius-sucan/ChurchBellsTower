@@ -1,9 +1,9 @@
 ;================================================================
 ; windows-geolocation.ahk
 ;
-; Where this computer stands, asked of Windows and of nobody else.
+; Identify device location on the planet Earth :-).
 ;
-; The good answer comes from Windows.Devices.Geolocation.Geolocator, the
+; Most precision is through Windows.Devices.Geolocation.Geolocator, the
 ; runtime class that sits behind Settings > Privacy > Location on Windows 10
 ; and Windows 11. It is the same source the Maps and the Weather apps read.
 ; A machine carrying a GPS receiver is placed within a few metres; a machine
@@ -11,11 +11,9 @@
 ; or, those failing, from the address its network hands out. The coarse case
 ; lands a few kilometres off, which is still well inside what naming a city
 ; asks for. Whichever way it arrives, the reply is a true latitude and
-; longitude and the metres of doubt that come with it.
+; longitude.
 ;
-; Poorer answers stand behind it. None of them needs anything newer than
-; Windows XP, so they are the whole story on Windows 7, and together they
-; still corner a place fairly well:
+; Fallback mechanism:
 ;
 ;   - the country set under Settings > Time & language > Region - the same
 ;     home region the WinRT GlobalizationPreferences.HomeGeographicRegion
@@ -32,11 +30,6 @@
 ;     UTC-8 in January and UTC-7 in July is on the Pacific coast, and that
 ;     is worth three thousand kilometres over assuming the capital.
 ;
-; Turning those hints into a place is the caller's business, the caller being
-; the one holding a city index to match them against. Nothing here reaches
-; the network of its own accord, nothing here is written down, and the
-; location service is only ever asked when the user asks for it.
-;
 ; The WinRT calls below are made straight against the ABI vtables rather than
 ; through a projection, since AutoHotkey has none. That is safe to do only
 ; because a published WinRT interface may never be reordered once it ships -
@@ -51,8 +44,11 @@
 ; as IGeoposition, Geocoordinate as IGeocoordinate. The one interface that
 ; must be asked for by name is IAsyncInfo, which carries the status of the
 ; operation while it runs.
+; 
+; Code written with Claude Opus 5 by Marius Șucan.
+;
 ;================================================================
-
+ 
 WinGeoRuntimeReady() {
 ; Whether this Windows has the runtime at all. combase.dll arrived with
 ; Windows 8; on anything older there is nothing here to ask.
@@ -84,7 +80,6 @@ WinGeoInitApartment() {
 
 WinGeoSlot(wgPtr, wgIndex) {
 ; The address parked in slot wgIndex of the vtable wgPtr points at.
-
    Return NumGet(NumGet(wgPtr+0, 0, "UPtr")+0, wgIndex*A_PtrSize, "UPtr")
 }
 
