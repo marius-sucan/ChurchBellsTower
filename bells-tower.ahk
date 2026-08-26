@@ -240,14 +240,14 @@ Global CSthin := "░"   ; light gray
 , semtr2play := 0, stopWatchRealStartZeit := 0, attempts2Quit := 0
 , stopWatchBeginZeit := 0, stopWatchLapBeginZeit := 0, combosDarkModus := ""
 , stopWatchPauseZeit := 0.001, stopWatchLapPauseZeit := 0.001
-, aboutTheme, GUIAbgrColor, AboutTitleColor, hoverBtnColor, BtnTxtColor, GUIAtxtColor
+, AboutTitleColor
 , listedExtendedLocations := 0, extendedGeoData := []
 , roundCornerSize := Round(FontSize/2) + Round(OSDmarginSides/5)
 , StartRegPath := "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 , tickTockSound := A_ScriptDir "\sounds\ticktock.wav"
 , hWinOSD, hSetWinGui, hOSDtxt, hBibleOSD, hSetWinGui, ColorPickerHandles, hDatTime
 , hWinMM := DllCall("kernel32\LoadLibraryW", "Str", "winmm.dll", "Ptr")
-, SNDmedia_ticktok, quartersTotalTime := 0, hoursTotalTime := 0
+, quartersTotalTime := 0, hoursTotalTime := 0
 , SNDmedia_auxil_bell, SNDmedia_japan_bell, SNDmedia_christmas, todaySunMoonGraphMode := 0
 , SNDmedia_evening, SNDmedia_midnight, SNDmedia_morning, SNDmedia_beep
 , SNDmedia_noon1, SNDmedia_noon2, SNDmedia_noon3, SNDmedia_noon4, SNDmedia_surah
@@ -347,7 +347,6 @@ InitSoundChannels() {
   SNDfile_quarters := A_ScriptDir "\sounds\quarters.mp3"
   SNDfile_semantron1 := A_ScriptDir "\sounds\semantron1.mp3"
   SNDfile_semantron2 := A_ScriptDir "\sounds\semantron2.mp3"
-  SNDfile_ticktok := A_ScriptDir "\sounds\ticktock.wav"
   SNDfile_surah := A_ScriptDir "\sounds\al-fatiha-surah.mp3"
   SNDfile_armistice := A_ScriptDir "\sounds\armistice.mp3"
   SNDfile_beep := A_ScriptDir "\sounds\beep.wav"
@@ -375,7 +374,6 @@ InitSoundChannels() {
   SNDmedia_howl := (useDirectSound=1) ? SNDfile_howl : MCI_Open(SNDfile_howl)
   SNDmedia_semantron1 := (useDirectSound=1) ? SNDfile_semantron1 : MCI_Open(SNDfile_semantron1)
   SNDmedia_semantron2 := (useDirectSound=1) ? SNDfile_semantron2 : MCI_Open(SNDfile_semantron2)
-  SNDmedia_ticktok := (useDirectSound=1) ? SNDfile_ticktok : MCI_Open(SNDfile_ticktok)
 }
 
 TimerShowOSDidle() {
@@ -3607,25 +3605,6 @@ doResetGuiFont() {
 
    If (PrefsLargeFonts=1)
       Gui, Font, s%LargeUIfontValue%
-}
-
-determineUIcolors() {
-   aboutTheme := (A_Hour<9) || (A_Hour>22) ? "night" : "day"
-   If (aboutTheme="day")
-   {
-      GUIAbgrColor := "faf7f2"
-      GUIAtxtColor := "111100"
-      AboutTitleColor := "1166AA"
-      hoverBtnColor := "448855"
-      BtnTxtColor := "ffffff"
-   } Else
-   {
-      GUIAbgrColor := "222010"
-      GUIAtxtColor := "ffeedd"
-      AboutTitleColor := "eebb22"
-      hoverBtnColor := "ffeedd"
-      BtnTxtColor := "000000"
-   }
 }
 
 initSettingsWindow() {
