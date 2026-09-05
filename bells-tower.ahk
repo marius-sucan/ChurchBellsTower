@@ -2514,7 +2514,7 @@ WM_MouseMove(wP, lP, msg, hwnd) {
      DllCall("user32\SetCursor", "Ptr", hCursM)
   } Else If InStr(hWinOSD, hwnd)
   {
-     If (PrefOpen=0 && constantOSDvisible!=1 & (A_TickCount - prevenThisu>350))
+     If (PrefOpen=0 && constantOSDvisible!=1 && (A_TickCount - prevenThisu>350))
      {
         DestroyOSDguia(A_ThisFunc, 1)
         prevenThisu := A_TickCount
@@ -3542,6 +3542,7 @@ KillScript(showMSG:=1) {
       Return
    }
 
+   wasPrefs := PrefOpen
    attempts2Quit++
    CloseWindow()
    DoGuiFader := 1
@@ -3550,7 +3551,8 @@ KillScript(showMSG:=1) {
    Sleep, 50
    If (FileExist(ThisFile) && showMSG)
    {
-      INIsettings(1)
+      If !wasPrefs
+         INIsettings(1)
       CreateOSDGUI("Bye byeee :-)", 0, 1)
       Sleep, 350
    } Else If showMSG
