@@ -296,7 +296,7 @@
         }
         
         ; Reset buffer position to start using SetCurrentPosition
-        this.SetCurrentPosition(0)
+        this.SetCurrentPosition(index, 0)
         playMethod := NumGet(NumGet(pDSBuffer + 0), 12*A_PtrSize, "Ptr")
         hr := DllCall(playMethod, "Ptr", pDSBuffer, "UInt", 0, "UInt", 0, "UInt", looped, "Int")
         if (hr!=0)

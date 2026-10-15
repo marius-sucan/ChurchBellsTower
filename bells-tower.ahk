@@ -687,7 +687,7 @@ strikeJapanBell() {
 }
 
 InvokeBibleQuoteNow() {
-  Static bibleQuotesFile, countLines, menuAdded, lastLoaded := 1
+  Static bibleQuotesFile, lastFileLoaded, countLines, menuAdded, lastLoaded := 1
   
   If (PrefOpen=0 && A_IsSuspended) || (stopAdditionalStrikez=1 && PrefOpen=0)
      Return
@@ -707,10 +707,12 @@ InvokeBibleQuoteNow() {
 
   stopStrikesNow := 0
   DoGuiFader := 1
-  If (!bibleQuotesFile || (PrefOpen=1 && (A_TickCount - lastLoaded>2000)))
+  lang := bibleQuotesLangCode(BibleQuotesLang)
+  toLoadFile := "bible-quotes-" lang ".txt"
+  If (!bibleQuotesFile || toLoadFile!=lastFileLoaded)
   {
-     lang := bibleQuotesLangCode(BibleQuotesLang)
-     Try FileRead, bibleQuotesFile, %A_ScriptDir%\resources\bible-quotes-%lang%.txt
+     lastFileLoaded := toLoadFile
+     Try FileRead, bibleQuotesFile, %A_ScriptDir%\resources\%lastFileLoaded%
      lastLoaded := A_TickCount
      If (ErrorLevel || !bibleQuotesFile || !lang)
      {
@@ -1522,7 +1524,7 @@ theChimer() {
      }
   }
 
-  If (stopStrikesNow=0 && SemantronHoliday=1 && StrLen(isHolidayToday)>2 && InStr(exactTime, ":45"))
+  If (stopStrikesNow=0 && TypeHolidayOccured=1 && SemantronHoliday=1 && StrLen(isHolidayToday)>2 && InStr(exactTime, ":45"))
   {
      If InStr(exactTime, "09:45")
         playSemantron(1, quartersTotalTime)
@@ -1748,12 +1750,12 @@ decideJiji(elevu, m:=0) {
 }
 
 decideOSDcolorBGR() {
+  w := StrSplit(lastUsedGeoLocation, "|")
   If (OSDastralMode!=3)
   {
      If !InStr(lastUsedGeoLocation, "|")
         Return OSDbgrColor
  
-     w := StrSplit(lastUsedGeoLocation, "|")
      If (w.Count()<5)
         Return OSDbgrColor
   }
@@ -4066,15 +4068,19 @@ InvokeSetNewColor(hC, event, c, err=0) {
   Critical, Off
   If (event != "Normal")
      Return
+
   g := A_Gui, ctrl := A_GuiControl
   r := %ctrl% := hexRGB(Standard_Dlg_Color(%ctrl%, hC))
   Critical, %oc%
   updateColoredRectCtrl(r, ctrl, g, hC)
 
   ; GuiControl, %g%:+Background%r%, %ctrl%
-  If (CurrentPrefWindow=5)
-     GuiControl, %g%:Enable, ApplySettingsBTN
   SetTimer, OSDpreview, -150
+  If (CurrentPrefWindow=5)
+  {
+     appSettingsModified := 1
+     GuiControl, %g%:Enable, ApplySettingsBTN
+  }
 }
 
 UpdateFntNow() {
@@ -6456,7 +6462,10 @@ PanelCalendarWindow() {
     btnW2 := (PrefsLargeFonts=1) ? 205 : 125
     btnW1 := (PrefsLargeFonts=1) ? 70 : 50
     Gui, Add, Button, xm y+20 h30 w%btnW3% gPanelTodayInfos, &Astronomy
-    Gui, Add, Button, x+5 hp w%btnW2% gOpenListCelebrationsBtn, &Manage celebrations
+    Gui, Add, Button, x+5 hp w%btnW2% gOpenListCelebrationsBtn vBtn5, &Manage celebrations
+    If (ObserveHolidays!=1)
+       GuiControl, SettingsGUIA: Disable, Btn5
+
     Gui, Add, Button, x+5 hp w%btnW1% Default gCloseWindow, &Close
     col := (PrefsLargeFonts=1) ? Round(kw*8.7) : Round(kw*8.6)
     Gui, Font, % (PrefsLargeFonts=1) ? "s16" : "s14"
@@ -6511,6 +6520,7 @@ BTNcalendarSaveNewEntry() {
      If (ObserveHolidays!=1)
      {
         ObserveHolidays := 1
+        GuiControl, SettingsGUIA: Enable, Btn5
         ObserveSecularDays := ObserveReligiousDays := 0
         INIaction(1, "ObserveHolidays", "SavedSettings")
         INIaction(1, "ObserveSecularDays", "SavedSettings")
@@ -6682,7 +6692,7 @@ givenDateTestCelebrations(givenDate) {
        {
           prefixu := (obju[1]=1) ? "✝ " : "▣ "
           If (obju[1]=3) ; personal
-             prefixu := "▣ "
+             prefixu := "▦ "
  
           listu .= prefixu obju[2] ".`n`n"
        }
@@ -6714,11 +6724,11 @@ givenDateTestCelebrations(givenDate) {
     If (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins))
     {
        tipu := 0
-       If InStr(listu, "✝")
+       If InStr(listu, "✝")     ; religious
           tipu := 1
-       Else If InStr(listu, "▦")
+       Else If InStr(listu, "▦") ; personal
           tipu := 3
-       Else If InStr(listu, "▣")
+       Else If InStr(listu, "▣") ; secular
           tipu := 2
 
        timeu := Format("{:02}:{:02}", userAlarmHours, userAlarmMins)
