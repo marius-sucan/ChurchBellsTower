@@ -51,7 +51,7 @@
         if !this.hasInit
         {
             ; Load required DLLs
-            this.hDsound := DllCall("LoadLibrary", "Str", "dsound.dll", "Ptr")
+            this.hDsound := DllCall("LoadLibrary", "Str", "dsound.dll", "UPtr")
             if (!this.hDsound)
             {
                 this.LastError := "LoadLibrary dsound.dll: failed."
@@ -193,7 +193,7 @@
         NumPut(0x000080C0, dsbd, 4, "UInt")      ; dwFlags: DSBCAPS_GLOBALFOCUS | DSBCAPS_CTRLVOLUME | DSBCAPS_CTRLPAN
         NumPut(dataSize, dsbd, 8, "UInt")        ; dwBufferBytes
         NumPut(0, dsbd, 12, "UInt")              ; dwReserved
-        NumPut(&wfx, dsbd, 16, "Ptr")            ; lpwfxFormat
+        NumPut(&wfx, dsbd, 16, "UPtr")            ; lpwfxFormat
 
         ; Create sound buffer
         pDSBuffer := 0
@@ -208,13 +208,13 @@
         ; Lock buffer
         pAudioPtr1 := 0
         audioBytes1 := 0
-        lockMethod := NumGet(NumGet(pDSBuffer + 0), 11*A_PtrSize, "Ptr")
+        lockMethod := NumGet(NumGet(pDSBuffer + 0), 11*A_PtrSize, "UPtr")
         hr := DllCall(lockMethod, "UPtr", pDSBuffer, "UInt", 0, "UInt", 0, "Ptr*", pAudioPtr1, "UInt*", audioBytes1, "Ptr*", 0, "UInt*", 0, "UInt", 2, "Int")
         if (hr=0 && pAudioPtr1)
         {
             ; Copy audio data using the dynamic pointer
             DllCall("RtlMoveMemory", "UPtr", pAudioPtr1, "UPtr", pDataPtr, "UInt", audioBytes1)
-            unlockMethod := NumGet(NumGet(pDSBuffer + 0), 19*A_PtrSize, "Ptr")
+            unlockMethod := NumGet(NumGet(pDSBuffer + 0), 19*A_PtrSize, "UPtr")
             hr := DllCall(unlockMethod, "UPtr", pDSBuffer, "UPtr", pAudioPtr1, "UInt", audioBytes1, "UPtr", 0, "UInt", 0, "Int")
             if (hr!=0)
             {
@@ -297,7 +297,7 @@
         
         ; Reset buffer position to start using SetCurrentPosition
         this.SetCurrentPosition(index, 0)
-        playMethod := NumGet(NumGet(pDSBuffer + 0), 12*A_PtrSize, "Ptr")
+        playMethod := NumGet(NumGet(pDSBuffer + 0), 12*A_PtrSize, "UPtr")
         hr := DllCall(playMethod, "UPtr", pDSBuffer, "UInt", 0, "UInt", 0, "UInt", looped, "Int")
         if (hr!=0)
         {
@@ -324,7 +324,7 @@
            return 0
         }
 
-        SetCurrentPosition := NumGet(NumGet(pDSBuffer + 0), 13*A_PtrSize, "Ptr")
+        SetCurrentPosition := NumGet(NumGet(pDSBuffer + 0), 13*A_PtrSize, "UPtr")
         hr := DllCall(SetCurrentPosition, "UPtr", pDSBuffer, "UInt", newPos, "Int")
         if (hr!=0)
         {
@@ -356,7 +356,7 @@
         If (newVolume>0)
            newVolume := -newVolume
 
-        SetVolume := NumGet(NumGet(pDSBuffer + 0), 15*A_PtrSize, "Ptr")
+        SetVolume := NumGet(NumGet(pDSBuffer + 0), 15*A_PtrSize, "UPtr")
         hr := DllCall(SetVolume, "UPtr", pDSBuffer, "UInt", newVolume, "Int")
         if (hr!=0)
         {
@@ -386,7 +386,7 @@
            return 0
         }
 
-        SetPan := NumGet(NumGet(pDSBuffer + 0), 16*A_PtrSize, "Ptr")
+        SetPan := NumGet(NumGet(pDSBuffer + 0), 16*A_PtrSize, "UPtr")
         hr := DllCall(SetPan, "UPtr", pDSBuffer, "UInt", newPan, "Int")
         if (hr!=0)
         {
@@ -412,7 +412,7 @@
            return 0
         }
 
-        stopMethod := NumGet(NumGet(pDSBuffer + 0), 18*A_PtrSize, "Ptr")
+        stopMethod := NumGet(NumGet(pDSBuffer + 0), 18*A_PtrSize, "UPtr")
         hr := DllCall(stopMethod, "UPtr", pDSBuffer, "Int")
         if (hr!=0)
         {
@@ -438,7 +438,7 @@
        }
         
        status := 0
-       getStatusMethod := NumGet(NumGet(pDSBuffer + 0), 9*A_PtrSize, "Ptr")
+       getStatusMethod := NumGet(NumGet(pDSBuffer + 0), 9*A_PtrSize, "UPtr")
        DllCall(getStatusMethod, "UPtr", pDSBuffer, "UInt*", status, "Int")
        return status
     }
@@ -483,7 +483,7 @@
         this.DiscardAllFiles()
         Sleep, 1
         if this.pDS      ; Release DirectSound
-           DllCall(NumGet(NumGet(this.pDS+0), 2*A_PtrSize), "UPtr", pDS)
+           DllCall(NumGet(NumGet(this.pDS+0), 2*A_PtrSize), "UPtr", this.pDS)
         if this.hDsound  ; Free library
            DllCall("FreeLibrary", "UPtr", this.hDsound)
 
@@ -569,7 +569,7 @@
             x += this.RemoveByIndex(1, A_Index, onlyNotPlaying)
             ; Always remove index 1 since array shrinks
         
-        fnOutputDebug(x " / " p " buffer[s] discarded.")
+        ; fnOutputDebug(x " / " p " buffer[s] discarded.")
         return 1
     }
 
