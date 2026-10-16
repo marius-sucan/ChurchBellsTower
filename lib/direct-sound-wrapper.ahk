@@ -61,22 +61,22 @@
 
             ; Create DirectSound object
             VarSetCapacity(GUID_IID_IDirectSound, 16)
-            DllCall("ole32\CLSIDFromString", "Str", "{279AFA83-4981-11CE-A521-0020AF0BE560}", "Ptr", &GUID_IID_IDirectSound)
+            DllCall("ole32\CLSIDFromString", "Str", "{279AFA83-4981-11CE-A521-0020AF0BE560}", "UPtr", &GUID_IID_IDirectSound)
             
             pDS := 0
-            hr := DllCall("dsound\DirectSoundCreate", "Ptr", 0, "Ptr*", pDS, "Ptr", 0)
+            hr := DllCall("dsound\DirectSoundCreate", "UPtr", 0, "Ptr*", pDS, "UPtr", 0)
             if (hr!=0 || !pDS)
             {
                 this.LastError := "DirectSoundCreate failed -- HRESULT: 0x" Format("{:X}", hr) " pDS: " pDS
                 fnOutputDebug(this.lastError)
-                DllCall("FreeLibrary", "Ptr", this.hDsound)
+                DllCall("FreeLibrary", "UPtr", this.hDsound)
                 return 0
             }
             this.pDS := pDS
             
             ; Set cooperative level
             SetCooperativeLevelMethod := NumGet(NumGet(this.pDS + 0), 6*A_PtrSize)
-            hr := DllCall(SetCooperativeLevelMethod, "Ptr", this.pDS, "Ptr", A_ScriptHwnd, "Int", 2)
+            hr := DllCall(SetCooperativeLevelMethod, "UPtr", this.pDS, "UPtr", A_ScriptHwnd, "Int", 2)
             ; fnOutputDebug(this.pDS " SetCooperativeLevel HRESULT: 0x" . Format("{:X}", hr))
             this.hasInit := 1
         }
@@ -197,7 +197,7 @@
 
         ; Create sound buffer
         pDSBuffer := 0
-        hr := DllCall(NumGet(NumGet(this.pDS+0), 3*A_PtrSize), "Ptr", this.pDS, "Ptr", &dsbd, "Ptr*", pDSBuffer, "Ptr", 0)
+        hr := DllCall(NumGet(NumGet(this.pDS+0), 3*A_PtrSize), "UPtr", this.pDS, "UPtr", &dsbd, "Ptr*", pDSBuffer, "UPtr", 0)
         if (hr!=0 || !pDSBuffer)
         {
             this.LastError := "DirectSound CreateSoundBuffer failed -- HRESULT: 0x" Format("{:X}", hr) " pDSBuffer: " pDSBuffer
@@ -209,19 +209,19 @@
         pAudioPtr1 := 0
         audioBytes1 := 0
         lockMethod := NumGet(NumGet(pDSBuffer + 0), 11*A_PtrSize, "Ptr")
-        hr := DllCall(lockMethod, "Ptr", pDSBuffer, "UInt", 0, "UInt", 0, "Ptr*", pAudioPtr1, "UInt*", audioBytes1, "Ptr*", 0, "UInt*", 0, "UInt", 2, "Int")
+        hr := DllCall(lockMethod, "UPtr", pDSBuffer, "UInt", 0, "UInt", 0, "Ptr*", pAudioPtr1, "UInt*", audioBytes1, "Ptr*", 0, "UInt*", 0, "UInt", 2, "Int")
         if (hr=0 && pAudioPtr1)
         {
             ; Copy audio data using the dynamic pointer
-            DllCall("RtlMoveMemory", "Ptr", pAudioPtr1, "Ptr", pDataPtr, "UInt", audioBytes1)
+            DllCall("RtlMoveMemory", "UPtr", pAudioPtr1, "UPtr", pDataPtr, "UInt", audioBytes1)
             unlockMethod := NumGet(NumGet(pDSBuffer + 0), 19*A_PtrSize, "Ptr")
-            hr := DllCall(unlockMethod, "Ptr", pDSBuffer, "Ptr", pAudioPtr1, "UInt", audioBytes1, "Ptr", 0, "UInt", 0, "Int")
+            hr := DllCall(unlockMethod, "UPtr", pDSBuffer, "UPtr", pAudioPtr1, "UInt", audioBytes1, "UPtr", 0, "UInt", 0, "Int")
             if (hr!=0)
             {
                ; release buffer on error
                this.LastError := "DirectSound Unlock failed -- HRESULT: 0x" Format("{:X}", hr)
                fnOutputDebug(this.LastError)
-               DllCall(NumGet(NumGet(pDSBuffer+0), 2*A_PtrSize), "Ptr", pDSBuffer)
+               DllCall(NumGet(NumGet(pDSBuffer+0), 2*A_PtrSize), "UPtr", pDSBuffer)
                return 0
             }
         } else
@@ -229,7 +229,7 @@
             ; release buffer on error
             this.LastError := "DirectSound Lock failed"
             fnOutputDebug(this.LastError)
-            DllCall(NumGet(NumGet(pDSBuffer+0), 2*A_PtrSize), "Ptr", pDSBuffer)
+            DllCall(NumGet(NumGet(pDSBuffer+0), 2*A_PtrSize), "UPtr", pDSBuffer)
             return 0
         }
 
@@ -253,7 +253,7 @@
         allowDupe := this.AllowedDupes[index]
 
         pDSBufferDuplicate := 0
-        hr := DllCall(NumGet(NumGet(this.pDS+0), 5*A_PtrSize), "Ptr", this.pDS, "Ptr", pDSBuffer, "Ptr*", pDSBufferDuplicate)
+        hr := DllCall(NumGet(NumGet(this.pDS+0), 5*A_PtrSize), "UPtr", this.pDS, "UPtr", pDSBuffer, "Ptr*", pDSBufferDuplicate)
         if (hr!=0)
         {
            this.LastError := "DirectSound Duplicate buffer failed -- HRESULT: 0x" Format("{:X}", hr)
@@ -298,7 +298,7 @@
         ; Reset buffer position to start using SetCurrentPosition
         this.SetCurrentPosition(index, 0)
         playMethod := NumGet(NumGet(pDSBuffer + 0), 12*A_PtrSize, "Ptr")
-        hr := DllCall(playMethod, "Ptr", pDSBuffer, "UInt", 0, "UInt", 0, "UInt", looped, "Int")
+        hr := DllCall(playMethod, "UPtr", pDSBuffer, "UInt", 0, "UInt", 0, "UInt", looped, "Int")
         if (hr!=0)
         {
            this.LastError := "DirectSound Play buffer at index " index " failed: HRESULT: 0x" Format("{:X}", hr) " | " this.FilePaths[index]
@@ -325,7 +325,7 @@
         }
 
         SetCurrentPosition := NumGet(NumGet(pDSBuffer + 0), 13*A_PtrSize, "Ptr")
-        hr := DllCall(SetCurrentPosition, "Ptr", pDSBuffer, "UInt", newPos, "Int")
+        hr := DllCall(SetCurrentPosition, "UPtr", pDSBuffer, "UInt", newPos, "Int")
         if (hr!=0)
         {
            this.LastError := "DirectSound SetCurrentPosition for buffer at index " index " failed: HRESULT: 0x" Format("{:X}", hr) " | " this.FilePaths[index]
@@ -357,7 +357,7 @@
            newVolume := -newVolume
 
         SetVolume := NumGet(NumGet(pDSBuffer + 0), 15*A_PtrSize, "Ptr")
-        hr := DllCall(SetVolume, "Ptr", pDSBuffer, "UInt", newVolume, "Int")
+        hr := DllCall(SetVolume, "UPtr", pDSBuffer, "UInt", newVolume, "Int")
         if (hr!=0)
         {
            this.LastError := "DirectSound SetVolume for buffer at index " index " failed: HRESULT: 0x" Format("{:X}", hr) " | " this.FilePaths[index]
@@ -387,7 +387,7 @@
         }
 
         SetPan := NumGet(NumGet(pDSBuffer + 0), 16*A_PtrSize, "Ptr")
-        hr := DllCall(SetPan, "Ptr", pDSBuffer, "UInt", newPan, "Int")
+        hr := DllCall(SetPan, "UPtr", pDSBuffer, "UInt", newPan, "Int")
         if (hr!=0)
         {
            this.LastError := "DirectSound SetPan for buffer at index " index " failed: HRESULT: 0x" Format("{:X}", hr) " | " this.FilePaths[index]
@@ -413,7 +413,7 @@
         }
 
         stopMethod := NumGet(NumGet(pDSBuffer + 0), 18*A_PtrSize, "Ptr")
-        hr := DllCall(stopMethod, "Ptr", pDSBuffer, "Int")
+        hr := DllCall(stopMethod, "UPtr", pDSBuffer, "Int")
         if (hr!=0)
         {
            this.LastError := "DirectSound Stop buffer at index " index " failed: HRESULT: 0x" . Format("{:X}", hr) " | " this.FilePaths[index]
@@ -439,7 +439,7 @@
         
        status := 0
        getStatusMethod := NumGet(NumGet(pDSBuffer + 0), 9*A_PtrSize, "Ptr")
-       DllCall(getStatusMethod, "Ptr", pDSBuffer, "UInt*", status, "Int")
+       DllCall(getStatusMethod, "UPtr", pDSBuffer, "UInt*", status, "Int")
        return status
     }
     
@@ -467,7 +467,7 @@
         filePath := this.FilePaths[index]
         this.Stop(index) ; Stop if playing
         if pDSBuffer     ; Release buffer
-           DllCall(NumGet(NumGet(pDSBuffer+0), 2*A_PtrSize), "Ptr", pDSBuffer)
+           DllCall(NumGet(NumGet(pDSBuffer+0), 2*A_PtrSize), "UPtr", pDSBuffer)
 
         ; Remove from arrays
         this.FilePaths.RemoveAt(index)
@@ -482,10 +482,10 @@
     UnInitialize() {
         this.DiscardAllFiles()
         Sleep, 1
-        if pDS      ; Release DirectSound
-           DllCall(NumGet(NumGet(pDS+0), 2*A_PtrSize), "Ptr", pDS)
-        if hDsound  ; Free library
-           DllCall("FreeLibrary", "Ptr", hDsound)
+        if this.pDS      ; Release DirectSound
+           DllCall(NumGet(NumGet(this.pDS+0), 2*A_PtrSize), "UPtr", pDS)
+        if this.hDsound  ; Free library
+           DllCall("FreeLibrary", "UPtr", this.hDsound)
 
         this.hasInit := 0
         this.pDS := ""

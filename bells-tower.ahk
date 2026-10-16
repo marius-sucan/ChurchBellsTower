@@ -687,7 +687,7 @@ strikeJapanBell() {
 }
 
 InvokeBibleQuoteNow() {
-  Static bibleQuotesFile, lastFileLoaded, countLines, menuAdded, lastLoaded := 1
+  Static bibleQuotesFile, lastFileLoaded, countLines, menuAdded
   
   If (PrefOpen=0 && A_IsSuspended) || (stopAdditionalStrikez=1 && PrefOpen=0)
      Return
@@ -713,12 +713,14 @@ InvokeBibleQuoteNow() {
   {
      lastFileLoaded := toLoadFile
      Try FileRead, bibleQuotesFile, %A_ScriptDir%\resources\%lastFileLoaded%
-     lastLoaded := A_TickCount
      If (ErrorLevel || !bibleQuotesFile || !lang)
      {
         bibleQuotesFile := ""
         Return
      }
+
+     If (orderedBibleQuotes=1)
+        countLines := ST_Count(bibleQuotesFile, "`n") + 1
   }
 
   If (orderedBibleQuotes=1)
