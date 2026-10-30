@@ -258,7 +258,7 @@ Global CSthin := "░"   ; light gray
 , SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
 , hFaceClock, pToken, scriptStartZeit := A_TickCount
 , globalG, globalhbm, globalhdc, globalobm, uiUserFullDateUTC
-, clockFgrClr, clockBgrClr, isAlarmTmrw := 0
+, clockFgrClr, clockBgrClr, isAlarmTmrw := 0, alarmArmedZeit := ""
 , moduleAnalogClockInit := 0, darkWindowColor := "0x202020", darkControlColor := "0xEDedED"
 , debugMode := !A_IsCompiled, lastCalendarClickedDate := 0
 
@@ -544,12 +544,10 @@ friendlyAlarmInfoz() {
           alarmInfos := "`nAlarm is set at: " timeu " (snoozed for " userAlarmSnooze " min.)"
        } Else If (userAlarmRepeated=1)
        {
-          canDo := InStr(userAlarmWeekDays, A_WDay) ? 1 : 0
-          ; ToolTip, % canDo "=" ObserveHolidays "=" isHolidayToday , , , 2
-          If (canDo && ObserveHolidays=1 && StrLen(isHolidayToday)>2)
-             canDo := (InStr(userAlarmWeekDays, "p") && TypeHolidayOccured=3) || (InStr(userAlarmWeekDays, "s") && TypeHolidayOccured=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && TypeHolidayOccured=1 && ObserveReligiousDays=1) ? 0 : 1
-
-          alarmInfos := canDo ? "`nRegular alarm set at: " timeu : "" ; "`nRegular alarm set: exception rule applies for today"
+          ; startAlarmTimer() arms the alarm only for a day whose weekday and exceptions allow
+          ; it, and that day is tomorrow once today's time has gone by - always so at 00:00
+          tmr := (alarmArmedZeit && SubStr(alarmArmedZeit, 1, 8)!=SubStr(A_Now, 1, 8)) ? " (tomorrow)" : ""
+          alarmInfos := alarmArmedZeit ? "`nRegular alarm set at: " timeu tmr : ""
        } Else
        {
           tmr := (isAlarmTmrw=1) ? " (tomorrow)" : ""
@@ -7353,47 +7351,86 @@ isValidAlarmTime(hours, minutes) {
 }
 
 startAlarmTimer(kpl:=0) {
+; Arms doUserAlarmAlert() for the next time the alarm is due; theChimer() calls it every ten
+; seconds or so, and each call re-arms it with the time left.
   Static lastzz := 9871
   If (userAlarmIsSnoozed=1 || kpl="rr")
   {
      lastzz := 9871
+     alarmArmedZeit := ""
      Return
   }
 
-  canDo := (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins)) ? 1 : 0
-  If (canDo && userAlarmRepeated=1)
-     canDo := InStr(userAlarmWeekDays, A_WDay) ? 1 : 0
+  ; Once armed with less than 18 seconds to go, the alarm is left to go off. A call made in
+  ; the very second it is due would otherwise take it for one already gone by, turn to the
+  ; next day and, should that day not be ticked, call off the alarm that was about to ring.
+  If (lastzz<18)
+     Return
 
-  If (canDo && userAlarmRepeated=1 && ObserveHolidays=1 && StrLen(isHolidayToday)>2)
-     canDo := (InStr(userAlarmWeekDays, "p") && TypeHolidayOccured=3) || (InStr(userAlarmWeekDays, "s") && TypeHolidayOccured=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && TypeHolidayOccured=1 && ObserveReligiousDays=1) ? 0 : 1
+  canDo := (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins)) ? 1 : 0
+  If canDo
+  {
+     nowu := A_Now
+     tH := (StrLen(userAlarmHours)!=2) ? "0" . userAlarmHours : userAlarmHours
+     tM := (StrLen(userAlarmMins)!=2) ? "0" . userAlarmMins : userAlarmMins
+     newu := SubStr(nowu, 1, 8) tH tM . "00"
+     If (nowu>=newu)
+     {
+        newu += 1, Days
+        isAlarmTmrw := (userAlarmRepeated=1) ? 0 : 1
+     } Else
+        isAlarmTmrw := 0
+
+     ; The weekdays and the exceptions are those of the day the alarm rings on. Once today's
+     ; time has gone by, that day is tomorrow - and for an alarm set at 00:00 it always is.
+     ; Testing today instead made such an alarm ring at the end of every ticked day.
+     If (userAlarmRepeated=1)
+        canDo := alarmAllowedOnDay(newu)
+  }
 
   If !canDo
   {
      lastzz := 9871
+     alarmArmedZeit := ""
      SetTimer, doUserAlarmAlert, Off
      Return
   }
 
-  nowu := A_Now
-  tH := (StrLen(userAlarmHours)!=2) ? "0" . userAlarmHours : userAlarmHours
-  tM := (StrLen(userAlarmMins)!=2) ? "0" . userAlarmMins : userAlarmMins
-  newu := A_Year A_Mon A_DD tH tM . "00"
-  If (nowu>=newu)
-  {
-     newu += 1, Days
-     isAlarmTmrw := (userAlarmRepeated=1) ? 0 : 1
-  } Else
-     isAlarmTmrw := 0
-
   nss := newu
   nss -= nowu, Seconds
-  If (lastzz<18)
-     Return
-
   lastzz := nss
+  alarmArmedZeit := newu
   nsd := nss*1000
   ; ToolTip, % nowu "`n" newu "`n" nss "`n" nsd , , , 2
   SetTimer, doUserAlarmAlert, % -nsd
+}
+
+alarmAllowedOnDay(dateStamp) {
+; Whether the repeating alarm may ring on the day of dateStamp: its weekday must be ticked and,
+; when celebrations are observed, the day must hold none of the kinds of events excepted. The
+; day is tested in its own right; isHolidayToday and TypeHolidayOccured only describe today,
+; and theChimer() refreshes them on a new day only after it has called startAlarmTimer().
+   FormatTime, wdayu, % dateStamp, WDay
+   If !InStr(userAlarmWeekDays, wdayu)
+      Return 0
+
+   If (ObserveHolidays!=1 || !RegExMatch(userAlarmWeekDays, "[psr]"))
+      Return 1
+
+   FormatTime, monu, % dateStamp, MM
+   FormatTime, mdayu, % dateStamp, dd
+   FormatTime, ydayu, % dateStamp, YDay
+   wasCritical := A_IsCritical
+   ; in list mode, it neither shows nor plays anything
+   obju := coreTestCelebrationz(monu, mdayu, ydayu, 1, 0, SubStr(dateStamp, 1, 4), 1)
+   If !wasCritical
+      Critical, Off   ; coreTestCelebrationz() turns it on for the whole thread
+
+   If (StrLen(obju[2])<3)
+      Return 1
+
+   typeu := obju[1]
+   Return (InStr(userAlarmWeekDays, "p") && typeu=3) || (InStr(userAlarmWeekDays, "s") && typeu=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && typeu=1 && ObserveReligiousDays=1) ? 0 : 1
 }
 
 getPercentOfAstroSeason(z:=0) {
@@ -10316,17 +10353,28 @@ uiPopulateTableYearSolarData() {
       FormatTime, testToday, % timis, yyyy/MM/dd
       FormatTime, lyd, % timis, Yday
       licht := obj.durRaw + obj.cdurRaw
-      If (obj.durRaw<950)
-         polarNights++
-      Else If (obj.durRaw>86000)
-         polarDays++
+      ; a day without a sunrise, or without a dawn, is handed a single second for it; a day
+      ; with neither sunlight nor civil twilight thus adds up to 2 seconds, never to 0
+      noLight := (obj.durRaw<2 && obj.cdurRaw<2) ? 1 : 0
+      If (A_Index>1)
+      {
+         ; the first pass is December 31 of the year before, which only seeds the
+         ; differences listed for January 1 - it is no part of the year's figures
+         If (obj.durRaw<950)
+            polarNights++
+         Else If (obj.durRaw>86000)
+            polarDays++
 
-      If (licht<2)
-         deepNights++
+         If noLight
+            deepNights++
 
-      allYearLight += licht
+         allYearLight += licht
+         maxLichtu := max(obj.durRaw, maxLichtu)
+         minLichtu := min(obj.durRaw, minLichtu)
+      }
+
       diffuT := clampInRange(licht - prevlicht, -86400, 86400)
-      totalu := transformSecondsReadable(licht)
+      totalu := noLight ? "00:00" : transformSecondsReadable(licht)
       diffuT := transformSecondsReadable(abs(diffuT), 1)
       If (diffuT!="00:00" && diffuT!="0s")
          diffuT := (prevlicht>licht) ? "-" diffuT : "+" diffuT
@@ -10397,8 +10445,6 @@ uiPopulateTableYearSolarData() {
       prevlicht := licht
       prevsundur := obj.durRaw
       prevcivildur := obj.cdurRaw
-      maxLichtu := max(obj.durRaw, maxLichtu)
-      minLichtu := min(obj.durRaw, minLichtu)
       ; listu .= "    " gyd " | " f ": [" obj.dur "] "  " / "  " [" obj.cdur "] "  " / "  A_Space obj.accuracy " `n"
       timeus += 1, Days
   }
@@ -10478,8 +10524,11 @@ uiPopulateTableYearSolarData() {
   thisu .= " (" Round(w[2], 3) " / " Round(w[3], 3) "). GMT: " Round(gmtOffset, 1) " h."
   GuiControl, SettingsGUIA:, uiInfoGeoData, % thisu
   thisu :=  infoPolarDays infoPolarNight infodeepnights
-  If !InStr(thisu, "twilight")
-     thisu :=  InStr(thisu, "polar") ? thisu "Difference: 24:00." :  thisu "Difference: " diffSols "."
+  ; Polar days against polar nights make a whole day of difference; a polar night is held as
+  ; a single second, which diffSols would show as 23:59. With polar days alone - Rovaniemi,
+  ; Bodø and the like, near the Arctic circle - the shortest daylight is real: diffSols it is.
+  If !deepNights
+     thisu .= (polarDays && polarNights) ? "Difference: 24:00." : "Difference: " diffSols "."
   GuiControl, SettingsGUIA:, UIastroInfoAnnum, % thisu
   GuiControl, SettingsGUIA:, uiInfoGeoYear, % yearu
   debugMode := !A_IsCompiled
@@ -10568,10 +10617,18 @@ uiPopulateTableYearMoonData() {
 
       FormatTime, testToday, % timis, yyyy/MM/dd
       licht := obj.durRaw
-      If (obj.durRaw<950)
-         polarNights++
-      Else If (obj.durRaw>86000)
-         polarDays++
+      If (A_Index>1)
+      {
+         ; the first pass is December 31 of the year before, which only seeds the
+         ; differences listed for January 1 - it is no part of the year's figures
+         If (obj.durRaw<950)
+            polarNights++
+         Else If (obj.durRaw>86000)
+            polarDays++
+
+         maxLichtu := max(obj.durRaw, maxLichtu)
+         minLichtu := min(obj.durRaw, minLichtu)
+      }
 
       diffuT := licht - prevlicht
       diffuT := transformSecondsReadable(abs(diffuT), 1)
@@ -10663,8 +10720,6 @@ uiPopulateTableYearMoonData() {
 
       prevlicht := licht
       prevsundur := obj.durRaw
-      maxLichtu := max(obj.durRaw, maxLichtu)
-      minLichtu := min(obj.durRaw, minLichtu)
       ; listu .= "    " gyd " | " f ": [" obj.dur "] "  " / "  " [" obj.cdur "] "  " / "  A_Space obj.accuracy " `n"
       timeus += 1, Days
   }
