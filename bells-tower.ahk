@@ -12032,13 +12032,20 @@ atan2(y, x) {
    Return (y>0) ? 1.5707963267948966 : (y<0) ? -1.5707963267948966 : 0
 }
 
-generateEarthMap() {
+generateEarthMap(inLoop:=0) {
+; inLoop=1 comes from the steps of holdEarthMapTimeBtn(): the controls are then left
+; enabled and the status line gets no «Please wait», so that neither flickers at
+; every step. The steps themselves run critical, so nothing else can start a map
+; meanwhile, which is what the disabled controls are for otherwise.
    Gui, SettingsGUIA: Default
-   GuiControl, SettingsGUIA:, UIastroInfoSet, Please wait, generating earth map...
-   GuiControl, SettingsGUIA: Disable, showEarthSunMapModus
-   GuiControl, SettingsGUIA: Disable, newGeoDataLocationUserEdit
-   Loop, 7   ; btn7, the Restore button, is there only when the Store edition holds an updated index
-       GuiControl, SettingsGUIA: Disable, btn%A_Index%
+   If !inLoop
+   {
+      GuiControl, SettingsGUIA:, UIastroInfoSet, Please wait, generating earth map...
+      GuiControl, SettingsGUIA: Disable, showEarthSunMapModus
+      GuiControl, SettingsGUIA: Disable, newGeoDataLocationUserEdit
+      Loop, 7   ; btn7, the Restore button, is there only when the Store edition holds an updated index
+          GuiControl, SettingsGUIA: Disable, btn%A_Index%
+   }
 
    generatingEarthMapNow := 1
    If (showEarthSunMapModus>1)
@@ -12048,16 +12055,20 @@ generateEarthMap() {
 
    generatingEarthMapNow := 0
    ctr := countriesArrayList.Count()
-   GuiControl, SettingsGUIA: Enable, showEarthSunMapModus
-   actu := (showEarthSunMapModus>1) ? "SettingsGUIA: Enable" : "SettingsGUIA: Disable"
-   GuiControl, % actu, btn1
-   GuiControl, % actu, btn2
-   GuiControl, % actu, btn5
-   GuiControl, SettingsGUIA: Enable, btn3
-   GuiControl, SettingsGUIA: Enable, btn4
-   GuiControl, SettingsGUIA: Enable, btn6
-   GuiControl, SettingsGUIA: Enable, btn7
-   GuiControl, SettingsGUIA: Enable, newGeoDataLocationUserEdit
+   If !inLoop
+   {
+      GuiControl, SettingsGUIA: Enable, showEarthSunMapModus
+      actu := (showEarthSunMapModus>1) ? "SettingsGUIA: Enable" : "SettingsGUIA: Disable"
+      GuiControl, % actu, btn1
+      GuiControl, % actu, btn2
+      GuiControl, % actu, btn5
+      GuiControl, SettingsGUIA: Enable, btn3
+      GuiControl, SettingsGUIA: Enable, btn4
+      GuiControl, SettingsGUIA: Enable, btn6
+      GuiControl, SettingsGUIA: Enable, btn7
+      GuiControl, SettingsGUIA: Enable, newGeoDataLocationUserEdit
+   }
+
    FormatTime, brr, % uiUserFullDateUTC, yyyy/MM/dd, HH:mm
    p := geoData.Count()- countriesArrayList.Count() + listedExtendedLocations
    If (showEarthSunMapModus=1)
@@ -12833,7 +12844,10 @@ WM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
   ; ToolTip, % hwnd , , , 2
 }
 
-NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0) {
+NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0,inLoop:=0) {
+; inLoop=1 comes from holdEarthMapTimeBtn() and goes on to generateEarthMap(). As the
+; g-label of a button, this gets 3 parameters (CtrlHwnd, GuiEvent, EventInfo), which
+; never reach inLoop.
    Static tz := 0, lastInvoked := 1, lastLooped := 1
    If ((A_TickCount - lastLooped<250) && luping!=1)
       Return
@@ -12885,7 +12899,7 @@ NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0) {
    allowAutoUpdateTodayPanel := 0
    If (AnyWindowOpen=8)
    {
-      generateEarthMap()
+      generateEarthMap(inLoop)
       Return
    }
    GuiControl, SettingsGUIA:, uiUserFullDateUTC, % uiUserFullDateUTC
@@ -12953,11 +12967,13 @@ prolongNextTodayBTN() {
 
 holdEarthMapTimeBtn(diru, pressZeit) {
 ; Holding the < or the > button of the earth map down - see PanelEarthMap() - moves
-; the map 2 hours back (diru=-1) or on (diru=1) every 300 ms, until the mouse button
-; is let go. WM_LBUTTONDOWN() starts this at every press of either button, pressZeit
-; being when the press came. A press let go of before the first step is a plain
-; click, which the g-label of the button sees to. After a step it is no click:
-; generateEarthMap() disables the button while it draws, which cancels the press.
+; the map 2 hours back (diru=-1) or on (diru=1) step after step, from 350 ms after
+; the press until the mouse button is let go. WM_LBUTTONDOWN() starts this at every
+; press of either button, pressZeit being when the press came. A press let go of
+; before the first step is a plain click, which the g-label of the button sees to.
+; After a step it is no click: each step first gives the focus to the drop-down
+; list, and a button that loses the focus while it is held drops the press without
+; a click.
 
    ; Every thread starts off critical in this script - the auto-execute section turns
    ; Critical on - and no timer runs while one is: the bells and the clock are not to
@@ -12978,8 +12994,12 @@ holdEarthMapTimeBtn(diru, pressZeit) {
             Break
 
          lastStep := A_TickCount
-         Critical, On   ; a step is drawn uninterrupted, as a click is
-         NextTodayBTN(diru)
+         Critical, On   ; a step is drawn uninterrupted, as a click is: nothing else starts a map meanwhile
+         ; Taking the focus off the held button drops its press, so that letting go of it
+         ; makes no click. It is done before the map is drawn, because generateEarthMap()
+         ; lets messages through - the letting go among them - before it moves the focus.
+         GuiControl, SettingsGUIA:Focus, showEarthSunMapModus
+         NextTodayBTN(diru, 0, 0, 0, 0, 1)   ; inLoop, so that the controls do not flicker
          Critical, Off
       }
       Sleep, 10
