@@ -7414,7 +7414,7 @@ alarmAllowedOnDay(dateStamp) {
    If !InStr(userAlarmWeekDays, wdayu)
       Return 0
 
-   If (ObserveHolidays!=1 || !RegExMatch(userAlarmWeekDays, "[psr]"))
+   If (ObserveHolidays!=1 || !RegExMatch(userAlarmWeekDays, "i)[psr]"))
       Return 1
 
    FormatTime, monu, % dateStamp, MM
