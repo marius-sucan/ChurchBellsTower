@@ -12964,9 +12964,10 @@ holdEarthMapTimeBtn(diru, pressZeit) {
    ; wait for the mouse button to be let go.
    Critical, Off
    lastStep := pressZeit
+   firstStep := A_TickCount
    While GetKeyState("LButton", "P")
    {
-      If (A_TickCount - lastStep>=300)
+      If (A_TickCount - lastStep>10) && (A_TickCount - firstStep>350)
       {
          ; the time moves only the sunlight and the moonlight maps, on the first tab
          If (AnyWindowOpen!=8 || showEarthSunMapModus<2)
@@ -12981,7 +12982,7 @@ holdEarthMapTimeBtn(diru, pressZeit) {
          NextTodayBTN(diru)
          Critical, Off
       }
-      Sleep, 15
+      Sleep, 10
    }
 }
 
