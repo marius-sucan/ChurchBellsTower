@@ -184,6 +184,7 @@ Global displayTimeFormat := 1
 , LastNoonAudio := 0, appName := "Church Bells Tower"
 , APPregEntry := "HKEY_CURRENT_USER\SOFTWARE\" appName "\v1-1"
 , StoreStartupTaskId := "ChurchBellsTower"   ; the TaskId of the windows.startupTask extension in the Store package's AppxManifest.xml
+, GeoDataUpdatePath := A_ScriptDir "\resources"   ; where the locations index updater writes; see DetermineWindowsStorePath()
 , appSettingsModified := 0
 
 If !A_IsCompiled
@@ -8306,7 +8307,7 @@ PanelEarthMap(modus:=0) {
     If (modus="search")
        tabChoice := 2
 
-    Global GeoDataSearchField, newGeoDataLocationUserEdit, btn5, btn6
+    Global GeoDataSearchField, newGeoDataLocationUserEdit, btn5, btn6, btn7
     Gui, Add, Tab3, x+5 y+15 AltSubmit Choose%tabChoice% vCurrentTabLV, Earth map|Search location
     Gui, Tab, 1
     Gui, Add, Text, x+10 y+10 w%txtW% Section -wrap gInfosDummy vGraphInfoLine, Click on the map for a new location and then add it to the custom list.
@@ -8339,9 +8340,16 @@ PanelEarthMap(modus:=0) {
     ToolTip2ctrl(hTemp, "Add selected location to the list of custom user-defined locations.")
 
     Gui, Add, Button, xm+0 y+20 h%btnH% w%btnW% gPanelTodayInfos, &Back
-    If !storeSettingsREG
-        Gui, Add, Button, x+5 hp guiBTNupdateExtendedGeoData vbtn3, &Update index
+    Gui, Add, Button, x+5 hp guiBTNupdateExtendedGeoData vbtn3, &Update index
     txtW := (PrefsLargeFonts=1) ? lstWid - 245 : lstWid - 210
+    If geoDataHasUpdatedCopy()
+    {
+       ; only the Store edition keeps an updated index apart from the shipped one, which it
+       ; can therefore go back to; the status text gives up the room the button takes
+       Gui, Add, Button, x+5 h%btnH% w%btnW% guiBTNrestoreGeoData vbtn7 +hwndhTemp, &Restore
+       ToolTip2ctrl(hTemp, "Restore the index of locations shipped with the application.`nThe index of the last update will be deleted.")
+       txtW -= btnW + 5
+    }
     Gui, Add, Button, x+5 h%btnH% w%btnW% gCloseWindow, &Close
     Gui, Add, Text, x+5 hp w%txtW% +0x200 -wrap vUIastroInfoSet, Please wait...
 
@@ -8362,7 +8370,8 @@ UIeditSearchLocation() {
 
 loadGeoData() {
    FileRead, userlist, %WinStorePath%\resources\geo-locations-userlist.txt
-   FileRead, content, %A_ScriptDir%\resources\geo-locations-final.txt
+   fileu := geoDataFilePath("geo-locations-final.txt")
+   FileRead, content, %fileu%
    If (StrLen(userlist)<30)
    {
       If (ST_Count(userlist, "|")<6)
@@ -8411,8 +8420,10 @@ loadGeoData() {
 
 loadExtendedGeoData() {
 ; fields 8 and 9 hold the country and the city stripped of diacritics, for PerformGeoDataSearch();
-; they are set only when the folded name differs from the displayed one
-   FileRead, content, %A_ScriptDir%\resources\geo-locations-extended.txt
+; they are set only when the folded name differs from the displayed one;
+; the Store edition reads the list of the last update when there is one, see geoDataFilePath()
+   fileu := geoDataFilePath("geo-locations-extended.txt")
+   FileRead, content, %fileu%
    listedExtendedLocations := 0
    extendedGeoData := []
    ncauntri := ""
@@ -8445,29 +8456,30 @@ loadExtendedGeoData() {
 
 extractExtendedDataFromText(minPplLocation) {
 ; source of cities5000.txt: https://download.geonames.org/export/dump/
-; the function converts the data to a different format for geo-locations-extended.txt
+; the function converts the data to a different format for geo-locations-extended.txt;
+; it works on the downloads in GeoDataUpdatePath and writes its results there - the
+; resources folder of the application, except in the Store edition, which cannot write there
 
-   FileRead, content, *P65001 %A_ScriptDir%\resources\cities5000.txt
+   FileRead, content, *P65001 %GeoDataUpdatePath%\cities5000.txt
    If ErrorLevel
       Return "file-err-main-list"
 
-   If FileExist(A_ScriptDir "\resources\new-timezones.txt")
-      FileRead, tmz, *P65001 %A_ScriptDir%\resources\new-timezones.txt
+   newTmz := ""
+   If FileExist(GeoDataUpdatePath "\new-timezones.txt")
+      FileRead, tmz, *P65001 %GeoDataUpdatePath%\new-timezones.txt
 
    tmz := StrReplace(tmz, "`t", "|")
    If (!tmz || !InStr(tmz, "CountryCode|TimeZoneId|GMT offset"))
    {
       failt := 0
-      FileRead, tmz, *P65001 %A_ScriptDir%\resources\timezones.txt
+      fileu := geoDataFilePath("timezones.txt")   ; the list of an earlier update, else the shipped one
+      FileRead, tmz, *P65001 %fileu%
       If (!tmz || !InStr(tmz, "CountryCode|TimeZoneId|GMT offset"))
          failt := 1
    } Else
    {
       failt := 0
-      FileDelete, %A_ScriptDir%\resources\timezones.txt
-      Sleep, 1
-      If !ErrorLevel
-         FileAppend, % tmz, %A_ScriptDir%\resources\timezones.txt, UTF-8
+      newTmz := tmz   ; saved once the locations list is, so that a failed update changes nothing
    }
 
    If failt
@@ -8525,15 +8537,12 @@ extractExtendedDataFromText(minPplLocation) {
    If (counter<1000)
       Return "list-malformed?"
 
-   FileDelete, %A_ScriptDir%\resources\geo-locations-extended.txt
-   Sleep, 2
-   If !ErrorLevel
-   {
-      FileAppend, % newu, %A_ScriptDir%\resources\geo-locations-extended.txt, UTF-8
-      If ErrorLevel
-         Return "file-permission-severe-error. Locations list was lost."
-   } Else
+   ; the files are written whole or not at all; a failed write leaves the old list in place
+   If !geoDataWriteFile(GeoDataUpdatePath "\geo-locations-extended.txt", newu)
       Return "file-permission-error"
+
+   If newTmz
+      geoDataWriteFile(GeoDataUpdatePath "\timezones.txt", newTmz)
    ; fnOutputDebug(minpop " | " maxpop "|" ee "|" p)
 }
 
@@ -8562,17 +8571,27 @@ uiBTNupdateExtendedGeoData() {
     ; If !allGood
     ;    Return
 
-    FileDelete, %A_ScriptDir%\resources\cities5000.zip
+    ; what is downloaded and built goes into GeoDataUpdatePath: the resources folder of the
+    ; application, except in the Store edition, which cannot write there and uses a folder
+    ; of the user's own application data instead, made here at the first update
+    If !InStr(FileExist(GeoDataUpdatePath), "D")
+       FileCreateDir, %GeoDataUpdatePath%
+    If !InStr(FileExist(GeoDataUpdatePath), "D")
+    {
+       simpleMsgBoxWrapper(appName, "Update failed! The folder for the locations data could not be created:`n`n" GeoDataUpdatePath, 0, 1, 16)
+       Return
+    }
+
+    zipFile := GeoDataUpdatePath "\cities5000.zip"
+    tmzFile := GeoDataUpdatePath "\new-timezones.txt"
+    FileDelete, %zipFile%
     ; FileDelete, resources\new-country-codes.txt
-    FileDelete, %A_ScriptDir%\resources\new-timezones.txt
-    ctr := countriesArrayList.Count()
-    cachedImg := A_ScriptDir "\resources\earth-surface-map-cached-countries-" ctr "-" listedExtendedLocations "-" A_Year ".jpg"
-    FileDelete, % cachedImg
+    FileDelete, %tmzFile%
     Sleep, 50
     ToolTip, Please wait`, downloading...
-    Try UrlDownloadToFile, https://download.geonames.org/export/dump/cities5000.zip, %A_ScriptDir%\resources\cities5000.zip
+    Try UrlDownloadToFile, https://download.geonames.org/export/dump/cities5000.zip, %zipFile%
     Sleep, 1000
-    Try UrlDownloadToFile, https://download.geonames.org/export/dump/timeZones.txt, %A_ScriptDir%\resources\new-timezones.txt
+    Try UrlDownloadToFile, https://download.geonames.org/export/dump/timeZones.txt, %tmzFile%
     ; Try UrlDownloadToFile, https://download.geonames.org/export/dump/countryInfo.txt, resources\new-country-codes.txt
 
     Loop, 9
@@ -8580,54 +8599,85 @@ uiBTNupdateExtendedGeoData() {
       ToolTip, Downloading... %A_Index%/10
       d := (AnyWindowOpen!=8) ? 200 : 800
       Sleep, % d
-      If FileExist(A_ScriptDir "\resources\cities5000.zip")
+      If FileExist(zipFile)
          Break
     }
 
     Sleep, 250
-    FileGetSize, sizeCity, %A_ScriptDir%\resources\cities5000.zip, K
-    FileGetSize, sizeTmz, %A_ScriptDir%\resources\new-timezones.txt, K
+    FileGetSize, sizeCity, %zipFile%, K
+    FileGetSize, sizeTmz, %tmzFile%, K
     ; FileGetSize, sizeCountry, resources\new-country-codes.txt, K
     Sleep, 50
     If (sizeTmz<3)
-       FileDelete, %A_ScriptDir%\resources\new-timezones.txt
+       FileDelete, %tmzFile%
     ; If (sizeCountry<5)
     ;    FileDelete, resources\new-country-codes.txt
 
     Tooltip
-    If ((sizeCity<250 || !FileExist(A_ScriptDir "\resources\cities5000.zip")) && AnyWindowOpen=8)
-       simpleMsgBoxWrapper(appName, "Update failed! Error downloading locations list file from`nhttps://download.geonames.org/export/dump.", 0, 1, 16)
-    Else If (AnyWindowOpen=8)
+    If (sizeCity>=250 && FileExist(zipFile) && AnyWindowOpen=8)
+    {
        updateExtendedGeoData(UserInput)
+       Return
+    }
+
+    If (AnyWindowOpen=8)
+       simpleMsgBoxWrapper(appName, "Update failed! Error downloading locations list file from`nhttps://download.geonames.org/export/dump.", 0, 1, 16)
+
+    FileDelete, %zipFile%   ; the update does not go ahead, and leaves nothing behind
+    FileDelete, %tmzFile%
 }
 
 updateExtendedGeoData(minPplLocation) {
    Tooltip, Please wait - processing update data...
-   UnZipExtract2Folder(A_ScriptDir "\resources\cities5000.zip" , A_ScriptDir "\resources")
+   zipFile := GeoDataUpdatePath "\cities5000.zip"
+   txtFile := GeoDataUpdatePath "\cities5000.txt"
+
+   ; a copy left behind by an earlier update would be taken for the new one, which the shell
+   ; extracts in the background over it; when it cannot be removed, nothing is extracted
+   FileDelete, %txtFile%
+   leftOver := FileExist(txtFile) ? 1 : 0
+   If !leftOver
+      UnZipExtract2Folder(zipFile, GeoDataUpdatePath)
 
    ; the shell's CopyHere() comes back before the extraction is over, and the file used to be
    ; looked for at once - and missed; it is waited for instead, until its size holds still
-   ; between two looks, but for two seconds at the most
+   ; between two looks and the shell has let go of it - it cannot be opened for exclusive
+   ; use while anything else holds it open - but for half a minute at the most
    startZeit := A_TickCount
    prevSize := -1
+   extracted := 0
    Loop
    {
-      FileGetSize, thisSize, %A_ScriptDir%\resources\cities5000.txt
-      If (!ErrorLevel && thisSize>0 && thisSize=prevSize)
+      If leftOver
          Break
 
-      prevSize := ErrorLevel ? -1 : thisSize
-      If (A_TickCount - startZeit>2000)
+      Sleep, 150
+      FileGetSize, thisSize, %txtFile%
+      gotSize := (!ErrorLevel && thisSize>0) ? 1 : 0
+      If (gotSize && thisSize=prevSize)
+      {
+         fileObj := FileOpen(txtFile, "r -rwd")
+         If IsObject(fileObj)
+         {
+            fileObj.Close()
+            extracted := 1
+            Break
+         }
+      }
+
+      prevSize := gotSize ? thisSize : -1
+      If (A_TickCount - startZeit>30000)
          Break
-      Sleep, 100
    }
 
-   If FileExist(A_ScriptDir "\resources\cities5000.txt")
+   If extracted
    {
       r := extractExtendedDataFromText(minPplLocation)
       If !r
       {
          loadExtendedGeoData()
+         ; the cached earth maps show the cities of the previous index
+         FileDelete, %GeoDataUpdatePath%\earth-surface-map-cached-countries-*.jpg
          Tooltip
          CloseWindow()
          PanelEarthMap()
@@ -8643,9 +8693,32 @@ updateExtendedGeoData(minPplLocation) {
       MsgBox, , %appName%, An error occured updating the locations list. The downloaded archive could not be extracted.
    }
 
-   FileDelete, %A_ScriptDir%\resources\cities5000.zip
+   FileDelete, %zipFile%
+   FileDelete, %txtFile%
    ; FileDelete, resources\new-country-codes.txt
-   FileDelete, %A_ScriptDir%\resources\new-timezones.txt
+   FileDelete, %GeoDataUpdatePath%\new-timezones.txt
+}
+
+uiBTNrestoreGeoData() {
+; Drops the locations index the updater left in the Store edition - with its time zones list
+; and the earth maps cached for it - for the one shipped with the application. The button is
+; shown only while there is such an index; see geoDataHasUpdatedCopy().
+
+    msgResult := simpleMsgBoxWrapper(appName, "Do you want to restore the index of locations shipped with the application? The index from the last update will be deleted.", 4, 2, 32)
+    If (msgResult!="Yes")
+       Return
+
+    FileDelete, %GeoDataUpdatePath%\geo-locations-extended.txt
+    FileDelete, %GeoDataUpdatePath%\timezones.txt
+    FileDelete, %GeoDataUpdatePath%\earth-surface-map-cached-countries-*.jpg
+    failed := geoDataHasUpdatedCopy()
+    loadExtendedGeoData()
+    CloseWindow()
+    PanelEarthMap()
+    If failed
+       simpleMsgBoxWrapper(appName, "The index from the last update could not be deleted. It is kept in:`n`n" GeoDataUpdatePath, 0, 1, 16)
+    Else
+       simpleMsgBoxWrapper(appName, "The index of locations shipped with the application was restored. There are now " listedExtendedLocations " indexed cities.", 0, 1, 64)
 }
 
 UnZipExtract2Folder(Zip, Dest="", Filename="") {
@@ -11557,11 +11630,18 @@ geoZoneCityTokens(isou, tzJan, tzJul) {
 ; offsets on the 1st of January and on the 1st of July, the same convention
 ; the location index keeps. The name is what stands after the last slash,
 ; its underscores turned to spaces: America/Indiana/Indianapolis is
-; Indianapolis.
+; Indianapolis. The list is read again when the file to be read, or its
+; time, has changed since: the index updater rewrites it, and the Store
+; edition can go back from its own copy to the shipped one.
 
-   Static content := ""
-   If (content="")
-      FileRead, content, %A_ScriptDir%\resources\timezones.txt
+   Static content := "", loadedFrom := ""
+   fileu := geoDataFilePath("timezones.txt")
+   FileGetTime, timeu, %fileu%
+   If (content="" || loadedFrom!=fileu "|" timeu)
+   {
+      FileRead, content, %fileu%
+      loadedFrom := fileu "|" timeu
+   }
 
    tokens := []
    Loop, Parse, content, `n, `r
@@ -11900,7 +11980,7 @@ generateEarthMap() {
    GuiControl, SettingsGUIA:, UIastroInfoSet, Please wait, generating earth map...
    GuiControl, SettingsGUIA: Disable, showEarthSunMapModus
    GuiControl, SettingsGUIA: Disable, newGeoDataLocationUserEdit
-   Loop, 6
+   Loop, 7   ; btn7, the Restore button, is there only when the Store edition holds an updated index
        GuiControl, SettingsGUIA: Disable, btn%A_Index%
 
    generatingEarthMapNow := 1
@@ -11919,6 +11999,7 @@ generateEarthMap() {
    GuiControl, SettingsGUIA: Enable, btn3
    GuiControl, SettingsGUIA: Enable, btn4
    GuiControl, SettingsGUIA: Enable, btn6
+   GuiControl, SettingsGUIA: Enable, btn7
    GuiControl, SettingsGUIA: Enable, newGeoDataLocationUserEdit
    FormatTime, brr, % uiUserFullDateUTC, yyyy/MM/dd, HH:mm
    p := geoData.Count()- countriesArrayList.Count() + listedExtendedLocations
@@ -11939,7 +12020,10 @@ citiesGenerateEarthMap() {
 
     wasCached := 1
     ctr := countriesArrayList.Count()
-    cached := A_ScriptDir "\resources\earth-surface-map-cached-countries-" ctr "-" listedExtendedLocations ".jpg"
+    ; the cached map is looked for like a file of the locations index, and it is saved where the
+    ; index updater writes - the Store edition cannot write to its own folder
+    cacheName := "earth-surface-map-cached-countries-" ctr "-" listedExtendedLocations ".jpg"
+    cached := geoDataFilePath(cacheName)
     If FileExist(cached)
        mainBitmap := Gdip_CreateBitmapFromFileSimplified(cached)
 
@@ -12007,7 +12091,9 @@ citiesGenerateEarthMap() {
              }
         }
 
-        Gdip_SaveBitmapToFile(mainBitmap, cached, 95)
+        If !InStr(FileExist(GeoDataUpdatePath), "D")
+           FileCreateDir, %GeoDataUpdatePath%
+        Gdip_SaveBitmapToFile(mainBitmap, GeoDataUpdatePath "\" cacheName, 95)
     }
 
     mm := ""
@@ -15324,8 +15410,66 @@ DetermineWindowsStorePath() {
       If !FileExist(WinStorePath "\resources")
          FileCreateDir, % WinStorePath "\resources"
 
+      ; the package folder cannot be written to, so what the locations index updater downloads
+      ; and builds goes into the user's application data instead; the folder is made by the
+      ; first update, or the first time the earth map is cached. Windows redirects the files
+      ; written there into the LocalCache\Roaming folder of the package, transparently
+      GeoDataUpdatePath := A_AppData "\" appName
       SetWorkingDir, %A_ScriptDir%
-   } Else WinStorePath := A_ScriptDir 
+   } Else
+   {
+      WinStorePath := A_ScriptDir
+      GeoDataUpdatePath := A_ScriptDir "\resources"
+   }
+}
+
+geoDataFilePath(fileName) {
+; The copy of a locations index file to read. The Windows Store edition reads the one the
+; index updater left in GeoDataUpdatePath when there is one, and otherwise the one shipped
+; in the resources folder of the application, which is where the other editions keep and
+; update the index anyway.
+
+   If (storeSettingsREG=1 && FileExist(GeoDataUpdatePath "\" fileName))
+      Return GeoDataUpdatePath "\" fileName
+
+   Return A_ScriptDir "\resources\" fileName
+}
+
+geoDataHasUpdatedCopy() {
+; Whether the Windows Store edition holds a locations index of its own, left by the updater,
+; which wins over the one shipped with the application. uiBTNrestoreGeoData() removes it.
+
+   If (storeSettingsREG!=1)
+      Return 0
+
+   Return (FileExist(GeoDataUpdatePath "\geo-locations-extended.txt") || FileExist(GeoDataUpdatePath "\timezones.txt")) ? 1 : 0
+}
+
+geoDataWriteFile(fileu, contentu) {
+; Writes a file of the locations index whole or not at all: the text goes into a temporary
+; file first, which then takes the place of the old one in a single step (FileMove would
+; delete the old one first). A write failing halfway thus leaves no truncated list behind,
+; nor one that the loaders would prefer to the shipped one. Returns 1 on success.
+
+   tmpFile := fileu ".tmp"
+   FileDelete, %tmpFile%
+   If FileExist(tmpFile)
+      Return 0
+
+   FileAppend, % contentu, %tmpFile%, UTF-8
+   If (ErrorLevel || !FileExist(tmpFile))
+   {
+      FileDelete, %tmpFile%
+      Return 0
+   }
+
+   ; MOVEFILE_REPLACE_EXISTING = 1
+   If !DllCall("kernel32\MoveFileExW", "Str", tmpFile, "Str", fileu, "UInt", 1)
+   {
+      FileDelete, %tmpFile%
+      Return 0
+   }
+   Return 1
 }
 
 Trimmer(string, whatTrim:="") {
