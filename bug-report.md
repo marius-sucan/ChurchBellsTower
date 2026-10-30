@@ -15,19 +15,20 @@ This report documents user-reproducible bugs, broken functionality, and broken o
 | 2 | **OPEN** | **High** | Set Alarm or Timer | Predefined timers (`Set` button) fail to reset the `Hours` field (`hu` uninitialized), adding 1+ extra hours to 1–45 min presets and repeatedly incrementing hours on the `60` min preset. |
 | 3 | **FIXED** ✅ | **High** | Calendar / Repeating Alarms | ~~Personal events are assigned the Secular symbol (`▣`) instead of the Personal symbol (`▦`), breaking the Calendar's repeating-alarm holiday exception logic for both Personal and Secular exceptions.~~ |
 | 4 | **OPEN** | **High** | Yearly Sun & Moon Tables | Indexing `Summary` (Sun) and `Rise`/`Set` (Moon) columns by the event's `MM/dd` instead of the row's date leaves blank cells whenever an event crosses midnight or uses a yesterday/tomorrow fallback. |
-| 5 | **OPEN** | **Medium** | Set Alarm or Timer | Repeating alarms set for `00:00` (midnight) check `canDo` against the current day before advancing `newu` to tomorrow, causing them to ring on excluded days and skip included days. |
+| 5 | **FIXED** ✅ | **Medium** | Set Alarm or Timer | ~~Repeating alarms set for `00:00` (midnight) check `canDo` against the current day before advancing `newu` to tomorrow, causing them to ring on excluded days and skip included days.~~ |
 | 6 | **FIXED** ✅ | **Medium** | Manage Celebrations | ~~Adding a personal event via `Calendar` → `Manage celebrations` → `Add` does not enable `ObserveHolidays`, leaving newly created personal events completely hidden when `ObserveHolidays=0`.~~ |
 | 7 | **PARTIAL** ⚠️ | **Medium** | Chimes & Holidays | ~~Christian semantron drumming (`SemantronHoliday=1`) plays on Secular holidays and Personal events~~ (**FIXED**); however, a Personal event on Easter Sunday or Christmas still overwrites `isHolidayToday` / `TypeHolidayOccured`, suppressing Easter noon bells and feast chimes (**OPEN**). |
 | 8 | **OPEN** | **Medium** | Celebrations Audio | World Arabic Language Day (`12.18`, a Secular holiday) fails to play its special audio unless **Religious** celebrations (`ObserveReligiousDays=1`) are also enabled. |
 | 9 | **OPEN** | **Medium** | Calendar Panel | Selecting any 31-day month from the Calendar's month menu when on day `31` clamps the day to `30`; selecting February in a leap year when on day `29`–`31` clamps the day to `28`. |
 | 10 | **OPEN** | **Medium** | Calendar Panel | Equinoxes and solstices in the Calendar panel are matched against the current system year's day-of-year (`mEquiDay`, etc.) regardless of the year being browsed. |
-| 11 | **OPEN** | **Medium** | Yearly Sun & Moon Tables | Year-end summary statistics (`Polar days`, `Polar nights`, `days have no civil twilight`, `Moonless days`) include December 31 of the **previous** year (`A_Index=1`), overcounting by 1 day. |
-| 12 | **OPEN** | **Medium** | Yearly Sun Table | Summary text displays `"Difference: 24:00."` whenever `"Polar days:"` is present (`InStr(thisu, "polar")`), even when `Polar nights` is `0` and winter has non-zero shortest daylight. |
+| 11 | **FIXED** ✅ | **Medium** | Yearly Sun & Moon Tables | ~~Year-end summary statistics (`Polar nights`, `Polar moon days`, `Moonless days`, and `Polar days` for a southern polar location) include December 31 of the **previous** year (`A_Index=1`), overcounting by 1 day wherever that day qualifies.~~ |
+| 12 | **FIXED** ✅ | **Medium** | Yearly Sun Table | ~~Summary text displays `"Difference: 24:00."` whenever `"Polar days:"` is present (`InStr(thisu, "polar")`), even when `Polar nights` is `0` and winter has non-zero shortest daylight.~~ |
 | 13 | **FIXED** ✅ | **Medium** | Settings / Color Picker | ~~Changing any color in Settings enables `Apply` without setting `appSettingsModified := 1`, allowing right-click panel jumps that abruptly restart the app and discard changes.~~ |
 | 14 | **OPEN** | **Medium** | Settings / Activation State | Opening and closing Settings (`Cancel` / `Esc`) while Church Bells Tower is deactivated (`A_IsSuspended=1`) unconditionally calls `SuspendScript()`, re-activating the app against the user's choice. |
 | 15 | **FIXED** ✅ | **Low** | OSD Astronomy Color | ~~OSD color mode `"Moon phase"` (`OSDastralMode=3`) checks `IsObject(w)` when `w` is only created for `OSDastralMode!=3`, making `MoonPhaseCalculator()` unreachable dead code.~~ |
 | 16 | **PARTIAL** ⚠️ | **Low** | Settings / Bible Quotes | ~~Clicking `Preview verse` in Settings within 2 seconds of changing the Bible language displays a verse from the old language~~ (**FIXED**); however, `countLines` is still never reset when switching languages (**OPEN**). |
 | 17 | **FIXED** ✅ | **Low** | DirectSound Audio | ~~`DirectSoundPlayer.Play()` calls `this.SetCurrentPosition(0)` without the required `index` parameter, always failing to rewind an already-playing non-duplicated buffer.~~ *(Minor: `UnInitialize()` still checks local `pDS`/`hDsound` instead of `this.pDS`/`this.hDsound`.)* |
+| 18 | **FIXED** ✅ | **Low** | Yearly Sun Table | ~~The "no civil twilight" counter tests `licht<2`, but a day without any light adds up to 2 seconds (a 1-second stand-in each for the missing sunlight and twilight), so `"From these, N days have no civil twilight."` never appears and `Total light` reads `2s` on such days.~~ |
 
 ---
 
@@ -136,21 +137,10 @@ This report documents user-reproducible bugs, broken functionality, and broken o
 
 ---
 
-### Bug 5 [OPEN]: Repeating Midnight (`00:00`) Alarm Evaluates Weekday/Holiday Conditions for the Wrong Day
+### Bug 5 [FIXED ✅]: Repeating Midnight (`00:00`) Alarm Evaluates Weekday/Holiday Conditions for the Wrong Day
 
-- **Location**: [`bells-tower.ahk#L7352-L7394`](file:///home/marius/repos/ChurchBellsTower/bells-tower.ahk#L7352-L7394) (`startAlarmTimer`)
-- **Root Cause**:
-  In [`startAlarmTimer`](file:///home/marius/repos/ChurchBellsTower/bells-tower.ahk#L7360-L7383):
-  1. `canDo` is computed first using **today's** weekday (`A_WDay`) and **today's** holiday (`TypeHolidayOccured`).
-  2. Next, `newu := A_Year A_Mon A_DD tH tM . "00"` is compared with `nowu := A_Now`.
-  3. When `tH = "00"` and `tM = "00"`, `nowu >= newu` is **always true** throughout the entire day (from `00:00:00` to `23:59:59`), so `newu += 1, Days` advances `newu` to **tomorrow at `00:00:00`** without re-evaluating `canDo` for tomorrow!
-  - **Consequence A (Rings on excluded day)**: If today is checked (e.g., Friday) and tomorrow is unchecked (e.g., Saturday), at `23:59:45` on Friday `canDo` is `1` (because Friday is checked) and `nss` (`Saturday 00:00:00 - Friday 23:59:45 = 15s`) is `< 18`. `SetTimer, doUserAlarmAlert, -15000` is armed and rings at `00:00:00` on Saturday!
-  - **Consequence B (Never rings on included day after excluded day)**: If Sunday is unchecked and Monday is checked, `canDo` is `0` all day Sunday (including `23:59:59`), so the timer is never armed before midnight. Once the clock hits `00:00:00` on Monday, `nowu >= newu` (`Monday 00:00:00 >= Monday 00:00:00`) is immediately true, so `newu` jumps to **Tuesday `00:00:00`** (`nss = 86400`), skipping Monday's `00:00` alarm completely!
-- **How to Reproduce**:
-  1. Open **Set alarm or timer**.
-  2. Enable **Set an alarm**, set `Hour:` to `0` and `Minute:` to `0` (`00:00`), select **Every week**, uncheck today's weekday, check tomorrow's weekday, and click **Save**.
-  3. Wait until `00:00:00` tonight (or set the system clock to `23:59:40` and wait 20 seconds).
-  4. **Observed**: The `00:00` alarm for tomorrow never rings. Conversely, if today's weekday is checked and tomorrow's weekday is unchecked, the alarm rings at `00:00:00` as tomorrow begins.
+- **Status**: **Fixed in commit `1a3d129`**. `startAlarmTimer()` first works out the moment the alarm is due (today, or tomorrow once today's time has gone by - always tomorrow for `00:00`) and then applies the weekday and the exceptions of **that** day through the new `alarmAllowedOnDay()`, which tests that day's celebrations itself instead of today's `isHolidayToday` / `TypeHolidayOccured` (`theChimer()` refreshed those only after arming the alarm). The `lastzz<18` guard now comes first, so a pass made in the alarm's own second no longer turns to the next day and calls off the alarm about to ring. The tray tooltip (`friendlyAlarmInfoz()`) now shows the repeating alarm when it is armed, with `(tomorrow)` when it is due tomorrow.
+- **Notes on the original analysis**: the skip (Consequence B) was deterministic; the ring on an excluded day (Consequence A) was a race between the armed timer (due within a second after midnight) and the chimer's first pass after midnight (0-3.5 s), which the alarm won on most nights (~87 % in a model of the timers). The timer was re-armed on every chimer pass all day long; the `<18` guard only stopped the re-arming in the last seconds. Only `00:00` was affected: for any later minute the chimer re-checks the alarm on the new day first. The repro's controls are the **Repeat alarm on every...** checkbox with the weekday buttons and the **Apply** button.
 
 ---
 
@@ -241,41 +231,17 @@ This report documents user-reproducible bugs, broken functionality, and broken o
 
 ---
 
-### Bug 11 [OPEN]: Yearly Sun & Moon Tables Overcount Polar Days, Polar Nights, Deep Nights, and Moonless Days by Including Dec 31 of the Previous Year
+### Bug 11 [FIXED ✅]: Yearly Sun & Moon Tables Overcount Polar Nights, Polar Moon Days and Moonless Days by Including Dec 31 of the Previous Year
 
-- **Location**: [`bells-tower.ahk#L10234-L10329`](file:///home/marius/repos/ChurchBellsTower/bells-tower.ahk#L10234-L10329) (`uiPopulateTableYearSolarData`) and [`bells-tower.ahk#L10470-L10595`](file:///home/marius/repos/ChurchBellsTower/bells-tower.ahk#L10470-L10595) (`uiPopulateTableYearMoonData`)
-- **Root Cause**:
-  Both functions initialize `timeus` to January 1 of `yearu`, subtract 1 day (`timeus += -1, Days` → **December 31 of `yearu - 1`**), and loop `loopsu + 1` times (`366` iterations for a 365-day year).
-  Although ListView row additions are guarded by `If (A_Index>1)` (`#L10270` and `#L10507`), the summary counters (`polarNights++`, `polarDays++`, `deepNights++`, `maxLichtu`, `minLichtu`) are incremented **outside** `If (A_Index>1)`.
-  Thus, `A_Index=1` (December 31 of the previous year) is included in the year's totals!
-- **How to Reproduce**:
-  1. Open **Astronomy / Today**, select **Norway** → **Svalbard-Jan Mayen** (or **Tromsø**), ensure **Sun** mode is active, and click **Table** (`PanelSunYearGraphTable`).
-  2. In the **Sunlight** tab (or **Summary** tab), count the rows that have `00:00` in the `Sunlight` column (or `00:00` total light) and compare with the summary text above the tabs (`Polar nights: X. From these, Y days have no civil twilight.`).
-  3. **Observed**: Both `Polar nights` and `days have no civil twilight` in the summary header are **1 higher** than the actual number of days in the table for that year (because Dec 31 of the previous year was counted on iteration 1).
+- **Status**: **Fixed in commit `1a3d129`**. In `uiPopulateTableYearSolarData()` and `uiPopulateTableYearMoonData()`, the counters (`polarNights`, `polarDays`, `deepNights`) and the longest/shortest figures (`maxLichtu`, `minLichtu`) are now only updated for `A_Index>1`; the first pass, December 31 of the year before, only seeds the differences listed for January 1.
+- **Notes on the original analysis**: the overcount showed only where that December 31 itself qualified. For the sun this meant `Polar nights` at every polar-night location (Tromsø 2026: 49 for 48; Longyearbyen: 112 for 111); `Polar days` could not be hit with the shipped location lists (no location south of -60°). For the moon it meant `Polar moon days` or `Moonless days` in the years where December 31 was one (2026: one extra polar moon day at Tromsø and Longyearbyen). The `days have no civil twilight` count could not be overcounted, because it never counted at all - see Bug 18. There is no "Sunlight" tab: the `Sunlight` column is in the **Durations** and **Summary** tabs, and a polar night is any day with less than 950 seconds of sun, so rows showing `40s` or `00:12` count as well as `00:00` rows.
 
 ---
 
-### Bug 12 [OPEN]: Yearly Sun Table Falsely Displays `"Difference: 24:00."` for Sub-Polar Cities With Polar Days But Non-Zero Winter Daylight
+### Bug 12 [FIXED ✅]: Yearly Sun Table Falsely Displays `"Difference: 24:00."` for Sub-Polar Cities With Polar Days But Non-Zero Winter Daylight
 
-- **Location**: [`bells-tower.ahk#L10394-L10408`](file:///home/marius/repos/ChurchBellsTower/bells-tower.ahk#L10394-L10408) (`uiPopulateTableYearSolarData`)
-- **Root Cause**:
-  In [`uiPopulateTableYearSolarData`](file:///home/marius/repos/ChurchBellsTower/bells-tower.ahk#L10395-L10407):
-  ```ahk
-  infoPolarDays := polarDays ? "Polar days: " polarDays ". " : "Longest daylight: " maxLichtu ". "
-  infoPolarNight := polarNights ? "Polar nights: " polarNights ". " : "Shortest daylight: " minLichtu ". "
-  ...
-  thisu := infoPolarDays infoPolarNight infodeepnights
-  If !InStr(thisu, "twilight")
-     thisu := InStr(thisu, "polar") ? thisu "Difference: 24:00." : thisu "Difference: " diffSols "."
-  ```
-  Because atmospheric refraction and the solar disc's semi-diameter lift the apparent sun by ~`0.833°`, many cities near the Arctic Circle (e.g., **Rovaniemi**, **Kemi**, **Kuusamo**, **Bodø**, **Boden**, **Sisimiut**) have `24:00` **Polar days** in summer (`polarDays > 0`) while still having several hours of daylight in winter (`polarNights = 0`).
-  Because `thisu` contains `"Polar days:"`, `InStr(thisu, "polar")` is true even though `polarNights` is `0`, replacing the actual `diffSols` (`24:00 - minLichtu`) with `"24:00"`.
-- **How to Reproduce**:
-  1. Open **Astronomy / Today**, select **Finland** → **Rovaniemi** (or **Finland** → **Kemi**), ensure **Sun** mode is selected, and click **Table**.
-  2. Read the summary line above the table tabs.
-  3. **Observed**: It reads:
-     `Polar days: 19. Shortest daylight: 02:14.  Difference: 24:00.`
-     (The difference between 24:00 and 02:14 is `21:46`, not `24:00`.)
+- **Status**: **Fixed in commit `1a3d129`**. `uiPopulateTableYearSolarData()` now gives `Difference: 24:00.` only for polar days against polar nights (`polarDays && polarNights`), where the hard-coded value is needed because a polar night is held as a single second and `diffSols` would read `23:59`; otherwise it shows `diffSols`, the real longest-minus-shortest daylight.
+- **Notes on the original analysis**: this affected 9 of the 10 main-list locations between about 65.7° and 67.4° N (Rovaniemi, Kemi, Kuusamo, Tornio, Bodø, Mo i Rana, Boden, Sisimiut, Naujaat; not Akureyri). For Rovaniemi 2026 an independent solar model gives about **30** polar days, not 19; the `02:14` shortest daylight and the `21:46` difference match.
 
 ---
 
@@ -324,3 +290,9 @@ This report documents user-reproducible bugs, broken functionality, and broken o
 
 - **Status**: **Fixed in commit `5122b62`** ([`lib/direct-sound-wrapper.ahk#L299`](file:///home/marius/repos/ChurchBellsTower/lib/direct-sound-wrapper.ahk#L299)). `Play()` now calls `this.SetCurrentPosition(index, 0)`.
 - **Minor remaining note**: In [`DirectSoundPlayer.UnInitialize()`](file:///home/marius/repos/ChurchBellsTower/lib/direct-sound-wrapper.ahk#L485-L488), `if pDS` and `if hDsound` reference empty local variables instead of `this.pDS` and `this.hDsound`.
+
+---
+
+### Bug 18 [FIXED ✅]: Yearly Sun Table Never Counts the Days Without Civil Twilight
+
+- **Status**: **Fixed in commit `1a3d129`**. Found while checking Bug 11. In `uiPopulateTableYearSolarData()`, a day was counted as having no civil twilight when `licht := obj.durRaw + obj.cdurRaw` was below 2. But `coreCalculateLightDuration()` hands a day without a sunrise a single second of sunlight (`rawP := ... : 1`) and a day without a dawn or dusk a single second of twilight, so a day without any light at all added up to exactly 2 seconds and was never counted (true since the counter was added in `21cb19a`, v3.2.5). As a result, `"From these, N days have no civil twilight."` never appeared - for instance at Longyearbyen, which has about 78 such days a year - and the **Durations** tab's `Total light` read `2s` on those days. Such days are now recognised by both values being below 2 seconds, counted, and listed with `00:00` total light; the summary then shows the twilight remark in place of the difference, as originally designed.
