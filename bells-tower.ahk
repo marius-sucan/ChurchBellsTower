@@ -216,7 +216,7 @@ Global CSthin := "░"   ; light gray
 , ShowPreview := 0, ShowPreviewDate := 0
 , LastNoonZeitSound := 1, hCelebsMan
 , OSDprefix, OSDsuffix, lastTodayPanelZeitUpdate := 1
-, windowManageCeleb := 0, hBtnTodayPrev, hBtnTodayNext
+, windowManageCeleb := 0, hBtnTodayPrev, hBtnTodayNext, hBtnEarthMapPrev, hBtnEarthMapNext
 , stopStrikesNow := 0, mouseToolTipWinCreated := 0
 , ClockVisibility := 0, quoteDisplayTime := 100
 , stopAdditionalStrikez := 0, lastAudioPlayed := 1
@@ -289,6 +289,7 @@ hCursM := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32646, "Ptr")  ; IDC
 hCursH := DllCall("user32\LoadCursorW", "Ptr", NULL, "Int", 32649, "Ptr")  ; IDC_HAND
 OnMessage(0x205, "WM_RBUTTONUP")
 OnMessage(0x201, "WM_LBUTTONDOWN")
+OnMessage(0x203, "WM_LBUTTONDOWN")  ; WM_LBUTTONDBLCLK
 OnMessage(0x200, "WM_MouseMove")
 OnMessage(0x20A, "WM_MouseWheel")  ; vertical
 OnMessage(0x20E, "WM_MouseWheel")  ; horizontal
@@ -8353,10 +8354,11 @@ PanelEarthMap(modus:=0) {
     Gui, Add, Button, x+5 w%btnWid% hp gBtnDetectUserLocation vbtn6 +hwndhTemp, &Detect location
     ToolTip2ctrl(hTemp, "The identified location will be put in the field below.`nClick «Add to list» to store it.")
     widu := (PrefsLargeFonts=1) ? 40 : 32
-    GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<", "Previous 2 hours")
+    ; held down, either button goes on stepping; see holdEarthMapTimeBtn()
+    hBtnEarthMapPrev := GuiAddButton("x+5 w" widu " hp gPrevTodayBTN vbtn1", "<", "Previous 2 hours")
     Gui, Add, Button, x+5 wp+10 hp gUItodayPanelResetDate vbtn5 +hwndhTemp, &Now
     ToolTip2ctrl(hTemp, "Reset to current time and date")
-    GuiAddButton("x+5 wp-10 hp gNextTodayBTN vbtn2", ">", "Next 2 hours")
+    hBtnEarthMapNext := GuiAddButton("x+5 wp-10 hp gNextTodayBTN vbtn2", ">", "Next 2 hours")
 
     ; Gui, -DPIScale
     Gui, Add, Text, xs y+10 w1 h1, Earth map illustration
@@ -12894,7 +12896,20 @@ PrevTodayBTN() {
    NextTodayBTN(-1)
 }
 
-WM_LBUTTONDOWN(a, b, c) {
+WM_LBUTTONDOWN(wP, lP, msg, hwnd) {
+; It gets WM_LBUTTONDBLCLK (0x203) too: a press that follows a click within the
+; double-click time comes as one, and the earth map buttons are to be held down
+; the same way then.
+  If (AnyWindowOpen=8 && (hwnd=hBtnEarthMapPrev || hwnd=hBtnEarthMapNext))
+  {
+     fn := Func("holdEarthMapTimeBtn").Bind((hwnd=hBtnEarthMapPrev) ? -1 : 1, A_TickCount)
+     SetTimer, % fn, -1
+     Return
+  }
+
+  If (msg!=0x201)   ; the Today panel below keeps to plain presses, as before
+     Return
+
   GuiControlGet, WhatsFocused, SettingsGUIA: FocusV
   MouseGetPos, , , , OutputVarControl, 2
   ; ToolTip, % OutputVarControl " | " A_GuiControl , , , 2
@@ -12934,6 +12949,40 @@ prolongNextTodayBTN() {
      ;    NextTodayBTN(1, 1)
      ; Else If (InStr(WhatsFocused, "UIbtnTodayNext") && hasLooped=1)
      ;    NextTodayBTN(-1, 1)
+}
+
+holdEarthMapTimeBtn(diru, pressZeit) {
+; Holding the < or the > button of the earth map down - see PanelEarthMap() - moves
+; the map 2 hours back (diru=-1) or on (diru=1) every 300 ms, until the mouse button
+; is let go. WM_LBUTTONDOWN() starts this at every press of either button, pressZeit
+; being when the press came. A press let go of before the first step is a plain
+; click, which the g-label of the button sees to. After a step it is no click:
+; generateEarthMap() disables the button while it draws, which cancels the press.
+
+   ; Every thread starts off critical in this script - the auto-execute section turns
+   ; Critical on - and no timer runs while one is: the bells and the clock are not to
+   ; wait for the mouse button to be let go.
+   Critical, Off
+   lastStep := pressZeit
+   While GetKeyState("LButton", "P")
+   {
+      If (A_TickCount - lastStep>=300)
+      {
+         ; the time moves only the sunlight and the moonlight maps, on the first tab
+         If (AnyWindowOpen!=8 || showEarthSunMapModus<2)
+            Break
+
+         GuiControlGet, CurrentTabLV, SettingsGUIA:
+         If (CurrentTabLV!=1)
+            Break
+
+         lastStep := A_TickCount
+         Critical, On   ; a step is drawn uninterrupted, as a click is
+         NextTodayBTN(diru)
+         Critical, Off
+      }
+      Sleep, 15
+   }
 }
 
 UItodayPanelJumpDawn() {
