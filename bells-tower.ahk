@@ -19,7 +19,7 @@
 ;@Ahk2Exe-SetCopyright Marius Şucan (2017-2026)
 ;@Ahk2Exe-SetCompanyName https://marius.sucan.ro
 ;@Ahk2Exe-SetDescription Church Bells Tower
-;@Ahk2Exe-SetVersion 3.6.1
+;@Ahk2Exe-SetVersion 3.6.2
 ;@Ahk2Exe-SetOrigFilename bells-tower.ahk
 ;@Ahk2Exe-SetMainIcon bells-tower.ico
 
@@ -176,8 +176,8 @@ Global displayTimeFormat := 1
 
 ; Release info
 , ThisFile               := A_ScriptName
-, Version                := "3.6.1"
-, ReleaseDate            := "2026 / 08 / 24"
+, Version                := "3.6.2"
+, ReleaseDate            := "2026 / 10 / 31"
 , storeSettingsREG := (FileExist("win-store-mode.ini") && A_IsCompiled && InStr(A_ScriptFullPath, "WindowsApps")) ? 1 : 0
 , ScriptInitialized, FirstRun := 1, uiUserCountry, uiUserCity, lastUsedGeoLocation, EquiSolsCache := 0
 , QuotesAlreadySeen := "", LastWinOpened, hasHowledDay := 0, WinStorePath := A_ScriptDir
@@ -8615,6 +8615,7 @@ uiBTNupdateExtendedGeoData() {
     ; of the user's own application data instead, made here at the first update
     If !InStr(FileExist(GeoDataUpdatePath), "D")
        FileCreateDir, %GeoDataUpdatePath%
+
     If !InStr(FileExist(GeoDataUpdatePath), "D")
     {
        simpleMsgBoxWrapper(appName, "Update failed! The folder for the locations data could not be created:`n`n" GeoDataUpdatePath, 0, 1, 16)
@@ -12032,13 +12033,11 @@ atan2(y, x) {
    Return (y>0) ? 1.5707963267948966 : (y<0) ? -1.5707963267948966 : 0
 }
 
-generateEarthMap(inLoop:=0) {
-; inLoop=1 comes from the steps of holdEarthMapTimeBtn(): the controls are then left
-; enabled and the status line gets no «Please wait», so that neither flickers at
-; every step. The steps themselves run critical, so nothing else can start a map
-; meanwhile, which is what the disabled controls are for otherwise.
+generateEarthMap(inClickLoop:=0) {
+; inClickLoop=1 comes from the steps of holdEarthMapTimeBtn(): the controls are then left enabled
+
    Gui, SettingsGUIA: Default
-   If !inLoop
+   If !inClickLoop
    {
       GuiControl, SettingsGUIA:, UIastroInfoSet, Please wait, generating earth map...
       GuiControl, SettingsGUIA: Disable, showEarthSunMapModus
@@ -12055,7 +12054,7 @@ generateEarthMap(inLoop:=0) {
 
    generatingEarthMapNow := 0
    ctr := countriesArrayList.Count()
-   If !inLoop
+   If !inClickLoop
    {
       GuiControl, SettingsGUIA: Enable, showEarthSunMapModus
       actu := (showEarthSunMapModus>1) ? "SettingsGUIA: Enable" : "SettingsGUIA: Disable"
@@ -12844,10 +12843,9 @@ WM_MOUSEWHEEL(wParam, lParam, msg, hwnd) {
   ; ToolTip, % hwnd , , , 2
 }
 
-NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0,inLoop:=0) {
-; inLoop=1 comes from holdEarthMapTimeBtn() and goes on to generateEarthMap(). As the
-; g-label of a button, this gets 3 parameters (CtrlHwnd, GuiEvent, EventInfo), which
-; never reach inLoop.
+NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0,inClickLoop:=0) {
+; inClickLoop=1 comes from holdEarthMapTimeBtn() and goes on to generateEarthMap(), meant to prevent flickers
+
    Static tz := 0, lastInvoked := 1, lastLooped := 1
    If ((A_TickCount - lastLooped<250) && luping!=1)
       Return
@@ -12899,9 +12897,10 @@ NextTodayBTN(diru:=0, luping:=0, kbdMode:=0,stepu:=0,modus:=0,inLoop:=0) {
    allowAutoUpdateTodayPanel := 0
    If (AnyWindowOpen=8)
    {
-      generateEarthMap(inLoop)
+      generateEarthMap(inClickLoop)
       Return
    }
+
    GuiControl, SettingsGUIA:, uiUserFullDateUTC, % uiUserFullDateUTC
    UIcityChooser()
 }
@@ -12917,7 +12916,7 @@ WM_LBUTTONDOWN(wP, lP, msg, hwnd) {
   If (AnyWindowOpen=8 && (hwnd=hBtnEarthMapPrev || hwnd=hBtnEarthMapNext))
   {
      fn := Func("holdEarthMapTimeBtn").Bind((hwnd=hBtnEarthMapPrev) ? -1 : 1, A_TickCount)
-     SetTimer, % fn, -1
+     SetTimer, % fn, -2
      Return
   }
 
@@ -12968,16 +12967,8 @@ prolongNextTodayBTN() {
 holdEarthMapTimeBtn(diru, pressZeit) {
 ; Holding the < or the > button of the earth map down - see PanelEarthMap() - moves
 ; the map 2 hours back (diru=-1) or on (diru=1) step after step, from 350 ms after
-; the press until the mouse button is let go. WM_LBUTTONDOWN() starts this at every
-; press of either button, pressZeit being when the press came. A press let go of
-; before the first step is a plain click, which the g-label of the button sees to.
-; After a step it is no click: each step first gives the focus to the drop-down
-; list, and a button that loses the focus while it is held drops the press without
-; a click.
+; the press until the mouse button is let go.
 
-   ; Every thread starts off critical in this script - the auto-execute section turns
-   ; Critical on - and no timer runs while one is: the bells and the clock are not to
-   ; wait for the mouse button to be let go.
    Critical, Off
    lastStep := pressZeit
    firstStep := A_TickCount
@@ -12994,12 +12985,9 @@ holdEarthMapTimeBtn(diru, pressZeit) {
             Break
 
          lastStep := A_TickCount
-         Critical, On   ; a step is drawn uninterrupted, as a click is: nothing else starts a map meanwhile
-         ; Taking the focus off the held button drops its press, so that letting go of it
-         ; makes no click. It is done before the map is drawn, because generateEarthMap()
-         ; lets messages through - the letting go among them - before it moves the focus.
+         Critical, On
          GuiControl, SettingsGUIA:Focus, showEarthSunMapModus
-         NextTodayBTN(diru, 0, 0, 0, 0, 1)   ; inLoop, so that the controls do not flicker
+         NextTodayBTN(diru, 0, 0, 0, 0, 1)   ; inClickLoop=1, so that the controls do not flicker
          Critical, Off
       }
       Sleep, 10
@@ -15604,7 +15592,6 @@ Trimmer(string, whatTrim:="") {
       string := Trim(string, "`r`n `t`f`v`b")
    Return string
 }
-
 
 GetWindowPlacement(hWnd) {
     Local WINDOWPLACEMENT, Result := {}
