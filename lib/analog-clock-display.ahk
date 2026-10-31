@@ -315,7 +315,7 @@ swapVars(ByRef a, ByRef b) {
 coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup, datu:=0) {
 ; datu is an UTC time stamp; it defaults to the present moment. The offset of the
 ; place named by givenGeoLocation is applied below, before the moon is asked for.
-     Static moonPhase := [], elevu := 1, lastCalcZeit := 1, lastCoords := 0, lastAngleMoon := 0
+     Static moonPhase := [], elevu := 1, lastCalcZeit := 1, lastCoords := 0
      If (swapColorAnalogClock=1)
         swapVars(bgrColor, itemColor)
 
@@ -342,7 +342,6 @@ coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup, d
 
         moonPhase := MoonPhaseCalculator(datu, gmtOffset, w[2], w[3])
         lastCalcZeit := A_TickCount
-        ; lastAngleMoon := getMoonLichtAngle(A_NowUTC, w[2], w[3], w[6])
         ; ToolTip, % thisCoords , , , 2
         lastCoords := thisCoords
      }
@@ -402,11 +401,6 @@ coreMoonPhaseDraw(bgrColor, itemColor, cX, cY, boxSize, givenGeoLocation, gup, d
         Gdip_FillEllipse(gup, thisBrush, cX - (Diameter/2), cY + Diameter/2.18,Diameter, Diameter)
         Gdip_DeleteBrush(thisBrush)
      }
-     ; mainBitmap := Gdip_CreateBitmapFromFileSimplified("resources\earth-surface-map.jpg")
-     ; pBitmap := Gdip_RotateBitmapAtCenter(mainBitmap, -lastAngleMoon)
-     ; Gdip_DrawImage(gup, pBitmap, ClockCenter, ClockCenter, 100, 100)
-     ; Gdip_DisposeImage(pBitmap)
-     ; Gdip_DisposeImage(mainBitmap)
 
      Gdip_DeletePen(pPen)
      Gdip_DeleteBrush(bDark)
@@ -466,7 +460,6 @@ showAnalogClock() {
   If (ClockVisibility!=0)
      Return
 
-  lastShowTime := A_TickCount
   ; paint the current time before the window comes up; when it is going to fade in,
   ; paint it (nearly) invisible, so that the fade-in does not start with an opaque frame
   UpdateEverySecond((PrefOpen=0) ? 1 : 0)
