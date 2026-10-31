@@ -263,8 +263,6 @@ Global CSthin := "░"   ; light gray
 , moduleAnalogClockInit := 0, darkWindowColor := "0x202020", darkControlColor := "0xEDedED"
 , debugMode := !A_IsCompiled, lastCalendarClickedDate := 0
 
-alarmsListLoad()   ; only after the Global block above, which empties userAlarmsList
-
 ; initDLLhack()
 If !pToken
    pToken := Gdip_Startup()
@@ -285,6 +283,7 @@ If (uiDarkMode=1)
 
 Sleep, 1
 SetMyVolume(1)
+alarmsListLoad()
 InitializeTrayMenu()
 InitSoundChannels()
 
@@ -550,7 +549,7 @@ friendlyAlarmInfoz() {
     Else If (SubStr(alarmArmedZeit, 1, 8)!=SubStr(A_Now, 1, 8))
        tmr := " (tomorrow)"
 
-    Return "`nNext alarm at: " timeu tmr
+    Return "Next alarm at: " timeu tmr
 }
 
 decideSysTrayTooltip(modus:=0) {
@@ -567,7 +566,7 @@ decideSysTrayTooltip(modus:=0) {
     If (userMustDoTimer=1 && userTimerExpire)
        timerInfos := "`nTimer set to expire at: " userTimerExpire "."
 
-    alarmInfos := friendlyAlarmInfoz()
+    alarmInfos := "`n" friendlyAlarmInfoz()
     If (stopWatchRealStartZeit || stopWatchBeginZeit)
        stopwInfos := "`nStopwatch is running."
     If (userMuteAllSounds=1 || BeepsVolume<1)
@@ -6173,11 +6172,9 @@ BtnSetPresetTimers(a, b, c) {
    GuiControl, SettingsGUIA: , userTimerHours, % hu
    GuiControl, SettingsGUIA: , userTimerMins, % info
    updateUIalarmsPanel()
-   If (A_TickCount - lastInvoked<300) && (prevu=info)
-      SetTimer, BtnApplyAlarms, -250
-
    prevu := info
    lastInvoked := A_TickCount
+   SetTimer, BtnApplyAlarms, -250
    ; ToolTip, % a "=" b "=" c "=" info , , , 2
 }
 
@@ -6223,10 +6220,11 @@ PanelSetAlarm() {
     Gui, Add, Tab3,, Timer|Alarm
     Gui, Tab, 1
     Gui, Add, Text, x+15 y+15 Section +hwndhTemp, Predefined timer (in minutes):
+    tlw := (PrefsLargeFonts=1) ? 325 : 250
     ml := (PrefsLargeFonts=1) ? 60 : 50
     GuiAddDropDownList("x+5 w" ml " Choose5 vuserUItimerQuickSet", "1|2|3|4|5|10|15|30|45|60|90|120", [hTemp])
     Gui, Add, Button, x+5 wp hp gBtnSetPresetTimers, Set
-    Gui, Add, Checkbox, xs y+10 Section gupdateUIalarmsPanel Checked%userMustDoTimer% vuserMustDoTimer, Set timer duration (in hours`, mins):
+    Gui, Add, Checkbox, xs y+10 Section guiToggleUserTimer Checked%userMustDoTimer% vuserMustDoTimer, Set timer duration (in hours`, mins):
     Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
     GuiAddEdit("xs+15 y+10 w" nW " h" nH " Center number -multi limit2 gupdateUIalarmsPanel veditF1", userTimerHours, "Hours")
     Gui, Add, UpDown, vuserTimerHours Range0-12 gupdateUIalarmsPanel, % userTimerHours
@@ -6234,15 +6232,16 @@ PanelSetAlarm() {
     Gui, Add, UpDown, vuserTimerMins Range-1-60 gupdateUIalarmsPanel, % userTimerMins
     Gui, Add, Text, x+10 hp +0x200 vuserTimerInfos, 00:00.
     doResetGuiFont()
-    GuiAddEdit("xs+15 y+10 w255 -multi limit512 vuserTimerMsg", userTimerMsg, "Timer message")
-    timerDetails := (userTimerExpire && userMustDoTimer=1) ? "Current timer expires at: " userTimerExpire "." : "Press Apply to start the timer."
+    GuiAddEdit("xs+15 y+10 w" tlw " -multi limit512 vuserTimerMsg", userTimerMsg, "Timer message")
+    timerDetails := (userTimerExpire && userMustDoTimer=1) ? "Current timer expires at: " userTimerExpire "." : "No timer is set."
     ml := (PrefsLargeFonts=1) ? 170 : 115
     zl := (PrefsLargeFonts=1) ? 55 : 45
     GuiAddDropDownList("xs+15 y+10 w" ml " AltSubmit Choose" userTimerSound " vuserTimerSound", "Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert", "Audio alert for the timer")
     GuiAddEdit("x+5 w" zl " hp Center number -multi limit2 veditF10 gupdateUIalarmsPanel", userTimerFreq, "Timer chiming frequency in seconds")
     Gui, Add, UpDown, vuserTimerFreq Range1-99 gupdateUIalarmsPanel, % userTimerFreq
     Gui, Add, Button, x+5 wp hp gBtnTestTimerAudio vbtn1, Test
-    Gui, Add, Text, xs+15 y+15 w255 vUItimerInfoz, % timerDetails
+    Gui, Add, Text, xs+15 y+15 hp w%tlw% vUItimerInfoz, % timerDetails
+    Gui, Add, Button, xs+15 y+15 w%btnW1% h%btnH% gBtnApplyAlarms vbtn3, &Start now
 
     Gui, Tab, 2
     ; every change in this tab is saved at once to the alarm selected in the list - see uiAlarmChanged()
@@ -6259,8 +6258,7 @@ PanelSetAlarm() {
     GuiAddEdit("x+35 w" nW " h" nH " Center number -multi limit2 guiAlarmChanged veditF5", userAlarmSnooze, "Snooze duration in minutes")
     Gui, Add, UpDown, vuserAlarmSnooze guiAlarmChanged Range1-59, % userAlarmSnooze
     doResetGuiFont()
-
-    GuiAddEdit("xs+15 y+10 w255 -multi limit512 guiAlarmChanged vuserAlarmMsg", userAlarmMsg, "Alarm message")
+    GuiAddEdit("xs+15 y+10 w" tlw " r2 wrap limit512 guiAlarmChanged vuserAlarmMsg", userAlarmMsg, "Alarm message")
     Gui, Add, Checkbox, xs y+10 guiAlarmChanged Checked%userAlarmRepeated% vuserAlarmRepeated, &Repeat alarm on every...
     Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 guiAlarmChanged Checked%userAlarmWday1% vuserAlarmWday1, Sun
     Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 guiAlarmChanged Checked%userAlarmWday2% vuserAlarmWday2, Mon
@@ -6278,13 +6276,11 @@ PanelSetAlarm() {
     GuiAddEdit("x+5 w" zl " hp Center number -multi limit2 veditF6 guiAlarmChanged", userAlarmFreq, "Alarm audio alert frequency in seconds")
     Gui, Add, UpDown, vuserAlarmFreq Range1-99 guiAlarmChanged, % userAlarmFreq
     Gui, Add, Button, x+5 wp hp gBtnTestAlarmAudio vBtn2, Test
-    p := friendlyAlarmInfoz()
-    Gui, Add, Text, xs+15 y+10 w255 r2 vUIalarmInfoz, % p
+    Gui, Add, Text, xs+15 y+5 w%tlw% hp +wrap vUIalarmInfoz, % friendlyAlarmInfoz()
 
     Gui, Tab
-    Gui, Add, Checkbox, xm y+10 Section gupdateUIalarmsPanel Checked%AlarmersDarkScreen% vAlarmersDarkScreen, Flash dark screen on alerts
-    Gui, Add, Button, xs+0 y+10 h%btnH% w%btnW1% Default gBtnApplyAlarms, &Apply
-    Gui, Add, Button, x+5 hp wp-15 gCloseWindow , &Cancel
+    Gui, Add, Button, xm y+10 w%btnW1% h%btnH% Default gCloseWindow , &Close
+    Gui, Add, Checkbox, x++5 hp Section guiToggleAlarmDarkScreen Checked%AlarmersDarkScreen% vAlarmersDarkScreen, Flash dark screen on alerts
 
     applyDarkMode2winPost("SettingsGUIA", hSetWinGui)
     Gui, Show, AutoSize, Alarm and timer: %appName%
@@ -6415,6 +6411,11 @@ uiAlarmChanged() {
    If reArm
       startAlarmTimer("rr")
    uiAlarmsListRefresh()
+}
+
+uiToggleAlarmDarkScreen() {
+   GuiControlGet, AlarmersDarkScreen, SettingsGUIA:, AlarmersDarkScreen
+   INIaction(1, "AlarmersDarkScreen", "SavedSettings")
 }
 
 uiAlarmAdd() {
@@ -6897,9 +6898,9 @@ givenDateTestCelebrations(givenDate) {
              canDo := (InStr(alarm.days, "p") && tipu=3) || (InStr(alarm.days, "s") && tipu=2 && ObserveSecularDays=1) || (InStr(alarm.days, "r") && tipu=1 && ObserveReligiousDays=1) ? 0 : 1
 
           If canDo
-             alarmInfos .= "Regular alarm set at: " timeu ".`n"
+             alarmInfos .= "Regular alarm set at: " timeu ". " alarm.msg "`n"
        } Else If (SubStr(givenDate, 1, 8)=SubStr(A_Now, 1, 8))
-          alarmInfos .= "Alarm set at: " timeu ".`n"
+          alarmInfos .= "Alarm set at: " timeu ". " alarm.msg "`n"
     }
 
     If alarmInfos
@@ -7328,6 +7329,9 @@ updateUIalarmsPanel() {
   GuiControl, % act, userAlarmWday7
   GuiControl, % act, userAlarmWday7
 
+  act := (OutputVarA=1) ? "SettingsGUIA: Show" : "SettingsGUIA: Hide"
+  GuiControl, % act, btn3
+
   act := (OutputVarA=1) ? "SettingsGUIA: Enable" : "SettingsGUIA: Disable"
   GuiControl, % act, userTimerHours
   GuiControl, % act, userTimerMins
@@ -7339,7 +7343,30 @@ updateUIalarmsPanel() {
   GuiControl, % act, editF10
   GuiControl, % act, editF1
   GuiControl, % act, editF2
-  GuiControl, % act, UItimerInfoz
+}
+
+uiCoreTimerStarter() {
+    If (userMustDoTimer=1 && (userTimerHours || userTimerMins))
+    {
+       coreInitUserTimer()
+    } Else 
+    {
+       userTimerExpire := userMustDoTimer := 0
+       SetTimer, doUserTimerAlert, Off
+    }
+
+    timerDetails := (userTimerExpire && userMustDoTimer=1) ? "Current timer expires at: " userTimerExpire "." : "No timer is set."
+    GuiControl, SettingsGUIA:, UItimerInfoz, % timerDetails
+    SoundBeep 
+}
+
+uiToggleUserTimer() {
+   Gui, SettingsGUIA: Default
+   Gui, SettingsGUIA: Submit, NoHide
+   updateUIalarmsPanel()
+   GuiControlGet, kk, SettingsGUIA:, userMustDoTimer
+   If (kk=0)
+      uiCoreTimerStarter()
 }
 
 BtnApplyAlarms() {
@@ -7353,16 +7380,8 @@ BtnApplyAlarms() {
   INIaction(1, "userTimerMins", "SavedSettings")
   INIaction(1, "userTimerHours", "SavedSettings")
   INIaction(1, "userTimerMsg", "SavedSettings")
-  If (userMustDoTimer=1 && (userTimerHours || userTimerMins))
-  {
-     coreInitUserTimer()
-  } Else 
-  {
-     userTimerExpire := userMustDoTimer := 0
-     SetTimer, doUserTimerAlert, Off
-  }
 
-  CloseWindow()
+  uiCoreTimerStarter()
 }
 
 doUserTimerAlert() {

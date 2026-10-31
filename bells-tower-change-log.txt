@@ -6,6 +6,7 @@
 ; ======================================================
 
 v3.6.2 - 2026 / 10 / 31
+  - [new] ability to set multiple alarms
   - [new] the geographic locations and time zones can be updated when running on Microsoft Windows Store
   - bug fixes
 
