@@ -134,7 +134,8 @@ Global displayTimeFormat := 1
 , OSDmarginSides         := 25
 , maxBibleLength         := 55
 
-; Timers and alarms
+; Timers and alarms. The alarms are kept in userAlarmsList - see alarmsListLoad(); the userAlarm*
+; values below give the first alarm, then hold the one shown in the alarm panel.
 , userMustDoTimer    := 0
 , userTimerHours     := 1
 , userTimerMins      := 30
@@ -232,7 +233,7 @@ Global CSthin := "░"   ; light gray
 , LastBibleQuoteDisplay := 1, hSolarGraphPic, gDllType := 0
 , LastBibleQuoteDisplay2 := 1, countriesArrayList := []
 , LastBibleMsg := "", AllowDarkModeForWindow := ""
-, celebYear := A_Year, userAlarmIsSnoozed := 0
+, celebYear := A_Year
 , isHolidayToday := 0, stopWatchRecordsInterval := []
 , TypeHolidayOccured := 0, userTimerExpire := 0, SolarYearGraphMode := 0
 , stopWatchIntervalInfos := []
@@ -258,9 +259,11 @@ Global CSthin := "░"   ; light gray
 , SNDmedia_hours6, SNDmedia_hours7, SNDmedia_hours8, SNDmedia_hours9, SNDmedia_hours10
 , hFaceClock, pToken, scriptStartZeit := A_TickCount
 , globalG, globalhbm, globalhdc, globalobm, uiUserFullDateUTC
-, clockFgrClr, clockBgrClr, isAlarmTmrw := 0, alarmArmedZeit := ""
+, clockFgrClr, clockBgrClr, alarmArmed := "", alarmArmedZeit := "", userAlarmsList := []
 , moduleAnalogClockInit := 0, darkWindowColor := "0x202020", darkControlColor := "0xEDedED"
 , debugMode := !A_IsCompiled, lastCalendarClickedDate := 0
+
+alarmsListLoad()   ; only after the Global block above, which empties userAlarmsList
 
 ; initDLLhack()
 If !pToken
@@ -536,27 +539,18 @@ analogClockStarter() {
 }
 
 friendlyAlarmInfoz() {
-    alarmInfos := ""
-    If (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins))
-    {
-       timeu := Format("{:02}:{:02}", userAlarmHours, userAlarmMins)
-       If (userAlarmIsSnoozed=1)
-       {
-          alarmInfos := "`nAlarm is set at: " timeu " (snoozed for " userAlarmSnooze " min.)"
-       } Else If (userAlarmRepeated=1)
-       {
-          ; startAlarmTimer() arms the alarm only for a day whose weekday and exceptions allow
-          ; it, and that day is tomorrow once today's time has gone by - always so at 00:00
-          tmr := (alarmArmedZeit && SubStr(alarmArmedZeit, 1, 8)!=SubStr(A_Now, 1, 8)) ? " (tomorrow)" : ""
-          alarmInfos := alarmArmedZeit ? "`nRegular alarm set at: " timeu tmr : ""
-       } Else
-       {
-          tmr := (isAlarmTmrw=1) ? " (tomorrow)" : ""
-          alarmInfos := "`nAlarm set at: " timeu tmr
-       }
-    }
+; A line about the alarm due next, as armed by startAlarmTimer(); that is only ever today or
+; tomorrow, and a repeating alarm is armed only for a day its weekdays and exceptions allow
+    If (!IsObject(alarmArmed) || !alarmArmedZeit)
+       Return
 
-    Return alarmInfos
+    FormatTime, timeu, % alarmArmedZeit, HH:mm
+    If alarmArmed.snz
+       tmr := " (snoozed)"
+    Else If (SubStr(alarmArmedZeit, 1, 8)!=SubStr(A_Now, 1, 8))
+       tmr := " (tomorrow)"
+
+    Return "`nNext alarm at: " timeu tmr
 }
 
 decideSysTrayTooltip(modus:=0) {
@@ -1218,34 +1212,37 @@ AdditionalStrikerPerformer() {
   lastInvoked := A_TickCount
 }
 
-PlayAlarmedBell(firstu:=0) {
+PlayAlarmedBell(firstu:=0, soundu:=0) {
 ; The auxiliary bell and the gong ring long, so they are sounded on every other tick of the
 ; repeat timer that calls this; bu keeps count of the ticks. firstu=1 marks the first call of
-; an alert, or a click on the Test button, and always rings
-   Static indexu := 0, bu := 0
+; an alert, or a click on the Test button, and always rings. Those calls give the sound, by its
+; number in the list of the alarm panel, and the repeat timer keeps to it.
+   Static indexu := 0, bu := 0, sndu := 1
    If (firstu=1)
       bu := 0
+   If soundu
+      sndu := soundu
 
    SetMyVolume(1)
-   If (userAlarmSound=1)
+   If (sndu=1)
    {
       bu := !bu
       If bu
          MCXI_Play(SNDmedia_auxil_bell, 1)
-   } Else If (userAlarmSound=2)
+   } Else If (sndu=2)
    {
       indexu := clampInRange(indexu + 1, 1, 4, 1)
       MCXI_Play(SNDmedia_quarters%indexu%, 1)
-   } Else If (userAlarmSound=3)
+   } Else If (sndu=3)
    {
       indexu := clampInRange(indexu + 1, 1, 4, 1)
       MCXI_Play(SNDmedia_hours%indexu%, 1)
-   } Else If (userAlarmSound=4)
+   } Else If (sndu=4)
    {
       bu := !bu
       If bu
          MCXI_Play(SNDmedia_japan_bell, 1)
-   } Else If (userAlarmSound=5)
+   } Else If (sndu=5)
    {
       MCXI_Play(SNDmedia_beep, 1)
    }
@@ -3508,7 +3505,7 @@ DeleteSettings() {
     countu := obju[2]
     brr := (ObserveHolidays=1) ? " The feasts, holidays and events you chose to no longer observe will be observed again." : ""
     msgu := "Are you sure you want to restore the default settings?`n`nEvery option will go back to its default value." brr
-    msgu .= countu ? "`n`nThe " countu " personal event" ((countu>1) ? "s" : "") " you defined will be kept, and so will the custom locations." : "`n`nThe custom user-defined locations will be kept."
+    msgu .= countu ? "`n`nThe " countu " personal event" ((countu>1) ? "s" : "") " you defined will be kept, and so will the alarms and the custom locations." : "`n`nThe alarms and the custom user-defined locations will be kept."
 
     r := simpleMsgBoxWrapper(appName, msgu, 4, 2, 32)
     If (r!="Yes")
@@ -3531,6 +3528,7 @@ DeleteSettings() {
            INIactionNonGlobal(1, SubStr(A_LoopField, 1, p - 1), SubStr(A_LoopField, p + 1), "Celebrations")
     }
 
+    alarmsListSave()   ; the alarms are kept too
     Cleanup()
     Try Reload
     Sleep, 70
@@ -6190,7 +6188,6 @@ PanelSetAlarm() {
     INIaction(0, "userTimerMins", "SavedSettings")
     INIaction(0, "userTimerHours", "SavedSettings")
     INIaction(0, "userTimerMsg", "SavedSettings")
-    INIaction(0, "userAlarmWeekDays", "SavedSettings")
     MinMaxVar(userTimerMins, 0, 59, 2)
     MinMaxVar(userTimerHours, 0, 12, 0)
 
@@ -6204,6 +6201,7 @@ PanelSetAlarm() {
          , userAlarmWday1, userAlarmWday2, userAlarmWday3, userAlarmWday4
          , userAlarmWday5, userAlarmWday6, userAlarmWday7, txt1, userUItimerQuickSet
          , userAlarmExceptPerso, userAlarmExceptRelu, userAlarmExceptSeculu
+         , userAlarmSel, UIalarmInfoz
 
     If (PrefsLargeFonts=1)
     {
@@ -6216,18 +6214,10 @@ PanelSetAlarm() {
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     nW := (PrefsLargeFonts=1) ? 65 : 60
     nH := (PrefsLargeFonts=1) ? 35 : 30
-    userAlarmWday1 := InStr(userAlarmWeekDays, "1") ? 1 : 0
-    userAlarmWday2 := InStr(userAlarmWeekDays, "2") ? 1 : 0
-    userAlarmWday3 := InStr(userAlarmWeekDays, "3") ? 1 : 0
-    userAlarmWday4 := InStr(userAlarmWeekDays, "4") ? 1 : 0
-    userAlarmWday5 := InStr(userAlarmWeekDays, "5") ? 1 : 0
-    userAlarmWday6 := InStr(userAlarmWeekDays, "6") ? 1 : 0
-    userAlarmWday7 := InStr(userAlarmWeekDays, "7") ? 1 : 0
-    userAlarmExceptPerso := InStr(userAlarmWeekDays, "p") ? 1 : 0
-    userAlarmExceptRelu := InStr(userAlarmWeekDays, "r") ? 1 : 0
-    userAlarmExceptSeculu := InStr(userAlarmWeekDays, "s") ? 1 : 0
-    If !userAlarmWeekDays
-       userAlarmWday7 := userAlarmWday1 := 1
+    ; the alarm selected last, while the app runs
+    If !(userAlarmSel>=1 && userAlarmSel<=userAlarmsList.Length())
+       userAlarmSel := 1
+    alarmToPanelVars(userAlarmsList[userAlarmSel])
 
     doResetGuiFont()
     Gui, Add, Tab3,, Timer|Alarm
@@ -6255,36 +6245,41 @@ PanelSetAlarm() {
     Gui, Add, Text, xs+15 y+15 w255 vUItimerInfoz, % timerDetails
 
     Gui, Tab, 2
-    Gui, Add, Checkbox, x+15 y+15 Section gupdateUIalarmsPanel Checked%userMustDoAlarm% vuserMustDoAlarm, Set alarm at (hours`, mins`, snooze mins.):
+    ; every change in this tab is saved at once to the alarm selected in the list - see uiAlarmChanged()
+    al := (PrefsLargeFonts=1) ? 235 : 175
+    GuiAddDropDownList("x+15 y+15 Section w" al " AltSubmit Choose" userAlarmSel " guiAlarmSelected vuserAlarmSel", alarmsListNames(), "List of alarms")
+    Gui, Add, Button, x+5 hp guiAlarmAdd, A&dd
+    Gui, Add, Button, x+5 hp guiAlarmRemove, Re&move
+    Gui, Add, Checkbox, xs y+10 Section guiAlarmChanged Checked%userMustDoAlarm% vuserMustDoAlarm, Set alarm at (hours`, mins`, snooze mins.):
     Gui, Font, % (PrefsLargeFonts=1) ? "s18" : "s16"
-    GuiAddEdit("xs+15 y+10 w" nW " h" nH " Center number -multi limit2 veditF3 hwndhEdit", userAlarmHours, "Hours")
-    Gui, Add, UpDown, vuserAlarmHours Range0-23, % userAlarmHours
-    GuiAddEdit("x+5 w" nW " h" nH " gupdateUIalarmsPanel Center number -multi limit2 veditF4", userAlarmMins, "Minutes")
-    Gui, Add, UpDown, vuserAlarmMins gupdateUIalarmsPanel Range-1-60, % userAlarmMins
-    GuiAddEdit("x+35 w" nW " h" nH " Center number -multi limit2 veditF5", userAlarmSnooze, "Snooze duration in minutes")
-    Gui, Add, UpDown, vuserAlarmSnooze Range1-59, % userAlarmSnooze
+    GuiAddEdit("xs+15 y+10 w" nW " h" nH " Center number -multi limit2 guiAlarmChanged veditF3 hwndhEdit", userAlarmHours, "Hours")
+    Gui, Add, UpDown, vuserAlarmHours guiAlarmChanged Range0-23, % userAlarmHours
+    GuiAddEdit("x+5 w" nW " h" nH " guiAlarmChanged Center number -multi limit2 veditF4", userAlarmMins, "Minutes")
+    Gui, Add, UpDown, vuserAlarmMins guiAlarmChanged Range-1-60, % userAlarmMins
+    GuiAddEdit("x+35 w" nW " h" nH " Center number -multi limit2 guiAlarmChanged veditF5", userAlarmSnooze, "Snooze duration in minutes")
+    Gui, Add, UpDown, vuserAlarmSnooze guiAlarmChanged Range1-59, % userAlarmSnooze
     doResetGuiFont()
 
-    GuiAddEdit("xs+15 y+10 w255 -multi limit512 vuserAlarmMsg", userAlarmMsg, "Alarm message")
-    Gui, Add, Checkbox, xs y+10 gupdateUIalarmsPanel Checked%userAlarmRepeated% vuserAlarmRepeated, &Repeat alarm on every...
-    Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 Checked%userAlarmWday1% vuserAlarmWday1, Sun
-    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday2% vuserAlarmWday2, Mon
-    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday3% vuserAlarmWday3, Tue
-    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday4% vuserAlarmWday4, Wed
-    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday5% vuserAlarmWday5, Thu
-    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday6% vuserAlarmWday6, Fri
-    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 Checked%userAlarmWday7% vuserAlarmWday7, Sat
+    GuiAddEdit("xs+15 y+10 w255 -multi limit512 guiAlarmChanged vuserAlarmMsg", userAlarmMsg, "Alarm message")
+    Gui, Add, Checkbox, xs y+10 guiAlarmChanged Checked%userAlarmRepeated% vuserAlarmRepeated, &Repeat alarm on every...
+    Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 guiAlarmChanged Checked%userAlarmWday1% vuserAlarmWday1, Sun
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 guiAlarmChanged Checked%userAlarmWday2% vuserAlarmWday2, Mon
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 guiAlarmChanged Checked%userAlarmWday3% vuserAlarmWday3, Tue
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 guiAlarmChanged Checked%userAlarmWday4% vuserAlarmWday4, Wed
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 guiAlarmChanged Checked%userAlarmWday5% vuserAlarmWday5, Thu
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 guiAlarmChanged Checked%userAlarmWday6% vuserAlarmWday6, Fri
+    Gui, Add, Checkbox, x+1 wp-2 hp +0x1000 guiAlarmChanged Checked%userAlarmWday7% vuserAlarmWday7, Sat
 
     Gui, Add, Text, xs+15 y+10 vtxt1, Except on the days when the event observed is...
-    Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 Checked%userAlarmExceptRelu% vuserAlarmExceptRelu, Religious
-    Gui, Add, Checkbox, x+1 hp +0x1000 Checked%userAlarmExceptSeculu% vuserAlarmExceptSeculu, Secular
-    Gui, Add, Checkbox, x+1 hp +0x1000 Checked%userAlarmExceptPerso% vuserAlarmExceptPerso, Personal
-    GuiAddDropDownList("xs+15 y+10 w" ml " AltSubmit Choose" userAlarmSound " vuserAlarmSound", "Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert", "Audio alert for the alarm")
-    GuiAddEdit("x+5 w" zl " hp Center number -multi limit2 veditF6 gupdateUIalarmsPanel", userAlarmFreq, "Alarm audio alert frequency in seconds")
-    Gui, Add, UpDown, vuserAlarmFreq Range1-99 gupdateUIalarmsPanel, % userAlarmFreq
+    Gui, Add, Checkbox, xs+15 y+5 hp+6 +0x1000 guiAlarmChanged Checked%userAlarmExceptRelu% vuserAlarmExceptRelu, Religious
+    Gui, Add, Checkbox, x+1 hp +0x1000 guiAlarmChanged Checked%userAlarmExceptSeculu% vuserAlarmExceptSeculu, Secular
+    Gui, Add, Checkbox, x+1 hp +0x1000 guiAlarmChanged Checked%userAlarmExceptPerso% vuserAlarmExceptPerso, Personal
+    GuiAddDropDownList("xs+15 y+10 w" ml " AltSubmit Choose" userAlarmSound " guiAlarmChanged vuserAlarmSound", "Auxilliary bell|Quarters bell|Hours bell|Gong|Beep|No sound alert", "Audio alert for the alarm")
+    GuiAddEdit("x+5 w" zl " hp Center number -multi limit2 veditF6 guiAlarmChanged", userAlarmFreq, "Alarm audio alert frequency in seconds")
+    Gui, Add, UpDown, vuserAlarmFreq Range1-99 guiAlarmChanged, % userAlarmFreq
     Gui, Add, Button, x+5 wp hp gBtnTestAlarmAudio vBtn2, Test
     p := friendlyAlarmInfoz()
-    Gui, Add, Text, xs+15 y+10 w255, % p
+    Gui, Add, Text, xs+15 y+10 w255 r2 vUIalarmInfoz, % p
 
     Gui, Tab
     Gui, Add, Checkbox, xm y+10 Section gupdateUIalarmsPanel Checked%AlarmersDarkScreen% vAlarmersDarkScreen, Flash dark screen on alerts
@@ -6305,7 +6300,165 @@ BtnTestTimerAudio() {
 BtnTestAlarmAudio() {
     GuiControlGet, userAlarmSound
     stopStrikesNow := 0
-    PlayAlarmedBell(1)
+    PlayAlarmedBell(1, userAlarmSound)
+}
+
+alarmsListNames() {
+; The items of the list of alarms in the alarm panel: numbered, named after their messages - or
+; their times, when they have none - and starting with * when switched on
+   For i, alarm in userAlarmsList
+   {
+      nameu := StrReplace(alarm.msg, "|", "¦")   ; | separates the items of the list
+      If (StrLen(nameu)>40)
+         nameu := RTrim(SubStr(nameu, 1, 40)) "…"
+      If (nameu="")
+         nameu := Format("Alarm at {:02}:{:02}", alarm.h, alarm.m)
+      listu .= "|" (alarm.on=1 ? "*" : "") i ". " nameu
+   }
+   Return SubStr(listu, 2)
+}
+
+alarmToPanelVars(alarm) {
+; Copies the alarm into the variables of the controls in the Alarm tab of the alarm panel
+   Global userAlarmWday1, userAlarmWday2, userAlarmWday3, userAlarmWday4, userAlarmWday5, userAlarmWday6
+        , userAlarmWday7, userAlarmExceptPerso, userAlarmExceptRelu, userAlarmExceptSeculu
+   userMustDoAlarm := alarm.on
+   userAlarmHours := alarm.h
+   userAlarmMins := alarm.m
+   userAlarmSnooze := alarm.snooze
+   userAlarmSound := alarm.sound
+   userAlarmFreq := alarm.freq
+   userAlarmRepeated := alarm.rep
+   userAlarmWeekDays := alarm.days
+   userAlarmMsg := alarm.msg
+   userAlarmWday1 := InStr(alarm.days, "1") ? 1 : 0
+   userAlarmWday2 := InStr(alarm.days, "2") ? 1 : 0
+   userAlarmWday3 := InStr(alarm.days, "3") ? 1 : 0
+   userAlarmWday4 := InStr(alarm.days, "4") ? 1 : 0
+   userAlarmWday5 := InStr(alarm.days, "5") ? 1 : 0
+   userAlarmWday6 := InStr(alarm.days, "6") ? 1 : 0
+   userAlarmWday7 := InStr(alarm.days, "7") ? 1 : 0
+   userAlarmExceptPerso := InStr(alarm.days, "p") ? 1 : 0
+   userAlarmExceptRelu := InStr(alarm.days, "r") ? 1 : 0
+   userAlarmExceptSeculu := InStr(alarm.days, "s") ? 1 : 0
+}
+
+uiAlarmShow() {
+; Fills the controls of the Alarm tab with the alarm selected in the list
+   Global userAlarmSel, userAlarmWday1, userAlarmWday2, userAlarmWday3, userAlarmWday4, userAlarmWday5
+        , userAlarmWday6, userAlarmWday7, userAlarmExceptPerso, userAlarmExceptRelu, userAlarmExceptSeculu
+   alarmToPanelVars(userAlarmsList[userAlarmSel])
+   GuiControl, SettingsGUIA:, userMustDoAlarm, % userMustDoAlarm
+   GuiControl, SettingsGUIA:, userAlarmHours, % userAlarmHours
+   GuiControl, SettingsGUIA:, userAlarmMins, % userAlarmMins
+   GuiControl, SettingsGUIA:, userAlarmSnooze, % userAlarmSnooze
+   GuiControl, SettingsGUIA:, userAlarmMsg, % userAlarmMsg
+   GuiControl, SettingsGUIA:, userAlarmRepeated, % userAlarmRepeated
+   GuiControl, SettingsGUIA:, userAlarmWday1, % userAlarmWday1
+   GuiControl, SettingsGUIA:, userAlarmWday2, % userAlarmWday2
+   GuiControl, SettingsGUIA:, userAlarmWday3, % userAlarmWday3
+   GuiControl, SettingsGUIA:, userAlarmWday4, % userAlarmWday4
+   GuiControl, SettingsGUIA:, userAlarmWday5, % userAlarmWday5
+   GuiControl, SettingsGUIA:, userAlarmWday6, % userAlarmWday6
+   GuiControl, SettingsGUIA:, userAlarmWday7, % userAlarmWday7
+   GuiControl, SettingsGUIA:, userAlarmExceptRelu, % userAlarmExceptRelu
+   GuiControl, SettingsGUIA:, userAlarmExceptSeculu, % userAlarmExceptSeculu
+   GuiControl, SettingsGUIA:, userAlarmExceptPerso, % userAlarmExceptPerso
+   GuiControl, SettingsGUIA: Choose, userAlarmSound, % userAlarmSound
+   GuiControl, SettingsGUIA:, userAlarmFreq, % userAlarmFreq
+   updateUIalarmsPanel()
+}
+
+uiAlarmSelected() {
+; Shows in the Alarm tab the alarm picked in the list
+   Global userAlarmSel
+   GuiControlGet, userAlarmSel, SettingsGUIA:
+   uiAlarmShow()
+}
+
+uiAlarmChanged() {
+; Saves the alarm shown in the Alarm tab at every change of its controls, and cancels its
+; snooze. userAlarmSel is the alarm the controls show, even when another one was just picked
+; in the list and uiAlarmSelected() has yet to show it.
+   Global userAlarmSel
+   updateUIalarmsPanel()   ; it also turns minutes of -1 or 60 into a change of the hour
+   GuiControlGet, onu, SettingsGUIA:, userMustDoAlarm
+   GuiControlGet, hu, SettingsGUIA:, userAlarmHours
+   GuiControlGet, mu, SettingsGUIA:, userAlarmMins
+   GuiControlGet, snoozeu, SettingsGUIA:, userAlarmSnooze
+   GuiControlGet, soundu, SettingsGUIA:, userAlarmSound
+   GuiControlGet, frequ, SettingsGUIA:, userAlarmFreq
+   GuiControlGet, repu, SettingsGUIA:, userAlarmRepeated
+   GuiControlGet, msgu, SettingsGUIA:, userAlarmMsg
+   GuiControlGet, relu, SettingsGUIA:, userAlarmExceptRelu
+   GuiControlGet, seculu, SettingsGUIA:, userAlarmExceptSeculu
+   GuiControlGet, persou, SettingsGUIA:, userAlarmExceptPerso
+   daysu := (relu ? "r" : "") (seculu ? "s" : "") (persou ? "p" : "")
+   Loop, 7
+   {
+      GuiControlGet, dayu, SettingsGUIA:, userAlarmWday%A_Index%
+      If dayu
+         daysu .= A_Index
+   }
+
+   newAlarm := alarmFromRecord(onu "|" hu "|" mu "|" snoozeu "|" soundu "|" frequ "|" repu "|" daysu "|" msgu)
+   alarm := userAlarmsList[userAlarmSel]
+   If (!IsObject(alarm) || alarmToRecord(newAlarm)==alarmToRecord(alarm))
+      Return
+
+   ; re-armed when the change moves the time it is due, or cancels the snooze it was due at
+   reArm := (alarm.snz || alarm.on!=newAlarm.on || alarm.h!=newAlarm.h || alarm.m!=newAlarm.m || alarm.rep!=newAlarm.rep || alarm.days!=newAlarm.days)
+   For k, v in newAlarm   ; changed in place, since an alert being shown holds on to it
+      alarm[k] := v
+
+   alarmsListSave(userAlarmSel)
+   If reArm
+      startAlarmTimer("rr")
+   uiAlarmsListRefresh()
+}
+
+uiAlarmAdd() {
+; Adds an alarm, switched off, with the default options and no message, and shows it
+   Global userAlarmSel
+   userAlarmsList.Push(alarmFromRecord("0|12|30|5|1|1|0|1234567|"))
+   userAlarmSel := userAlarmsList.Length()
+   alarmsListSave(userAlarmSel)
+   uiAlarmsListRefresh(userAlarmSel)
+   uiAlarmShow()
+}
+
+uiAlarmRemove() {
+; Removes the alarm selected in the list; the last one is always kept
+   Global userAlarmSel
+   If (userAlarmsList.Length()<2)
+   {
+      ToolTip, The last alarm cannot be removed.
+      SetTimer, removeTooltip, -2000
+      Return
+   }
+
+   userAlarmsList.RemoveAt(userAlarmSel)
+   userAlarmSel := clampInRange(userAlarmSel, 1, userAlarmsList.Length())
+   alarmsListSave()
+   startAlarmTimer("rr")
+   uiAlarmsListRefresh(userAlarmSel)
+   uiAlarmShow()
+}
+
+uiAlarmsListRefresh(posu:=0) {
+; Brings the alarm panel, when open, up to date with userAlarmsList: the names in the list, the
+; on/off box of the alarm shown - an alert may switch it off - and the line about the next alarm
+   Global userAlarmSel
+   If (AnyWindowOpen!=4)
+      Return
+
+   If !posu   ; keeps an alarm just picked in the list, but not yet shown by uiAlarmSelected()
+      GuiControlGet, posu, SettingsGUIA:, userAlarmSel
+   GuiControl, SettingsGUIA:, userAlarmSel, % "|" alarmsListNames()
+   GuiControl, SettingsGUIA: Choose, userAlarmSel, % posu
+   GuiControl, SettingsGUIA:, userMustDoAlarm, % userAlarmsList[userAlarmSel].on
+   GuiControl, SettingsGUIA:, UIalarmInfoz, % friendlyAlarmInfoz()
+   updateUIalarmsPanel()
 }
 
 PanelStopWatch() {
@@ -6722,32 +6875,35 @@ givenDateTestCelebrations(givenDate) {
           listu .= "* " nameu ".`n`n"
     }
 
+    tipu := 0
+    If InStr(listu, "✝")     ; religious
+       tipu := 1
+    Else If InStr(listu, "▦") ; personal
+       tipu := 3
+    Else If InStr(listu, "▣") ; secular
+       tipu := 2
+
     alarmInfos := ""
-    If (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins))
+    For each, alarm in userAlarmsList   ; every alarm switched on that rings on the given day
     {
-       tipu := 0
-       If InStr(listu, "✝")     ; religious
-          tipu := 1
-       Else If InStr(listu, "▦") ; personal
-          tipu := 3
-       Else If InStr(listu, "▣") ; secular
-          tipu := 2
+       If (alarm.on!=1)
+          Continue
 
-       timeu := Format("{:02}:{:02}", userAlarmHours, userAlarmMins)
-       If (userAlarmRepeated=1)
+       timeu := Format("{:02}:{:02}", alarm.h, alarm.m)
+       If (alarm.rep=1)
        {
-          canDo := InStr(userAlarmWeekDays, WeDay) ? 1 : 0
-          ; ToolTip, % canDo "=" ObserveHolidays "=" isHolidayToday , , , 2
+          canDo := InStr(alarm.days, WeDay) ? 1 : 0
           If (canDo && ObserveHolidays=1)
-             canDo := (InStr(userAlarmWeekDays, "p") && tipu=3) || (InStr(userAlarmWeekDays, "s") && tipu=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && tipu=1 && ObserveReligiousDays=1) ? 0 : 1
+             canDo := (InStr(alarm.days, "p") && tipu=3) || (InStr(alarm.days, "s") && tipu=2 && ObserveSecularDays=1) || (InStr(alarm.days, "r") && tipu=1 && ObserveReligiousDays=1) ? 0 : 1
 
-          alarmInfos := canDo ? "`nRegular alarm set at: " timeu : "" ; "`nRegular alarm set: exception rule applies for today"
+          If canDo
+             alarmInfos .= "Regular alarm set at: " timeu ".`n"
        } Else If (SubStr(givenDate, 1, 8)=SubStr(A_Now, 1, 8))
-          alarmInfos := "`nAlarm set at: " timeu
+          alarmInfos .= "Alarm set at: " timeu ".`n"
     }
 
     If alarmInfos
-       listu := Trimmer(alarmInfos) ".`n`n" listu
+       listu := alarmInfos "`n" listu
 
     Return listu
 }
@@ -7187,40 +7343,13 @@ updateUIalarmsPanel() {
 }
 
 BtnApplyAlarms() {
+; The alarms are saved as they are changed - see uiAlarmChanged()
   Gui, SettingsGUIA: Default
   Gui, SettingsGUIA: Submit, NoHide
   userTimerMsg := Trim(userTimerMsg)
-  userAlarmMsg := Trim(userAlarmMsg)
-  userAlarmWeekDays := ""
-  GuiControlGet, userAlarmExceptRelu
-  GuiControlGet, userAlarmExceptSeculu
-  GuiControlGet, userAlarmExceptPerso
-  If userAlarmExceptRelu
-     userAlarmWeekDays .= "r|"
-  If userAlarmExceptSeculu
-     userAlarmWeekDays .= "s|"
-  If userAlarmExceptPerso
-     userAlarmWeekDays .= "p|"
-
-  Loop, 7
-  {
-     GuiControlGet, userAlarmWday%A_Index%
-     If userAlarmWday%A_Index%
-        userAlarmWeekDays .= A_Index "|"
-  }
-
-  INIaction(1, "userMustDoAlarm", "SavedSettings")
   INIaction(1, "AlarmersDarkScreen", "SavedSettings")
   INIaction(1, "userTimerSound", "SavedSettings")
-  INIaction(1, "userAlarmSound", "SavedSettings")
-  INIaction(1, "userAlarmMsg", "SavedSettings")
-  INIaction(1, "userAlarmHours", "SavedSettings")
-  INIaction(1, "userAlarmMins", "SavedSettings")
-  INIaction(1, "userAlarmRepeated", "SavedSettings")
-  INIaction(1, "userAlarmSnooze", "SavedSettings")
-  INIaction(1, "userAlarmFreq", "SavedSettings")
   INIaction(1, "userTimerFreq", "SavedSettings")
-  INIaction(1, "userAlarmWeekDays", "SavedSettings")
   INIaction(1, "userTimerMins", "SavedSettings")
   INIaction(1, "userTimerHours", "SavedSettings")
   INIaction(1, "userTimerMsg", "SavedSettings")
@@ -7231,23 +7360,6 @@ BtnApplyAlarms() {
   {
      userTimerExpire := userMustDoTimer := 0
      SetTimer, doUserTimerAlert, Off
-  }
-
-  If (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins))
-  {
-     SetTimer, doUserAlarmAlert, Off
-     userAlarmIsSnoozed := 0
-     startAlarmTimer("rr")
-     Sleep, 1
-     startAlarmTimer()
-  } Else
-  {
-     startAlarmTimer("rr")
-     Sleep, 1
-     userAlarmIsSnoozed := userMustDoAlarm := 0
-     INIaction(1, "userMustDoAlarm", "SavedSettings")
-     SetTimer, doUserAlarmAlert, Off
-     SetTimer, PlayAlarmedBell, Off
   }
 
   CloseWindow()
@@ -7303,64 +7415,92 @@ coreInitUserTimer(rz:=0) {
 }
 
 doUserAlarmAlert() {
+; The alert of the alarm armed by startAlarmTimer(). There is one alert at a time: while it is
+; shown, this timer cannot run again, and the alarms that come due meanwhile are not shown
+; afterwards, but taken as dismissed - see the end of this function.
+  alarm := alarmArmed, dueu := alarmArmedZeit
+  If !IsObject(alarm)
+  {
+     startAlarmTimer("rr")
+     Return
+  }
+
   stopStrikesNow := stopAdditionalStrikez := 0
-  thisMsg := Trim(userAlarmMsg) ? "`n" Trim(userAlarmMsg) : "NONE"
+  thisMsg := Trim(alarm.msg) ? "`n" Trim(alarm.msg) : "NONE"
   If (AlarmersDarkScreen=1)
      ScreenBlocker(0, 1, 1, 1)
 
   showTimeNow()
-  PlayAlarmedBell(1)
-  If (userAlarmSound!=6)
-     SetTimer, PlayAlarmedBell, % userAlarmFreq * 1000
+  PlayAlarmedBell(1, alarm.sound)
+  If (alarm.sound!=6)
+     SetTimer, PlayAlarmedBell, % alarm.freq * 1000
 
-  friendly := (userAlarmIsSnoozed=1) ? " (snoozed)" : ""
-  friendly2 := (userAlarmIsSnoozed=1) ? " again" : ""
-  MsgBox, % 4096+4, Alarm%friendly%: %appName%, % "Alarm message: " thisMsg "`n`nPress Yes to snooze" friendly2 " for " userAlarmSnooze " minutes."
+  friendly := alarm.snz ? " (snoozed)" : ""
+  friendly2 := alarm.snz ? " again" : ""
+  MsgBox, % 4096+4, Alarm%friendly%: %appName%, % "Alarm message: " thisMsg "`n`nPress Yes to snooze" friendly2 " for " alarm.snooze " minutes."
   IfMsgBox, Yes
   {
-     startAlarmTimer("rr")
-     userMustDoAlarm := 1
-     userAlarmIsSnoozed := 1
-     SetTimer, doUserAlarmAlert, % -(userAlarmSnooze * 60000)
-  } Else If (userAlarmRepeated=1)
-  {
-     startAlarmTimer("rr")
-     SetTimer, doUserAlarmAlert, Off
-     userAlarmIsSnoozed := 0
-     userMustDoAlarm := 1
-     startAlarmTimer()
+     snz := A_Now
+     snz += alarm.snooze, Minutes
+     alarm.snz := snz
   } Else
-  {
-     SetTimer, doUserAlarmAlert, Off
-     userAlarmIsSnoozed := 0
-     userMustDoAlarm := 0
-     startAlarmTimer("rr")
-  }
+     alarmDismissed(alarm)
+
   SetTimer, PlayAlarmedBell, Off
   ScreenBlocker(1)
-  INIaction(1, "userMustDoAlarm", "SavedSettings")
+  ; Every alarm due between this one's time and now came due while the alert was shown.
+  ; Dismissing again the alarm just shown, when it repeats, changes nothing.
+  fromu := dueu
+  fromu += -1, Seconds
+  For each, thisAlarm in userAlarmsList
+  {
+     nextu := alarmNextDue(thisAlarm, fromu)
+     If (nextu && nextu<=A_Now)
+        alarmDismissed(thisAlarm)
+  }
+
+  alarmsListSave()
+  startAlarmTimer("rr")
+  uiAlarmsListRefresh()
 }
 
-isValidAlarmTime(hours, minutes) {
-; Whether the two make up a time of day: both numbers, the hour within 0-23 and the minute
-; within 0-59. The callers used to test the two for being non-zero instead, which threw the
-; midnight alarm, 00:00, away - a time of day like any other.
-   If (hours="" || minutes="" || !isNumber(hours) || !isNumber(minutes))
-      Return 0
+alarmDismissed(alarm) {
+; A dismissed alarm loses its snooze and, unless it repeats, is switched off
+   alarm.snz := ""
+   If (alarm.rep!=1)
+      alarm.on := 0
+}
 
-   Return (hours>=0 && hours<=23 && minutes>=0 && minutes<=59) ? 1 : 0
+alarmNextDue(alarm, fromZeit) {
+; When the alarm is due next, after fromZeit: at the end of its snooze, even one gone by, or
+; else at its time on the day of fromZeit, or on the day after once that time has gone by.
+; Nothing when it is switched off, or when it repeats and may not ring on that day.
+   If (alarm.on!=1)
+      Return
+
+   If alarm.snz
+      Return alarm.snz
+
+   dueu := SubStr(fromZeit, 1, 8) Format("{:02}{:02}", alarm.h, alarm.m) "00"
+   If (fromZeit>=dueu)
+      dueu += 1, Days
+
+   ; The weekdays and the exceptions are those of the day the alarm rings on. Once today's
+   ; time has gone by, that day is tomorrow - and for an alarm set at 00:00 it always is.
+   ; Testing today instead made such an alarm ring at the end of every ticked day.
+   If (alarm.rep=1 && !alarmAllowedOnDay(dueu, alarm.days))
+      Return
+
+   Return dueu
 }
 
 startAlarmTimer(kpl:=0) {
-; Arms doUserAlarmAlert() for the next time the alarm is due; theChimer() calls it every ten
-; seconds or so, and each call re-arms it with the time left.
+; Arms doUserAlarmAlert() for the alarm due next: alarmArmed, at alarmArmedZeit. theChimer()
+; calls it every ten seconds or so, and each call re-arms it with the time left; kpl="rr"
+; re-arms it at once, after a change to the alarms.
   Static lastzz := 9871
-  If (userAlarmIsSnoozed=1 || kpl="rr")
-  {
+  If (kpl="rr")
      lastzz := 9871
-     alarmArmedZeit := ""
-     Return
-  }
 
   ; Once armed with less than 18 seconds to go, the alarm is left to go off. A call made in
   ; the very second it is due would otherwise take it for one already gone by, turn to the
@@ -7368,54 +7508,44 @@ startAlarmTimer(kpl:=0) {
   If (lastzz<18)
      Return
 
-  canDo := (userMustDoAlarm=1 && isValidAlarmTime(userAlarmHours, userAlarmMins)) ? 1 : 0
-  If canDo
+  nowu := A_Now
+  newu := newAlarm := ""
+  For each, alarm in userAlarmsList
   {
-     nowu := A_Now
-     tH := (StrLen(userAlarmHours)!=2) ? "0" . userAlarmHours : userAlarmHours
-     tM := (StrLen(userAlarmMins)!=2) ? "0" . userAlarmMins : userAlarmMins
-     newu := SubStr(nowu, 1, 8) tH tM . "00"
-     If (nowu>=newu)
-     {
-        newu += 1, Days
-        isAlarmTmrw := (userAlarmRepeated=1) ? 0 : 1
-     } Else
-        isAlarmTmrw := 0
-
-     ; The weekdays and the exceptions are those of the day the alarm rings on. Once today's
-     ; time has gone by, that day is tomorrow - and for an alarm set at 00:00 it always is.
-     ; Testing today instead made such an alarm ring at the end of every ticked day.
-     If (userAlarmRepeated=1)
-        canDo := alarmAllowedOnDay(newu)
+     dueu := alarmNextDue(alarm, nowu)
+     If (dueu && (!newu || dueu<newu))
+        newu := dueu, newAlarm := alarm
   }
 
-  If !canDo
+  alarmArmed := newAlarm
+  alarmArmedZeit := newu
+  If !newu
   {
      lastzz := 9871
-     alarmArmedZeit := ""
      SetTimer, doUserAlarmAlert, Off
      Return
   }
 
   nss := newu
   nss -= nowu, Seconds
+  If (nss<1)   ; a snooze that ended while the computer was asleep
+     nss := 1
+
   lastzz := nss
-  alarmArmedZeit := newu
-  nsd := nss*1000
-  ; ToolTip, % nowu "`n" newu "`n" nss "`n" nsd , , , 2
-  SetTimer, doUserAlarmAlert, % -nsd
+  SetTimer, doUserAlarmAlert, % -nss*1000
 }
 
-alarmAllowedOnDay(dateStamp) {
-; Whether the repeating alarm may ring on the day of dateStamp: its weekday must be ticked and,
-; when celebrations are observed, the day must hold none of the kinds of events excepted. The
-; day is tested in its own right; isHolidayToday and TypeHolidayOccured only describe today,
-; and theChimer() refreshes them on a new day only after it has called startAlarmTimer().
+alarmAllowedOnDay(dateStamp, daysu) {
+; Whether a repeating alarm with these days - see alarmFromRecord() - may ring on the day of
+; dateStamp: its weekday must be ticked and, when celebrations are observed, the day must hold
+; none of the kinds of events excepted. The day is tested in its own right; isHolidayToday and
+; TypeHolidayOccured only describe today, and theChimer() refreshes them on a new day only
+; after it has called startAlarmTimer().
    FormatTime, wdayu, % dateStamp, WDay
-   If !InStr(userAlarmWeekDays, wdayu)
+   If !InStr(daysu, wdayu)
       Return 0
 
-   If (ObserveHolidays!=1 || !RegExMatch(userAlarmWeekDays, "i)[psr]"))
+   If (ObserveHolidays!=1 || !RegExMatch(daysu, "i)[psr]"))
       Return 1
 
    FormatTime, monu, % dateStamp, MM
@@ -7431,7 +7561,73 @@ alarmAllowedOnDay(dateStamp) {
       Return 1
 
    typeu := obju[1]
-   Return (InStr(userAlarmWeekDays, "p") && typeu=3) || (InStr(userAlarmWeekDays, "s") && typeu=2 && ObserveSecularDays=1) || (InStr(userAlarmWeekDays, "r") && typeu=1 && ObserveReligiousDays=1) ? 0 : 1
+   Return (InStr(daysu, "p") && typeu=3) || (InStr(daysu, "s") && typeu=2 && ObserveSecularDays=1) || (InStr(daysu, "r") && typeu=1 && ObserveReligiousDays=1) ? 0 : 1
+}
+
+alarmFromRecord(recu) {
+; An alarm out of its record, as kept in the Alarms section of the settings:
+; on|hours|minutes|snooze minutes|sound|sound repeated every N seconds|repeating|days|message.
+; The days hold the weekdays it rings on (1 is Sunday) and r, s or p for the religious, secular
+; or personal events on whose days it does not. The message comes last, since it may hold a |.
+   p := StrSplit(recu, "|",, 9)
+   onu := p[1], hu := p[2], mu := p[3], snoozeu := p[4], soundu := p[5], frequ := p[6], repu := p[7]
+   BinaryVar(onu, 0)
+   MinMaxVar(hu, 0, 23, 12)
+   MinMaxVar(mu, 0, 59, 30)
+   MinMaxVar(snoozeu, 1, 59, 5)
+   MinMaxVar(soundu, 1, 6, 1)
+   MinMaxVar(frequ, 1, 99, 1)
+   BinaryVar(repu, 0)
+   alarm := {on: onu, h: hu, m: mu, snooze: snoozeu, sound: soundu, freq: frequ, rep: repu}
+   alarm.days := RegExReplace(p[8], "[^1-7psr]")
+   alarm.msg := Trim(p[9])
+   alarm.snz := ""   ; when its snooze ends; it lasts only as long as the session
+   Return alarm
+}
+
+alarmToRecord(alarm) {
+   Return alarm.on "|" alarm.h "|" alarm.m "|" alarm.snooze "|" alarm.sound "|" alarm.freq "|" alarm.rep "|" alarm.days "|" alarm.msg
+}
+
+alarmsListLoad() {
+; Fills userAlarmsList from the Alarms section of the settings, where every alarm has its
+; record - see alarmFromRecord() - under its number. With none stored, the list starts with
+; the default alarm.
+   userAlarmsList := [], recs := []
+   Loop, Parse, % INIdumpSection("Alarms"), `n, `r
+   {
+      p := InStr(A_LoopField, "=")
+      k := SubStr(A_LoopField, 1, p - 1)
+      If (p>1 && isNumber(k) && k>=1)
+         recs[Round(k)] := SubStr(A_LoopField, p + 1)
+   }
+
+   For k, recu in recs   ; in the order of their numbers
+      userAlarmsList.Push(alarmFromRecord(recu))
+
+   If !userAlarmsList.Length()
+   {
+      userAlarmsList.Push(alarmFromRecord(userMustDoAlarm "|" userAlarmHours "|" userAlarmMins "|" userAlarmSnooze "|" userAlarmSound "|" userAlarmFreq "|" userAlarmRepeated "|" userAlarmWeekDays "|" userAlarmMsg))
+      alarmsListSave()
+   }
+}
+
+alarmsListSave(idx:=0) {
+; Writes the alarm numbered idx to the settings or, when idx=0, the whole list afresh, so that
+; an alarm removed leaves nothing behind
+   If idx
+   {
+      INIactionNonGlobal(1, idx, alarmToRecord(userAlarmsList[idx]), "Alarms")
+      Return
+   }
+
+   If (storeSettingsREG=0)
+      IniDelete, %IniFile%, Alarms
+   Else
+      RegDelete, %APPregEntry%\Alarms
+
+   For idx, alarm in userAlarmsList
+      INIactionNonGlobal(1, idx, alarmToRecord(alarm), "Alarms")
 }
 
 getPercentOfAstroSeason(z:=0) {
@@ -13741,7 +13937,6 @@ INIsettings(a) {
   INIaction(a, "DynamicVolume", "SavedSettings")
   INIaction(a, "AutoUnmute", "SavedSettings")
   INIaction(a, "hasHowledDay", "SavedSettings")
-  INIaction(a, "userAlarmSound", "SavedSettings")
   INIaction(a, "userTimerSound", "SavedSettings")
   INIaction(a, "userMuteAllSounds", "SavedSettings")
   INIaction(a, "tickTockNoise", "SavedSettings")
@@ -13768,15 +13963,7 @@ INIsettings(a) {
   INIaction(a, "noTollingWhenLocked", "SavedSettings")
   INIaction(a, "noTollingBgrSounds", "SavedSettings")
   INIaction(a, "NoWelcomePopupInfo", "SavedSettings")
-  INIaction(a, "userMustDoAlarm", "SavedSettings")
-  INIaction(a, "userAlarmMsg", "SavedSettings")
-  INIaction(a, "userAlarmHours", "SavedSettings")
-  INIaction(a, "userAlarmMins", "SavedSettings")
-  INIaction(a, "userAlarmSnooze", "SavedSettings")
   INIaction(a, "AlarmersDarkScreen", "SavedSettings")
-  INIaction(a, "userAlarmRepeated", "SavedSettings")
-  INIaction(a, "userAlarmWeekDays", "SavedSettings")
-  INIaction(a, "userAlarmFreq", "SavedSettings")
   INIaction(a, "userTimerFreq", "SavedSettings")
   INIaction(0, "uiUserCountry", "SavedSettings")
   INIaction(0, "uiUserCity", "SavedSettings")
@@ -13877,7 +14064,6 @@ CheckSettings() {
     BinaryVar(tollNoon, 1)
     BinaryVar(tollHours, 1)
     BinaryVar(tollHoursAmount, 1)
-    BinaryVar(userAlarmRepeated, 0)
     BinaryVar(displayClock, 1)
     BinaryVar(AutoUnmute, 1)
     BinaryVar(tickTockNoise, 0)
@@ -13897,7 +14083,6 @@ CheckSettings() {
     BinaryVar(showTimeWhenIdle, 0)
     BinaryVar(OSDroundCorners, 1)
     BinaryVar(userMuteAllSounds, 0)
-    BinaryVar(userMustDoAlarm, 0)
     BinaryVar(userMustDoTimer, 0)
     BinaryVar(stopWatchDoBeeps, 0)
     BinaryVar(orderedBibleQuotes, 0)
@@ -13940,14 +14125,9 @@ CheckSettings() {
     MinMaxVar(maxBibleLength, 20, 130, 55)
     MinMaxVar(noTollingBgrSounds, 1, 3, 1)
     MinMaxVar(OSDalpha, 75, 255, 230)
-    MinMaxVar(userAlarmSnooze, 1, 59, 5)
-    MinMaxVar(userAlarmSound, 1, 6, 5)
     MinMaxVar(userTimerSound, 1, 6, 5)
-    MinMaxVar(userAlarmMins, 0, 59, 30)
-    MinMaxVar(userAlarmHours, 0, 23, 12)
     MinMaxVar(userTimerMins, 0, 59, 2)
     MinMaxVar(userTimerFreq, 1, 99, 2)
-    MinMaxVar(userAlarmFreq, 1, 99, 4)
     MinMaxVar(showOSDprogressBar, 1, 6, 2)
     MinMaxVar(OSDastralMode, 1, 4, 1)
     MinMaxVar(analogMoonPhases, 0, 2, 0)
