@@ -13800,11 +13800,6 @@ setDarkWinAttribs(hwndGUI, modus:=2) {
    DllCall(AllowDarkModeForWindow, "UPtr", hwndGUI, "int", modus) ; Dark
 }
 
-
-OpenChangeLog() {
-  Try Run, "%A_ScriptDir%\bells-tower-change-log.txt"
-}
-
 ;================================================================
 ; - Load, verify and save settings functions
 ;================================================================
@@ -15887,123 +15882,6 @@ jd_to_islamic(jd) {
 }
 
 
-hebrew_leap(year) {
-    return (mod(((year * 7) + 1), 19) < 7)
-}
-
-hebrew_year_months(year, isLeap) {
-    return isLeap ? 13 : 12
-}
-
-hebrew_delay_1(year) {
-; Test for delay of start of new year and to avoid
-; Sunday, Wednesday, and Friday as start of the new year.
-    months := floor(((235 * year) - 234) / 19)
-    parts := 12084 + (13753 * months)
-    day := (months * 29) + floor(parts / 25920)
-    if (mod((3 * (day + 1)), 7) < 3)
-       day++
-
-    return day
-}
-
-hebrew_delay_2(year) {
-; Check for delay in start of new year due to length of adjacent years
-    last := hebrew_delay_1(year - 1)
-    present := hebrew_delay_1(year)
-    next := hebrew_delay_1(year + 1)
-    zz := ((present - last) = 382) ? 1 : 0
-    if ((next - present) = 356)
-       zz := 2
-
-    return zz
-}
-
-hebrew_year_days(year) {
-; How many days are in a Hebrew year ?
-    return hebrew_to_jd(year + 1, 7, 1) - hebrew_to_jd(year, 7, 1)
-}
-
-hebrew_month_days(year, month) {
-; How many days are in a given month of a given year
-; First of all, dispose of fixed-length 29 day months
-
-    if (month=2 || month=4 || month=6 || month=10 || month=13)
-       return 29
-
-    ; If it is not a leap year, Adar has 29 days
-    isLeap := hebrew_leap(year)
-    if (month=12 && !isLeap)
-       return 29
-
-    zz := mod(hebrew_year_days(year), 10)
-    ; If it's Heshvan, days depend on length of year
-    if (month=8 && zz!=5)
-       return 29
-
-    ; Similarly, Kislev varies with the length of year
-    if (month=9 && zz=3)
-       return 29
-
-    ; Nope, it's a 30 day month
-    return 30
-}
-
-hebrew_to_jd(year, month, day) {
-    Static HEBREW_EPOCH := 347995.5
-    isLeap := hebrew_leap(year)
-    months := hebrew_year_months(year, isLeap)
-    jd := HEBREW_EPOCH + hebrew_delay_1(year) + hebrew_delay_2(year) + day + 1
-
-    mon := 7
-    While, (mon<=months) {
-        jd += hebrew_month_days(year, mon)
-        mon++
-    }
-
-    if (month < 7) {
-        mon := 1
-        While, (mon<=months) {
-            jd += hebrew_month_days(year, mon)
-            mon++
-        }
-    }
-
-    return jd
-}
-
-jd_to_hebrew(jd) {
-    Static HEBREW_EPOCH := 347995.5
-
-    jd := floor(jd) + 0.5
-    count := floor(((jd - HEBREW_EPOCH) * 98496.0) / 35975351.0)
-    year := i := count - 1
-    Loop
-    {
-        zjd := hebrew_to_jd(i, 7, 1)
-        If (jd >= zjd)
-           Break
-
-        i++
-        year++
-    }
-
-    first := (jd < hebrew_to_jd(year, 1, 1)) ? 7 : 1
-    month := i := first
-    Loop
-    {
-        dayum := hebrew_month_days(year, i)
-        zjd := hebrew_to_jd(year, i, dayum)
-        If (jd > zjd)
-           Break
-
-        i++
-        month++
-    }
-
-    day := (jd - hebrew_to_jd(year, month, 1)) + 1
-    return [year, month, day]
-}
 
 FolderExist(filePath) {
    If (StrLen(filePath)<3)
