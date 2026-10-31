@@ -13554,19 +13554,6 @@ PanelTodayInfos() {
     btnH := (PrefsLargeFonts=1) ? 35 : 28
     nW := (PrefsLargeFonts=1) ? 65 : 60
     nH := (PrefsLargeFonts=1) ? 35 : 30
-    userAlarmWday1 := InStr(userAlarmWeekDays, "1") ? 1 : 0
-    userAlarmWday2 := InStr(userAlarmWeekDays, "2") ? 1 : 0
-    userAlarmWday3 := InStr(userAlarmWeekDays, "3") ? 1 : 0
-    userAlarmWday4 := InStr(userAlarmWeekDays, "4") ? 1 : 0
-    userAlarmWday5 := InStr(userAlarmWeekDays, "5") ? 1 : 0
-    userAlarmWday6 := InStr(userAlarmWeekDays, "6") ? 1 : 0
-    userAlarmWday7 := InStr(userAlarmWeekDays, "7") ? 1 : 0
-    userAlarmExceptPerso := InStr(userAlarmWeekDays, "p") ? 1 : 0
-    userAlarmExceptRelu := InStr(userAlarmWeekDays, "r") ? 1 : 0
-    userAlarmExceptSeculu := InStr(userAlarmWeekDays, "s") ? 1 : 0
-    If !userAlarmWeekDays
-       userAlarmWday7 := userAlarmWday1 := 1
-
     testCelebrations(1)
     zx := wrapCalculateEquiSolsDates(A_YDay)
     If (InStr(zx.msg, "now") && zx.r=1)
